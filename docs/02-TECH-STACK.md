@@ -30,7 +30,6 @@ cd wall-painting-app
 # Install core dependencies
 npm install zustand
 npm install @reduxjs/toolkit react-redux
-npm install @reduxjs/toolkit/query
 npm install react-hook-form zod
 npm install axios
 npm install bcryptjs jsonwebtoken
