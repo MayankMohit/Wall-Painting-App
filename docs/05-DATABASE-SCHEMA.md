@@ -13,9 +13,7 @@
   role: 'painter' | 'owner' | 'admin',
   name: String,
   phone: String,
-  companyId: ObjectId (optional, for painters),
   fcmTokens: [String],
-  profileImage: String (optional, Cloudinary URL),
   status: 'active' | 'inactive' | 'suspended',
   createdAt: Date,
   updatedAt: Date
@@ -26,25 +24,20 @@
 ```javascript
 {
   _id: ObjectId,
-  jobNumber: String (unique),
-  companyId: ObjectId,
-  clientId: ObjectId,
+  companyName: String,
   ownerId: ObjectId,
-  jobName: String,
-  location: String,
-  description: String,
-  status: 'draft' | 'active' | 'completed' | 'invoiced',
+  description: String (optional),
+  status: 'active' | 'completed' | 'invoiced',
+  painters: [ObjectId] (only painter type user),
+  generatedExcel: ObjectId (generated file) | null,
+  generatedPDFFile: ObjectId (generated file) | null,
+  generatedPDFPhotos: ObjectId (generated file) | null,
   startDate: Date,
   endDate: Date,
-  budget: Number,
   createdAt: Date,
   updatedAt: Date
 }
 
-// Indexes
-db.jobs.createIndex({ jobNumber: 1 }, { unique: true });
-db.jobs.createIndex({ companyId: 1, status: 1 });
-db.jobs.createIndex({ ownerId: 1 });
 ```
 
 ### 3. Submissions Collection
@@ -53,28 +46,15 @@ db.jobs.createIndex({ ownerId: 1 });
   _id: ObjectId,
   painterId: ObjectId,
   jobId: ObjectId,
-  generatedNumber: String (unique), // #0001, #0002, etc.
-  location: String,
-  paintingSize: String,
-  images: [{
-    cloudinaryId: String,
-    cloudinaryUrl: String,
-    watermarkedUrl: String,
-    uploadedAt: Date
-  }],
-  status: 'pending' | 'approved' | 'rejected' | 'archived',
+  images: [OblectId] (photos collection),
+  status: 'pending' | 'approved' | 'rejected',
   submittedAt: Date,
-  canEditUntil: Date,
+  canEditUntil: boolean, (if approved, cannot edit)
   approvedAt: Date,
-  approvedBy: ObjectId,
   createdAt: Date,
   updatedAt: Date
 }
 
-// Indexes
-db.submissions.createIndex({ painterId: 1, jobId: 1 });
-db.submissions.createIndex({ jobId: 1, status: 1 });
-db.submissions.createIndex({ generatedNumber: 1 }, { unique: true });
 ```
 
 ### 4. GeneratedFiles Collection
@@ -82,12 +62,12 @@ db.submissions.createIndex({ generatedNumber: 1 }, { unique: true });
 {
   _id: ObjectId,
   jobId: ObjectId,
-  fileType: 'excel' | 'pdf_photos',
+  fileType: 'excel' | 'pdf_file' | 'pdf_photos',
   fileName: String,
   r2Path: String,
   r2Url: String,
   fileSize: Number,
-  status: 'generating' | 'ready' | 'archived',
+  status: 'generating' | 'ready',
   generatedBy: ObjectId,
   generatedAt: Date,
   expiresAt: Date,
@@ -96,18 +76,13 @@ db.submissions.createIndex({ generatedNumber: 1 }, { unique: true });
   updatedAt: Date
 }
 
-// Indexes
-db.generatedFiles.createIndex({ jobId: 1, fileType: 1 });
-db.generatedFiles.createIndex({ generatedAt: -1 });
-db.generatedFiles.createIndex({ expiresAt: 1 });
 ```
 
 ### 5. BackgroundJobs Collection
 ```javascript
 {
   _id: ObjectId,
-  jobType: 'watermarking' | 'excel' | 'pdf_generation' | 'email',
-  submissionId: ObjectId,
+  jobType: 'watermarking' | 'excel_gen' | 'pdf_file_gen' | 'pdf_photo_gen' | 'email',
   status: 'pending' | 'processing' | 'completed' | 'failed',
   progress: Number (0-100),
   error: String,
@@ -118,28 +93,25 @@ db.generatedFiles.createIndex({ expiresAt: 1 });
   updatedAt: Date
 }
 
-// Indexes
-db.backgroundJobs.createIndex({ jobType: 1, status: 1 });
-db.backgroundJobs.createIndex({ createdAt: -1 });
 ```
 
-### 6. Companies Collection
+### 6. Photos Collection
 ```javascript
 {
   _id: ObjectId,
-  name: String,
-  ownerId: ObjectId,
-  address: String,
-  city: String,
-  phone: String,
-  email: String,
-  status: 'active' | 'inactive',
+  painterId: ObjectId,
+  jobId: ObjectId,
+  cloudinaryId: String,
+  cloudinaryUrl: String,
+  watermarkedUrl: String,
+  location: String,
+  length: decimal,
+  width: decimal,
+  generatedNumber: String (unique), // 0001, 0002
   createdAt: Date,
   updatedAt: Date
 }
 
-// Indexes
-db.companies.createIndex({ ownerId: 1 });
 ```
 
 ---
