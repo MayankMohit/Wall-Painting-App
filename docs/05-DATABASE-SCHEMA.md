@@ -29,6 +29,7 @@
   description: String (optional),
   status: 'active' | 'completed' | 'invoiced',
   painters: [ObjectId] (only painter type user),
+  submissions: [ObjectId],
   generatedExcel: ObjectId (generated file) | null,
   generatedPDFFile: ObjectId (generated file) | null,
   generatedPDFPhotos: ObjectId (generated file) | null,
@@ -46,7 +47,10 @@
   _id: ObjectId,
   painterId: ObjectId,
   jobId: ObjectId,
-  images: [OblectId] (photos collection),
+  photoNo: Int,
+  location: String,
+  size: [pair<int,int>]
+  images: [OblectId],
   status: 'pending' | 'approved' | 'rejected',
   submittedAt: Date,
   canEditUntil: boolean, (if approved, cannot edit)
@@ -95,18 +99,13 @@
 
 ```
 
-### 6. Photos Collection
+### 6. Single Photo Detail
 ```javascript
 {
   _id: ObjectId,
-  painterId: ObjectId,
-  jobId: ObjectId,
   cloudinaryId: String,
   cloudinaryUrl: String,
   watermarkedUrl: String,
-  location: String,
-  length: decimal,
-  width: decimal,
   generatedNumber: String (unique), // 0001, 0002
   createdAt: Date,
   updatedAt: Date
