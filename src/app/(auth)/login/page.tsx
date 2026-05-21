@@ -2,6 +2,7 @@
 
 import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 
 export default function LoginPage() {
@@ -13,7 +14,7 @@ export default function LoginPage() {
   const onSubmit = (data: any) => {
     console.log("Form Submitted:", data);
     // Fake login as owner by default for now
-    login(data.email, 'owner'); 
+    login(data.email, 'owner');
     router.push('/dashboard'); // Route to generic dashboard
   };
 
@@ -39,15 +40,24 @@ export default function LoginPage() {
         <div>
           <label className="block text-sm font-medium text-gray-700">Email</label>
           <input
-  {...register('email')}
-  type="email"
-  className="mt-1 block w-full rounded-md border-2 border-gray-400 bg-white p-3 text-gray-900 placeholder-gray-500 shadow-sm focus:border-blue-600 focus:ring-blue-600 focus:outline-none"
-  placeholder="you@example.com"
-/>
+            {...register('email')}
+            type="email"
+            className="mt-1 block w-full rounded-md border-2 border-gray-400 bg-white p-3 text-gray-900 placeholder-gray-500 shadow-sm focus:border-blue-600 focus:ring-blue-600 focus:outline-none"
+            placeholder="you@example.com"
+          />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Password</label>
+          {/* 2. Added a flex container to put the label and link side-by-side */}
+          <div className="flex justify-between items-center">
+            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <Link 
+              href="/forgot-password" 
+              className="text-sm font-medium text-blue-600 hover:text-blue-500 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
           <input
             {...register('password')}
             type="password"
@@ -63,6 +73,14 @@ export default function LoginPage() {
           Sign In
         </button>
       </form>
+
+      {/* Optional: Link to Register page if they don't have an account */}
+      <div className="text-center text-sm text-gray-600">
+        Don't have an account?{' '}
+        <Link href="/register" className="font-medium text-blue-600 hover:underline">
+          Sign up
+        </Link>
+      </div>
 
       {/* DEV HACK BUTTONS - Remove before production! */}
       <div className="pt-6 mt-6 border-t border-gray-200">
