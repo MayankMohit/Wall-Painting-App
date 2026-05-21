@@ -15,6 +15,12 @@
   phone: String,
   fcmTokens: [String],
   status: 'active' | 'inactive' | 'suspended',
+  // Owner-only: reusable letterhead for File PDF generation (persisted on first use,
+  // pre-filled in UI on subsequent generates)
+  letterhead: {
+    companyName: String,
+    address: String,
+  } | null,
   createdAt: Date,
   updatedAt: Date
 }
@@ -33,6 +39,7 @@
   generatedExcel: ObjectId (generated file) | null,
   generatedPDFFile: ObjectId (generated file) | null,
   generatedPDFPhotos: ObjectId (generated file) | null,
+  nextGeneratedNumber: Number,
   startDate: Date,
   endDate: Date,
   createdAt: Date,
@@ -49,12 +56,15 @@
   jobId: ObjectId,
   photoNo: Int,
   location: String,
-  size: [pair<int,int>]
+  sizes: [pairs of number],
   images: [OblectId],
   status: 'pending' | 'approved' | 'rejected',
   submittedAt: Date,
-  canEditUntil: boolean, (if approved, cannot edit)
   approvedAt: Date,
+  rejectedAt: Date,
+  revokedAt: Date,
+  rejectionReason: String,
+  revokeNote: String,
   createdAt: Date,
   updatedAt: Date
 }
@@ -99,36 +109,20 @@
 
 ```
 
-### 6. Single Photo Detail
+### 6. Photos Collection
 ```javascript
 {
   _id: ObjectId,
+  jobId: ObjectId,
   cloudinaryId: String,
   cloudinaryUrl: String,
-  watermarkedUrl: String,
+  r2Path: String,
+  watermarkedUrl: String (default to null),
   generatedNumber: String (unique), // 0001, 0002
   createdAt: Date,
   updatedAt: Date
 }
 
-```
-
----
-
-## Database Optimization
-
-```javascript
-// Indexes for frequently accessed queries
-db.jobs.createIndex({ companyId: 1, status: 1 });
-db.submissions.createIndex({ jobId: 1, status: 1 });
-db.submissions.createIndex({ painterId: 1 });
-db.generatedFiles.createIndex({ jobId: 1 });
-
-// Lean queries (plain JS, faster)
-const submissions = await Submission
-  .find({ jobId })
-  .select('generatedNumber location paintingSize') // Only needed fields
-  .lean();
 ```
 
 ---
@@ -139,5 +133,5 @@ const submissions = await Submission
 |------|---------|------------|------|
 | User accounts, jobs, submissions | MongoDB Atlas | 5GB free | Free tier |
 | Original images | Cloudinary | 25GB/month free | Free tier |
-| Watermarked images, PDFs, Excel | Cloudflare R2 | 5GB forever free | Free tier |
+| Watermarked images, PDFs, Excel | Cloudflare R2 | 10GB forever free | Free tier |
 | Session cache, job queue | Redis (Upstash) | 10K commands/day free | Free tier |
