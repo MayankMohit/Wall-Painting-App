@@ -14,17 +14,24 @@ POST /api/auth/login
   Response: { token, user }
 
 POST /api/auth/logout
-  Response: { success: true } 
+  Response: { success: true }
 
 POST /api/auth/verify
   Headers: { Authorization: "Bearer <token>" }
   Response: { user, valid: true }
 
-PUT /api/auth/:userId
-  `edit user profile`
+GET /api/profile
+  Description: Get current logged-in user details (reads JWT)
+  Response: { user }
 
-DELETE /api/auth/:userId
-  `delete a user profile.`
+PUT /api/profile
+  Description: Edit current user profile
+  Body: { name?, phone?, companyDetails? }
+  Response: { updatedUser }
+
+DELETE /api/profile
+  Description: Delete own account
+  Response: { success: true } 
 
 
 ```
