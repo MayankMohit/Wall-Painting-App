@@ -1,7 +1,6 @@
-// This file usess a singleton pattern to manage the MongoDB connection using Mongoose. 
+// This file uses a singleton pattern to manage the MongoDB connection using Mongoose. 
 // It ensures that only one connection is established and reused across the application, 
 // which is especially important in serverless environments where functions may be invoked multiple times.
-
 
 import mongoose from 'mongoose';
 

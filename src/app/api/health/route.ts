@@ -1,14 +1,11 @@
-import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
+import { ok, err } from '@/lib/api-response';
 
 export async function GET() {
   try {
     await connectDB();
-    return NextResponse.json({ status: 'ok', db: 'connected' });
+    return ok({ status: 'ok', db: 'connected', timestamp: new Date().toISOString() });
   } catch (error) {
-    return NextResponse.json(
-      { status: 'error', db: 'disconnected', message: (error as Error).message },
-      { status: 500 }
-    );
+    return err(`DB unavailable: ${(error as Error).message}`, 503);
   }
 }

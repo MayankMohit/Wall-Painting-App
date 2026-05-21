@@ -1,0 +1,42 @@
+import mongoose, { Schema, Document, Types } from 'mongoose';
+
+export interface IJob extends Document {
+  _id: Types.ObjectId;
+  companyName: string;
+  ownerId: Types.ObjectId;
+  description?: string;
+  status: 'active' | 'completed' | 'invoiced';
+  painters: Types.ObjectId[];
+  submissions: Types.ObjectId[];
+  generatedExcel: Types.ObjectId | null;
+  generatedPDFFile: Types.ObjectId | null;
+  generatedPDFPhotos: Types.ObjectId | null;
+  nextGeneratedNumber: number;
+  startDate: Date;
+  endDate: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const JobSchema = new Schema<IJob>(
+  {
+    companyName: { type: String, required: true, trim: true },
+    ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    description: { type: String, trim: true },
+    status: { type: String, enum: ['active', 'completed', 'invoiced'], default: 'active' },
+    painters: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    submissions: [{ type: Schema.Types.ObjectId, ref: 'Submission' }],
+    generatedExcel: { type: Schema.Types.ObjectId, ref: 'GeneratedFile', default: null },
+    generatedPDFFile: { type: Schema.Types.ObjectId, ref: 'GeneratedFile', default: null },
+    generatedPDFPhotos: { type: Schema.Types.ObjectId, ref: 'GeneratedFile', default: null },
+    nextGeneratedNumber: { type: Number, default: 1 },
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
+  },
+  { timestamps: true }
+);
+
+JobSchema.index({ ownerId: 1, status: 1 });
+JobSchema.index({ painters: 1 });
+
+export const Job = (mongoose.models.Job as mongoose.Model<IJob>) || mongoose.model<IJob>('Job', JobSchema);
