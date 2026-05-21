@@ -29,6 +29,8 @@ export default function JobDetailsPage({ params }: { params: Promise<{ jobId: st
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true; // Safety flag for Next.js routing
+
     // ---------------------------------------------------------
     // REAL API LOGIC (Matches Step 3 & 4 of your workflow)
     // ---------------------------------------------------------
@@ -37,16 +39,18 @@ export default function JobDetailsPage({ params }: { params: Promise<{ jobId: st
       const token = localStorage.getItem('token');
       
       // Step 3: Open Job
-      const jobRes = await fetch(`/api/jobs/${params.jobId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const jobRes = await fetch(`/api/jobs/${jobId}`, { headers: { Authorization: `Bearer ${token}` } });
       const jobData = await jobRes.json();
       
       // Step 4: See my submissions
-      const subRes = await fetch(`/api/jobs/${params.jobId}/submissions`, { headers: { Authorization: `Bearer ${token}` } });
+      const subRes = await fetch(`/api/jobs/${jobId}/submissions`, { headers: { Authorization: `Bearer ${token}` } });
       const subData = await subRes.json();
 
-      setJob(jobData);
-      setSubmissions(subData.submissions);
-      setIsLoading(false);
+      if (isMounted) {
+        setJob(jobData);
+        setSubmissions(subData.submissions);
+        setIsLoading(false);
+      }
     };
     fetchJobAndSubmissions();
     */
@@ -54,25 +58,34 @@ export default function JobDetailsPage({ params }: { params: Promise<{ jobId: st
     // ---------------------------------------------------------
     // DUMMY DATA FOR FRONTEND TESTING
     // ---------------------------------------------------------
-    const timer = setTimeout(() => {
-      setJob({
-        _id: jobId,
-        jobNumber: '#1042',
-        jobName: 'Tech Park Block A - Exterior',
-        location: '123 Main St, Tech Park',
-        status: 'active',
-      });
+    const fetchDummyData = async () => {
+      setIsLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 600));
 
-      setSubmissions([
-        { _id: 'sub_1', photoNo: 'Wall A-12', status: 'pending', submittedAt: '2 hours ago' },
-        { _id: 'sub_2', photoNo: 'Wall A-13', status: 'approved', submittedAt: '1 day ago' },
-        { _id: 'sub_3', photoNo: 'Wall B-01', status: 'rejected', submittedAt: '2 days ago' },
-      ]);
-      
-      setIsLoading(false);
-    }, 600);
+      if (isMounted) {
+        setJob({
+          _id: jobId,
+          jobNumber: '#1042',
+          jobName: 'Tech Park Block A - Exterior',
+          location: '123 Main St, Tech Park',
+          status: 'active',
+        });
 
-    return () => clearTimeout(timer);
+        setSubmissions([
+          { _id: 'sub_1', photoNo: 'Wall A-12', status: 'pending', submittedAt: '2 hours ago' },
+          { _id: 'sub_2', photoNo: 'Wall A-13', status: 'approved', submittedAt: '1 day ago' },
+          { _id: 'sub_3', photoNo: 'Wall B-01', status: 'rejected', submittedAt: '2 days ago' },
+        ]);
+        
+        setIsLoading(false);
+      }
+    };
+
+    fetchDummyData();
+
+    return () => {
+      isMounted = false; // Cleanup flag on unmount
+    };
   }, [jobId]);
 
   if (isLoading) {
@@ -99,7 +112,7 @@ export default function JobDetailsPage({ params }: { params: Promise<{ jobId: st
           </div>
           {/* Link to Step 7 (Create Submission) */}
           <Link 
-            href={`/painter/jobs/${jobId}/submit`}
+            href={`/painter/jobs/${jobId}/new`}
             className="bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 transition-colors shadow-sm"
           >
             + Add New Submission
@@ -125,11 +138,14 @@ export default function JobDetailsPage({ params }: { params: Promise<{ jobId: st
                 {sub.status === 'approved' && <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-bold uppercase">Approved</span>}
                 {sub.status === 'rejected' && <span className="bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-bold uppercase">Rejected</span>}
 
-                {/* Steps 8 & 9: Edit/Resubmit Logic */}
+                {/* Fixed: Converted to Link pointing to the new dynamic route */}
                 {(sub.status === 'pending' || sub.status === 'rejected') && (
-                  <button className="text-sm text-blue-600 hover:underline font-medium border border-blue-200 px-3 py-1.5 rounded hover:bg-blue-50">
+                  <Link 
+                    href={`/painter/jobs/${jobId}/submissions/${sub._id}`}
+                    className="text-sm text-blue-600 hover:underline font-medium border border-blue-200 px-3 py-1.5 rounded hover:bg-blue-50"
+                  >
                     {sub.status === 'rejected' ? 'Fix & Resubmit' : 'Edit'}
-                  </button>
+                  </Link>
                 )}
               </div>
             </div>

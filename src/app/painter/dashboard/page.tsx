@@ -20,38 +20,46 @@ export default function PainterDashboard() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // ---------------------------------------------------------
-    // DUMMY DATA FOR FRONTEND TESTING
-    // ---------------------------------------------------------
-    // Faking an 800ms network request so you can see the loading state
+    let isMounted = true; // Tracks if the component is currently visible
 
-    console.log("Dashboard mounted, starting timer..."); // <-- ADDED FOR DEBUGGING
-    
-    const timer = setTimeout(() => {
-      // console.log("Timer finished, setting jobs..."); // <-- ADDED FOR DEBUGGING
+    const fetchJobs = async () => {
+      // 1. Force loading state to true whenever this runs
+      setIsLoading(true); 
 
-    // setTimeout(() => {
-      setJobs([
-        {
-          _id: 'job_1042',
-          jobNumber: '#1042',
-          jobName: 'Tech Park Block A - Exterior',
-          location: '123 Main St, Tech Park',
-          status: 'active',
-          mySubmissions: 4,
-        },
-        {
-          _id: 'job_1088',
-          jobNumber: '#1088',
-          jobName: 'Corporate Blvd - Main Lobby',
-          location: '456 Corporate Blvd',
-          status: 'active',
-          mySubmissions: 0,
-        },
-      ]);
-      setIsLoading(false);
-    }, 800); 
-    return () => {clearTimeout(timer)}; // Cleanup timeout on unmount
+      // 2. Simulate the API delay (or eventually use real await fetch('/api/jobs'))
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // 3. ONLY update the state if the user hasn't clicked away
+      if (isMounted) {
+        setJobs([
+          {
+            _id: 'job_1042',
+            jobNumber: '#1042',
+            jobName: 'Tech Park Block A - Exterior',
+            location: '123 Main St, Tech Park',
+            status: 'active',
+            mySubmissions: 4,
+          },
+          {
+            _id: 'job_1088',
+            jobNumber: '#1088',
+            jobName: 'Corporate Blvd - Main Lobby',
+            location: '456 Corporate Blvd',
+            status: 'active',
+            mySubmissions: 0,
+          },
+        ]);
+        setIsLoading(false);
+      }
+    };
+
+    fetchJobs();
+
+    // Cleanup: If the component unmounts, just flip the flag.
+    // This stops React from trying to update state on a page that isn't there!
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return (
@@ -107,7 +115,6 @@ export default function PainterDashboard() {
                 >
                   View Details
                 </Link>
-                {/* Links directly to the Submission form */}
                 
               </div>
             </div>
