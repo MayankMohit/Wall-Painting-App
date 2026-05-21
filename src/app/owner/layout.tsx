@@ -1,12 +1,13 @@
 'use client';
 
-import { useAuthStore } from '@/store/authStore';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/authStore';
 
 export default function OwnerLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuthStore();
+  const pathname = usePathname();
   const router = useRouter();
+  const { logout, user } = useAuthStore();
 
   const handleLogout = () => {
     logout();
@@ -14,40 +15,66 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Admin/Owner Top Navigation Bar - Dark theme to distinguish from Painter */}
-      <nav className="bg-slate-900 shadow-md p-4 text-white flex justify-between items-center">
-        <div className="flex items-center gap-8">
-          <h1 className="font-bold text-xl tracking-wide">
-            WallPainting <span className="text-blue-400">APP</span>
-          </h1>
-          
-          {/* Owner specific navigation links */}
-          <div className="hidden md:flex gap-6 text-sm font-medium text-slate-300">
-            <Link href="/owner/dashboard" className="hover:text-white transition-colors">
-              Dashboard
-            </Link>
-            <Link href="/owner/jobs" className="hover:text-white transition-colors">
-              Manage Jobs
-            </Link>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Global Navigation Bar for Owners */}
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            
+            {/* Left Side: Logo & Main Links */}
+            <div className="flex items-center gap-8">
+              <div className="flex-shrink-0 flex items-center">
+                <span className="text-xl font-black text-indigo-600 tracking-tight">
+                  WallPainter <span className="text-gray-900 font-medium text-sm border-l-2 border-gray-300 ml-2 pl-2">Admin</span>
+                </span>
+              </div>
+              
+              <div className="hidden sm:flex space-x-2">
+                <Link 
+                  href="/owner/dashboard" 
+                  className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${
+                    pathname === '/owner/dashboard'
+                      ? 'bg-indigo-50 text-indigo-700' 
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  Dashboard
+                </Link>
+                <Link 
+                  href="/owner/jobs" 
+                  className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${
+                    pathname.includes('/owner/jobs') 
+                      ? 'bg-indigo-50 text-indigo-700' 
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  All Jobs
+                </Link>
+              </div>
+            </div>
 
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-slate-300">
-            Welcome, <strong>{user?.name || 'Owner'}</strong>
-          </span>
-          <button 
-            onClick={handleLogout}
-            className="text-sm bg-slate-800 border border-slate-700 text-slate-300 px-3 py-1 rounded hover:bg-slate-700 hover:text-white transition-colors"
-          >
-            Logout
-          </button>
+            {/* Right Side: Profile & Logout */}
+            <div className="flex items-center gap-4">
+              <Link 
+                href="/owner/profile"
+                className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors"
+              >
+                {user?.name || 'Owner Profile'}
+              </Link>
+              <div className="h-6 w-px bg-gray-300"></div>
+              <button 
+                onClick={handleLogout}
+                className="text-sm font-bold text-gray-500 hover:text-red-600 transition-colors px-4 py-2 rounded-md hover:bg-red-50 border border-transparent hover:border-red-100"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
         </div>
       </nav>
 
-      {/* Main Page Content */}
-      <main className="max-w-6xl mx-auto p-6">
+      {/* Main Content Area */}
+      <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         {children}
       </main>
     </div>

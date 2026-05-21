@@ -2,147 +2,150 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useAuthStore } from '@/store/authStore';
 
-// Data structure matching GET /api/jobs for an Owner
-interface OwnerJob {
+interface DashboardStats {
+  activeJobs: number;
+  pendingReviews: number;
+  activePainters: number;
+}
+
+interface RecentJob {
   _id: string;
   jobNumber: string;
   jobName: string;
-  status: 'active' | 'completed';
-  paintersAssigned: number;
-  pendingSubmissions: number;
+  pendingCount: number;
 }
 
 export default function OwnerDashboard() {
-  const { user } = useAuthStore();
-  const [jobs, setJobs] = useState<OwnerJob[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentJobs, setRecentJobs] = useState<RecentJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // ---------------------------------------------------------
-    // DUMMY DATA FOR FRONTEND TESTING
-    // ---------------------------------------------------------
-    const timer = setTimeout(() => {
-      setJobs([
-        {
-          _id: 'job_1042',
-          jobNumber: '#1042',
-          jobName: 'Tech Park Block A - Exterior',
-          status: 'active',
-          paintersAssigned: 3,
-          pendingSubmissions: 5, // Requires owner approval!
-        },
-        {
-          _id: 'job_1088',
-          jobNumber: '#1088',
-          jobName: 'Corporate Blvd - Main Lobby',
-          status: 'completed',
-          paintersAssigned: 1,
-          pendingSubmissions: 0,
-        },
-      ]);
-      setIsLoading(false);
-    }, 600);
+    let isMounted = true;
 
-    return () => clearTimeout(timer);
+    const fetchDashboardData = async () => {
+      setIsLoading(true);
+
+      // ---------------------------------------------------------
+      // API TESTING PLACEHOLDER: GET /api/owner/dashboard
+      // ---------------------------------------------------------
+      await new Promise(resolve => setTimeout(resolve, 600));
+
+      if (isMounted) {
+        setStats({
+          activeJobs: 12,
+          pendingReviews: 8,
+          activePainters: 5,
+        });
+
+        setRecentJobs([
+          { _id: 'job_1042', jobNumber: '#1042', jobName: 'Tech Park Block A - Exterior', pendingCount: 3 },
+          { _id: 'job_1088', jobNumber: '#1088', jobName: 'Corporate Blvd - Main Lobby', pendingCount: 5 },
+          { _id: 'job_1090', jobNumber: '#1090', jobName: 'City Center Mall - Level 1', pendingCount: 0 },
+        ]);
+        
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+
+    return () => { isMounted = false; };
   }, []);
 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <span className="ml-3 text-gray-500 font-medium">Loading command center...</span>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header Section */}
-      <header className="flex justify-between items-end border-b border-slate-200 pb-6">
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex justify-between items-end border-b border-gray-200 pb-6">
         <div>
-          <h2 className="text-3xl font-bold text-slate-900">
-            Owner Overview
-          </h2>
-          <p className="text-slate-500 mt-2">Manage your projects and review painter submissions.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Owner Dashboard</h1>
+          <p className="text-gray-500 mt-2">Here is what is happening across your projects today.</p>
         </div>
-        
-        {/* Link to create a new job */}
         <Link 
-          href="/owner/jobs/new" 
-          className="bg-slate-900 text-white px-5 py-2.5 rounded-md font-medium hover:bg-slate-800 transition-colors shadow-sm flex items-center gap-2"
+          href="/owner/jobs/new"
+          className="bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-2"
         >
           <span>+</span> Create New Job
         </Link>
-      </header>
+      </div>
 
-      {/* High-Level Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">Active Jobs</div>
-          <div className="text-3xl font-bold text-slate-900 mt-1">12</div>
+      {/* Top Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
+          <div className="bg-indigo-100 p-4 rounded-lg text-indigo-600">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">Active Jobs</p>
+            <p className="text-3xl font-black text-gray-900">{stats?.activeJobs}</p>
+          </div>
         </div>
-        <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">Pending Approvals</div>
-          <div className="text-3xl font-bold text-amber-600 mt-1">5</div>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-yellow-200 flex items-center gap-4 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-2 h-full bg-yellow-400"></div>
+          <div className="bg-yellow-100 p-4 rounded-lg text-yellow-600">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">Pending Reviews</p>
+            <p className="text-3xl font-black text-gray-900">{stats?.pendingReviews}</p>
+          </div>
         </div>
-        <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">Total Painters</div>
-          <div className="text-3xl font-bold text-slate-900 mt-1">8</div>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
+          <div className="bg-emerald-100 p-4 rounded-lg text-emerald-600">
+             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">Active Painters</p>
+            <p className="text-3xl font-black text-gray-900">{stats?.activePainters}</p>
+          </div>
         </div>
       </div>
 
-      {/* Jobs List */}
-      <div>
-        <h3 className="text-xl font-bold text-slate-900 mb-4">Recent Projects</h3>
+      {/* Jobs Needing Attention */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+          <h2 className="text-lg font-bold text-gray-900">Recent Jobs</h2>
+          <Link href="/owner/jobs" className="text-indigo-600 text-sm font-bold hover:underline">
+            View All Jobs →
+          </Link>
+        </div>
         
-        {isLoading ? (
-          <div className="flex justify-center py-10">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm uppercase tracking-wider">
-                  <th className="p-4 font-medium">Job ID & Name</th>
-                  <th className="p-4 font-medium">Status</th>
-                  <th className="p-4 font-medium">Painters</th>
-                  <th className="p-4 font-medium">Submissions</th>
-                  <th className="p-4 font-medium text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {jobs.map((job) => (
-                  <tr key={job._id} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-4">
-                      <div className="font-bold text-slate-900">{job.jobNumber}</div>
-                      <div className="text-sm text-slate-500">{job.jobName}</div>
-                    </td>
-                    <td className="p-4">
-                      <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase ${
-                        job.status === 'active' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                      }`}>
-                        {job.status}
-                      </span>
-                    </td>
-                    <td className="p-4 text-slate-600">{job.paintersAssigned} assigned</td>
-                    <td className="p-4">
-                      {job.pendingSubmissions > 0 ? (
-                        <span className="flex items-center gap-1.5 text-amber-600 font-medium text-sm">
-                          <span className="h-2 w-2 bg-amber-500 rounded-full animate-pulse"></span>
-                          {job.pendingSubmissions} to review
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 text-sm">Up to date</span>
-                      )}
-                    </td>
-                    <td className="p-4 text-right">
-                      <Link 
-                        href={`/owner/jobs/${job._id}`}
-                        className="text-blue-600 hover:text-blue-800 font-medium text-sm border border-slate-200 px-3 py-1.5 rounded bg-white hover:bg-slate-50"
-                      >
-                        Manage
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <div className="divide-y divide-gray-200">
+          {recentJobs.map((job) => (
+            <div key={job._id} className="p-6 flex items-center justify-between hover:bg-gray-50 transition-colors">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="text-sm font-bold text-indigo-600">{job.jobNumber}</span>
+                  {job.pendingCount > 0 && (
+                    <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded-full font-bold animate-pulse">
+                      {job.pendingCount} Pending Photos
+                    </span>
+                  )}
+                </div>
+                <h3 className="font-bold text-gray-900 text-lg">{job.jobName}</h3>
+              </div>
+              
+              <Link 
+                href={`/owner/jobs/${job._id}`}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-indigo-600 transition-colors bg-white shadow-sm"
+              >
+                Manage Job
+              </Link>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -38,7 +38,9 @@ src/
 │   │   │       ├── painters/[pid]/page.tsx        # painter's submissions
 │   │   │       ├── submissions/page.tsx           # all submissions, filter chips
 │   │   │       ├── submissions/[id]/page.tsx      # approve/reject UI
-│   │   │       └── files/page.tsx                 # generated files, generate button
+│   │   │       ├── files/page.tsx                 # generated files, generate button
+                ├── page.tsx  
+                └── layout.tsx               
 │   │   └── profile/page.tsx
 │   │
 │   ├── (admin)/                      # admin shell
