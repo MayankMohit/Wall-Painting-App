@@ -41,6 +41,10 @@ const SubmissionSchema = new Schema<ISubmission>(
 SubmissionSchema.index({ jobId: 1, status: 1 });
 SubmissionSchema.index({ painterId: 1, jobId: 1 });
 
+if (process.env.NODE_ENV === 'development') {
+  delete mongoose.models['Submission'];
+}
+
 export const Submission =
   (mongoose.models.Submission as mongoose.Model<ISubmission>) ||
   mongoose.model<ISubmission>('Submission', SubmissionSchema);

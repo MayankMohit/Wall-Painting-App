@@ -24,6 +24,10 @@ const NotificationSchema = new Schema<INotification>(
 
 NotificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
 
+if (process.env.NODE_ENV === 'development') {
+  delete mongoose.models['Notification'];
+}
+
 export const Notification =
   (mongoose.models.Notification as mongoose.Model<INotification>) ||
   mongoose.model<INotification>('Notification', NotificationSchema);

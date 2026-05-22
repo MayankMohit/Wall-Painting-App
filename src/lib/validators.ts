@@ -27,16 +27,12 @@ export const CreateJobSchema = z.object({
   companyName: z.string().min(1, { error: 'Company name is required' }).trim(),
   description: z.string().trim().optional(),
   painterIds: z.array(z.string()).default([]),
-  startDate: z.string().datetime({ error: 'Invalid start date' }),
-  endDate: z.string().datetime({ error: 'Invalid end date' }),
 });
 
 export const UpdateJobSchema = z.object({
   companyName: z.string().min(1).trim().optional(),
   description: z.string().trim().optional(),
   painterIds: z.array(z.string()).optional(),
-  startDate: z.string().datetime().optional(),
-  endDate: z.string().datetime().optional(),
   status: z.enum(['active', 'completed', 'invoiced']).optional(),
 });
 
@@ -92,4 +88,8 @@ export const UpdateAdminUserSchema = z.object({
   name: z.string().min(1, { error: 'Name is required' }).trim().optional(),
   role: z.enum(['painter', 'owner', 'admin']).optional(),
   status: z.enum(['active', 'inactive', 'suspended']).optional(),
+});
+
+export const SignUploadSchema = z.object({
+  folder: z.string().trim().optional(),
 });

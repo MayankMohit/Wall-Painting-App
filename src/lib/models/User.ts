@@ -38,4 +38,8 @@ const UserSchema = new Schema<IUser>(
 UserSchema.index({ email: 1 });
 UserSchema.index({ role: 1, status: 1 });
 
+if (process.env.NODE_ENV === 'development') {
+  delete mongoose.models['User'];
+}
+
 export const User = (mongoose.models.User as mongoose.Model<IUser>) || mongoose.model<IUser>('User', UserSchema);

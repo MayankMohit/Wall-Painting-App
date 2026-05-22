@@ -26,4 +26,8 @@ const PhotoSchema = new Schema<IPhoto>(
 
 PhotoSchema.index({ jobId: 1 });
 
+if (process.env.NODE_ENV === 'development') {
+  delete mongoose.models['Photo'];
+}
+
 export const Photo = (mongoose.models.Photo as mongoose.Model<IPhoto>) || mongoose.model<IPhoto>('Photo', PhotoSchema);

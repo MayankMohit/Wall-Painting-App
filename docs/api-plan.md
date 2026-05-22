@@ -2,9 +2,9 @@
 
 ## Overview
 
-**Steps 0, 1, 2, 9 complete. Step 3 is next.**
+**Steps 0, 1, 2, 3, 4, 9 complete. Step 5 is next.**
 
-Route structure fixed — 41 route files match `docs/06-API-SPECIFICATION.md` exactly. Foundation built and type-checking clean (`npx tsc --noEmit` passes):
+Route structure fixed — 41 route files match `docs/06-API-SPECIFICATION.md` exactly. Foundation built and type-checking clean (`npx tsc --noEmit` passes): 
 
 | File | Status |
 |---|---|
@@ -71,22 +71,22 @@ DELETE /api/users/:userId        (admin)
 
 ---
 
-## Step 3 — Jobs *(Medium)*
+## Step 3 — Jobs *(Medium)* ✅ Complete
 
 **Target routes:**
 ```
-GET    /api/jobs
-POST   /api/jobs
-GET    /api/jobs/:jobId
-PUT    /api/jobs/:jobId
-DELETE /api/jobs/:jobId
-GET    /api/jobs/:jobId/painters
-POST   /api/jobs/:jobId/painters
-DELETE /api/jobs/:jobId/painters/:painterId
-GET    /api/jobs/:jobId/painters/:painterId/submissions
+GET    /api/jobs ✅
+POST   /api/jobs ✅
+GET    /api/jobs/:jobId ✅
+PUT    /api/jobs/:jobId ✅
+DELETE /api/jobs/:jobId ✅
+GET    /api/jobs/:jobId/painters ✅
+POST   /api/jobs/:jobId/painters ✅
+DELETE /api/jobs/:jobId/painters/:painterId ✅
+GET    /api/jobs/:jobId/painters/:painterId/submissions ✅
 ```
 
-**Directory structure:**
+**Directory structure** (full `/api/jobs` tree across Steps 3, 5, 7):
 ```
 src/app/api/jobs/
   route.ts                                          — GET, POST
@@ -97,6 +97,30 @@ src/app/api/jobs/
       [painterId]/
         route.ts                                    — DELETE
         submissions/
+          route.ts                                  — GET
+    submissions/
+      route.ts                                      — GET, POST
+      [submissionId]/
+        route.ts                                    — GET, PUT, DELETE
+        approve/
+          route.ts                                  — POST
+        reject/
+          route.ts                                  — POST
+        revoke/
+          route.ts                                  — POST
+        photos/
+          [photoId]/
+            route.ts                                — DELETE
+    files/
+      route.ts                                      — GET
+      generate/
+        route.ts                                    — POST
+      generation-status/
+        [taskId]/
+          route.ts                                  — GET
+      [fileId]/
+        route.ts                                    — GET, DELETE
+        download/
           route.ts                                  — GET
 ```
 
@@ -290,9 +314,9 @@ POST /api/auth/reset-password
 | 0 | Foundation (models, auth, validators, rbac, response helpers, proxy) | — | — | ✅ Done |
 | 1 | Auth: register / login / logout / me | Easy | 4 | ✅ Done |
 | 2 | Users & Profile | Easy–Medium | 9 | ✅ Done |
-| 3 | Jobs | Medium | 9 | ← Next |
-| 4 | Uploads (Cloudinary sign) | Medium | 1 | |
-| 5 | Submissions | Medium–Hard | 9 | |
+| 3 | Jobs | Medium | 9 | ✅ Done |
+| 4 | Uploads (Cloudinary sign) | Medium | 1 | ✅ Done |
+| 5 | Submissions | Medium–Hard | 9 | ← Next |
 | 6 | Notifications | Medium | 4 | |
 | 7 | File Generation & Downloads | Hard | 6 | |
 | 8 | Admin | Medium–Hard | 6 | |

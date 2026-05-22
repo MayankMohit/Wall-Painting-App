@@ -36,6 +36,10 @@ const GeneratedFileSchema = new Schema<IGeneratedFile>(
 
 GeneratedFileSchema.index({ jobId: 1, fileType: 1 });
 
+if (process.env.NODE_ENV === 'development') {
+  delete mongoose.models['GeneratedFile'];
+}
+
 export const GeneratedFile =
   (mongoose.models.GeneratedFile as mongoose.Model<IGeneratedFile>) ||
   mongoose.model<IGeneratedFile>('GeneratedFile', GeneratedFileSchema);

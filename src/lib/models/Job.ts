@@ -13,7 +13,7 @@ export interface IJob extends Document {
   generatedPDFPhotos: Types.ObjectId | null;
   nextGeneratedNumber: number;
   startDate: Date;
-  endDate: Date;
+  endDate: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,18 +25,22 @@ const JobSchema = new Schema<IJob>(
     description: { type: String, trim: true },
     status: { type: String, enum: ['active', 'completed', 'invoiced'], default: 'active' },
     painters: [{ type: Schema.Types.ObjectId, ref: 'User' }],
-    submissions: [{ type: Schema.Types.ObjectId, ref: 'Submission' }],
+    submissions: { type: [{ type: Schema.Types.ObjectId, ref: 'Submission' }], default: [] },
     generatedExcel: { type: Schema.Types.ObjectId, ref: 'GeneratedFile', default: null },
     generatedPDFFile: { type: Schema.Types.ObjectId, ref: 'GeneratedFile', default: null },
     generatedPDFPhotos: { type: Schema.Types.ObjectId, ref: 'GeneratedFile', default: null },
-    nextGeneratedNumber: { type: Number, default: 1 },
-    startDate: { type: Date, required: true },
-    endDate: { type: Date, required: true },
+    nextGeneratedNumber: { type: Number, default: 0 },
+    startDate: { type: Date, default: Date.now },
+    endDate: { type: Date, default: null },
   },
   { timestamps: true }
 );
 
 JobSchema.index({ ownerId: 1, status: 1 });
 JobSchema.index({ painters: 1 });
+
+if (process.env.NODE_ENV === 'development') {
+  delete mongoose.models['Job'];
+}
 
 export const Job = (mongoose.models.Job as mongoose.Model<IJob>) || mongoose.model<IJob>('Job', JobSchema);

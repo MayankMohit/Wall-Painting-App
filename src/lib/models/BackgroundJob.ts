@@ -32,6 +32,10 @@ const BackgroundJobSchema = new Schema<IBackgroundJob>(
 
 BackgroundJobSchema.index({ status: 1, jobType: 1 });
 
+if (process.env.NODE_ENV === 'development') {
+  delete mongoose.models['BackgroundJob'];
+}
+
 export const BackgroundJob =
   (mongoose.models.BackgroundJob as mongoose.Model<IBackgroundJob>) ||
   mongoose.model<IBackgroundJob>('BackgroundJob', BackgroundJobSchema);
