@@ -43,7 +43,7 @@ src/
                 └── layout.tsx               
 │   │   └── profile/page.tsx
 │   │
-│   ├── (admin)/                      # admin shell
+│   ├── admin/                      # admin shell
 │   │   ├── layout.tsx                # requires role=admin
 │   │   ├── dashboard/page.tsx        # stats widgets, storage, queue depth
 │   │   ├── users/
@@ -52,7 +52,8 @@ src/
 │   │   ├── jobs/page.tsx             # all jobs (read-only)
 │   │   ├── logs/page.tsx             # audit log search
 │   │   ├── background-jobs/page.tsx  # queue inspector + retry
-│   │   └── storage/page.tsx          # Cloudinary + R2 + Mongo usage
+│   │   ├── storage/page.tsx          # Cloudinary + R2 + Mongo usage
+│   │   └── profile/page.tsx          
 │   │
 │   ├── api/                          # ALL backend endpoints live here (see 06-API-SPEC)
 │   │   ├── auth/…
