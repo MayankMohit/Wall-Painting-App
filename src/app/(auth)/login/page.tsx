@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, devLoginAsPainter, devLoginAsOwner } = useAuthStore();
+  const { login, devLoginAsPainter, devLoginAsOwner, devLoginAsAdmin } = useAuthStore();
   const { register, handleSubmit } = useForm();
 
   // Handle standard form submission
@@ -27,6 +27,11 @@ export default function LoginPage() {
   const handleDevOwner = () => {
     devLoginAsOwner();
     router.push('/owner/dashboard');
+  };
+
+  const handleDevAdmin = () => {
+    devLoginAsAdmin();
+    router.push('/admin/dashboard');
   };
 
   return (
@@ -51,8 +56,8 @@ export default function LoginPage() {
           {/* 2. Added a flex container to put the label and link side-by-side */}
           <div className="flex justify-between items-center">
             <label className="block text-sm font-medium text-gray-700">Password</label>
-            <Link 
-              href="/forgot-password" 
+            <Link
+              href="/forgot-password"
               className="text-sm font-medium text-blue-600 hover:text-blue-500 hover:underline"
             >
               Forgot password?
@@ -87,12 +92,15 @@ export default function LoginPage() {
         <p className="text-xs text-center text-gray-400 mb-3 uppercase tracking-wider">
           Developer Fast-Login
         </p>
-        <div className="flex gap-2">
-          <button type="button" onClick={handleDevPainter} className="w-1/2 bg-emerald-100 text-emerald-700 rounded p-2 text-sm font-medium hover:bg-emerald-200">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button type="button" onClick={handleDevPainter} className="flex-1 bg-emerald-100 text-emerald-700 rounded p-2 text-sm font-medium hover:bg-emerald-200">
             Log in as Painter
           </button>
-          <button type="button" onClick={handleDevOwner} className="w-1/2 bg-purple-100 text-purple-700 rounded p-2 text-sm font-medium hover:bg-purple-200">
+          <button type="button" onClick={handleDevOwner} className="flex-1 bg-purple-100 text-purple-700 rounded p-2 text-sm font-medium hover:bg-purple-200">
             Log in as Owner
+          </button>
+          <button type="button" onClick={handleDevAdmin} className="flex-1 bg-teal-100 text-teal-700 rounded p-2 text-sm font-medium hover:bg-teal-200">
+            Log in as Admin
           </button>
         </div>
       </div>

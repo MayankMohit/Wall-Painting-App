@@ -11,12 +11,13 @@ interface AuthState {
   isAuthenticated: boolean;
   
   // Real function (we will connect this to the API later)
-  login: (email: string, role: 'painter' | 'owner') => void;
+  login: (email: string, role: 'painter' | 'owner' | 'admin') => void;
   logout: () => void;
   
   // Dev Hacks for fast testing
   devLoginAsPainter: () => void;
   devLoginAsOwner: () => void;
+  devLoginAsAdmin: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -37,6 +38,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   
   devLoginAsOwner: () => set({ 
     user: { name: 'Test Owner', email: 'owner@test.com', role: 'owner' }, 
+    isAuthenticated: true 
+  }),
+
+  devLoginAsAdmin: () => set({ 
+    user: { name: 'Test Admin', email: 'admin@test.com', role: 'admin' }, 
     isAuthenticated: true 
   }),
 }));
