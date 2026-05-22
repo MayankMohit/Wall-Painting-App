@@ -87,3 +87,9 @@ export const ResetPasswordSchema = z.object({
 export const AddPainterSchema = z.object({
   painterId: z.string().min(1, { error: 'Painter ID is required' }),
 });
+
+export const UpdateAdminUserSchema = z.object({
+  name: z.string().min(1, { error: 'Name is required' }).trim().optional(),
+  role: z.enum(['painter', 'owner', 'admin']).optional(),
+  status: z.enum(['active', 'inactive', 'suspended']).optional(),
+});

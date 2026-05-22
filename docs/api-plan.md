@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Steps 0, 1, 9 complete. Step 2 is next.**
+**Steps 0, 1, 2, 9 complete. Step 3 is next.**
 
 Route structure fixed — 41 route files match `docs/06-API-SPECIFICATION.md` exactly. Foundation built and type-checking clean (`npx tsc --noEmit` passes):
 
@@ -42,7 +42,7 @@ GET    /api/auth/me
 
 ---
 
-## Step 2 — Users & Profile *(Easy–Medium)*
+## Step 2 — Users & Profile *(Easy–Medium)* ✅ Complete
 
 **Target routes:**
 ```
@@ -289,8 +289,8 @@ POST /api/auth/reset-password
 |---|---|---|---|---|
 | 0 | Foundation (models, auth, validators, rbac, response helpers, proxy) | — | — | ✅ Done |
 | 1 | Auth: register / login / logout / me | Easy | 4 | ✅ Done |
-| 2 | Users & Profile | Easy–Medium | 9 | ← Next |
-| 3 | Jobs | Medium | 9 | |
+| 2 | Users & Profile | Easy–Medium | 9 | ✅ Done |
+| 3 | Jobs | Medium | 9 | ← Next |
 | 4 | Uploads (Cloudinary sign) | Medium | 1 | |
 | 5 | Submissions | Medium–Hard | 9 | |
 | 6 | Notifications | Medium | 4 | |

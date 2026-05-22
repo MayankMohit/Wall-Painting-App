@@ -58,9 +58,8 @@ Route groups in `src/app/`: `(auth)/`, `(painter)/`, `(owner)/`, `(admin)/`, `ap
 
 Detailed specs live in `docs/README.md`, it has links to the following files that has more details about specific parts:
 
+- `docs/03-FRONTEND-ARCHITECTURE.md` — frontend folder structure
 - `docs/04-BACKEND-ARCHITECTURE.md` — service implementations (auth, submissions, file generation, watermarking)
 - `docs/05-DATABASE-SCHEMA.md` — MongoDB collections and indexes
 - `docs/06-API-SPECIFICATION.md` — full REST API reference
-- `docs/09-SECURITY.md` — JWT, rate limiting, CORS, file upload validation
-- `docs/11-SCALABILITY-CACHING.md` — pagination, Bull queues, Redis/RTK caching strategies
-- `docs/12-IMPLEMENTATION-ROADMAP.md` — phase-by-phase build plan
+- `docs/07-NOTIFICATIONS.md` — Everything related to notification service
