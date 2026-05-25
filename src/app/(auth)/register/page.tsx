@@ -1,48 +1,58 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuthStore } from '@/store/authStore';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { registerUser, isLoading, error, clearError } = useAuthStore();
   const { register, handleSubmit } = useForm();
 
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
+
   const onSubmit = async (data: any) => {
-    console.log("Submitting Registration:", data);
-    // Real logic will go here later
-    alert("Dummy Registration successful! Redirecting to login...");
-    router.push('/login');
+    const success = await registerUser({
+      name: data.name,
+      email: data.email,
+      password: data.password,
+      role: data.role,
+      phone: data.phone || undefined, // Backend expects string or undefined
+    });
+    
+    if (success) {
+      // Send them to their respective dashboard instantly!
+      if (data.role === 'owner') router.push('/owner/dashboard');
+      else router.push('/painter/dashboard');
+    }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-md mx-auto mt-10">
       <div className="text-center">
         <h1 className="text-2xl font-bold text-gray-900">Create an Account</h1>
-        <p className="text-gray-500 mt-2">Join WallPainter Pro</p>
+        <p className="text-gray-500 mt-2">Join WallPainter today</p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Role Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">I am a...</label>
-          <select 
-            {...register('role')} 
-            className="mt-1 block w-full rounded-md border-2 border-gray-400 bg-white p-3 text-gray-900 shadow-sm focus:border-blue-600 focus:ring-blue-600 focus:outline-none"
-          >
-            <option value="painter">Painter (Contractor)</option>
-            <option value="owner">Business Owner</option>
-          </select>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm font-medium">
+          {error}
         </div>
+      )}
 
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">Full Name</label>
           <input
             {...register('name')}
             type="text"
-            className="mt-1 block w-full rounded-md border-2 border-gray-400 bg-white p-3 text-gray-900 placeholder-gray-500 shadow-sm focus:border-blue-600 focus:ring-blue-600 focus:outline-none"
-            placeholder="John Doe"
             required
+            className="mt-1 block w-full text-gray-600 rounded-md border-2 border-gray-400 p-3 shadow-sm focus:border-blue-600 focus:ring-blue-600 focus:outline-none"
+            placeholder="name"
           />
         </div>
 
@@ -51,20 +61,9 @@ export default function RegisterPage() {
           <input
             {...register('email')}
             type="email"
-            className="mt-1 block w-full rounded-md border-2 border-gray-400 bg-white p-3 text-gray-900 placeholder-gray-500 shadow-sm focus:border-blue-600 focus:ring-blue-600 focus:outline-none"
+            required
+            className="mt-1 block w-full text-gray-600 rounded-md border-2 border-gray-400 p-3 shadow-sm focus:border-blue-600 focus:ring-blue-600 focus:outline-none"
             placeholder="you@example.com"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Phone Number</label>
-          <input
-            {...register('phone')}
-            type="tel"
-            className="mt-1 block w-full rounded-md border-2 border-gray-400 bg-white p-3 text-gray-900 placeholder-gray-500 shadow-sm focus:border-blue-600 focus:ring-blue-600 focus:outline-none"
-            placeholder="+1 (555) 000-0000"
-            required
           />
         </div>
 
@@ -73,24 +72,48 @@ export default function RegisterPage() {
           <input
             {...register('password')}
             type="password"
-            className="mt-1 block w-full rounded-md border-2 border-gray-400 bg-white p-3 text-gray-900 placeholder-gray-500 shadow-sm focus:border-blue-600 focus:ring-blue-600 focus:outline-none"
-            placeholder="••••••••"
             required
+            minLength={8}
+            className="mt-1 block w-full text-gray-600 rounded-md border-2 border-gray-400 p-3 shadow-sm focus:border-blue-600 focus:ring-blue-600 focus:outline-none"
+            placeholder="Min. 8 characters"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Account Type</label>
+          <select
+            {...register('role')}
+            required
+            className="mt-1 block w-full text-gray-600 rounded-md border-2 border-gray-400 p-3 shadow-sm focus:border-blue-600 focus:ring-blue-600 focus:outline-none bg-white"
+          >
+            <option value="painter">I am a Painter</option>
+            <option value="owner">I am a Business Owner</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Phone Number (Optional)</label>
+          <input
+            {...register('phone')}
+            type="tel"
+            className="mt-1 block w-full text-gray-600 rounded-md border-2 border-gray-400 p-3 shadow-sm focus:border-blue-600 focus:ring-blue-600 focus:outline-none"
+            placeholder="(555) 555-5555"
           />
         </div>
 
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white rounded-md py-3 px-4 font-medium hover:bg-blue-700 transition-colors"
+          disabled={isLoading}
+          className="w-full bg-blue-600 text-white rounded-md py-3 px-4 hover:bg-blue-700 transition-colors font-bold disabled:bg-blue-400 disabled:cursor-not-allowed mt-4"
         >
-          Register
+          {isLoading ? 'Creating Account...' : 'Sign Up'}
         </button>
       </form>
 
-      <div className="text-center text-sm text-gray-600 mt-4">
+      <div className="text-center text-sm text-gray-600">
         Already have an account?{' '}
-        <Link href="/login" className="text-blue-600 hover:underline font-medium">
-          Sign In here
+        <Link href="/login" className="font-medium text-blue-600 hover:underline">
+          Sign in
         </Link>
       </div>
     </div>
