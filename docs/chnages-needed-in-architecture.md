@@ -255,3 +255,5 @@ What replaces them is already in BullMQ's API — you're not adding code, you're
 - `Wall Painting`, `Shutter Painting`, `Van Painting`
 - Need to make adjustments according to this new requirement.
 - Needs a lot of work on job routes and upload/sign route and cloudinary.ts.
+
+## Can select the order of painters before the generation of files (whose submissions, we want to see at top of the file.)

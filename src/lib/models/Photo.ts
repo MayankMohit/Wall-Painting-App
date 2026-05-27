@@ -5,7 +5,6 @@ export interface IPhoto extends Document {
   jobId: Types.ObjectId;
   cloudinaryId: string;
   cloudinaryUrl: string;
-  r2Path?: string;
   watermarkedUrl: string | null;
   generatedNumber: string;
   createdAt: Date;
@@ -17,7 +16,6 @@ const PhotoSchema = new Schema<IPhoto>(
     jobId: { type: Schema.Types.ObjectId, ref: 'Job', required: true },
     cloudinaryId: { type: String, required: true },
     cloudinaryUrl: { type: String, required: true },
-    r2Path: { type: String },
     watermarkedUrl: { type: String, default: null },
     generatedNumber: { type: String, required: true, unique: true },
   },

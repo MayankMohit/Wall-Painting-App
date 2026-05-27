@@ -24,7 +24,7 @@ export function signUpload(params: SignParams = {}): CloudinarySignature {
 
   const paramStr = Object.keys(paramsToSign)
     .sort()
-    .map((k) => `${k}=${paramsToSign[k]}`)
+    .map((key) => `${key}=${paramsToSign[key]}`)
     .join('&');
 
   const signature = crypto

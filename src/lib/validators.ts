@@ -42,13 +42,23 @@ export const CreateSubmissionSchema = z.object({
   sizes: z
     .array(z.tuple([z.number().positive(), z.number().positive()]))
     .min(1, { error: 'At least one size is required' }),
-  imageIds: z.array(z.string()).min(1, { error: 'At least one image is required' }),
+  uploadedImages: z.array(
+    z.object({
+      cloudinaryId: z.string().min(1),
+      cloudinaryUrl: z.string().url()
+    })
+  ).min(1, { error: 'At least one image is required' }),
 });
 
 export const UpdateSubmissionSchema = z.object({
   location: z.string().min(1).trim().optional(),
   sizes: z.array(z.tuple([z.number().positive(), z.number().positive()])).optional(),
-  imageIds: z.array(z.string()).optional(),
+  uploadedImages: z.array(
+    z.object({
+      cloudinaryId: z.string().min(1),
+      cloudinaryUrl: z.url()
+    })
+  ).optional(),
 });
 
 export const ApproveSubmissionSchema = z.object({
