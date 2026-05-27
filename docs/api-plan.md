@@ -2,138 +2,7 @@
 
 ## Overview
 
-**Steps 0, 1, 2, 3, 4, 9 complete. Step 5 is next.**
-
-Route structure fixed — 41 route files match `docs/06-API-SPECIFICATION.md` exactly. Foundation built and type-checking clean (`npx tsc --noEmit` passes): 
-
-| File | Status |
-|---|---|
-| `src/lib/models/` (7 models + barrel) | ✅ Done |
-| `src/lib/auth/index.ts` | ✅ Done |
-| `src/lib/validators.ts` (14 schemas) | ✅ Done |
-| `src/lib/rbac.ts` | ✅ Done |
-| `src/lib/api-response.ts` | ✅ Done |
-| `src/proxy.ts` (JWT middleware) | ✅ Done |
-
 > **Note:** Next.js 16 uses `src/proxy.ts` (not `src/middleware.ts`). The exported function must be named `proxy`. Public routes: `/api/auth/*`, `/api/health`, `/api/version`. All others require a valid Bearer JWT verified via `jose`.
-
-## Step 1 — Auth APIs *(Easy)* ✅ Complete
-
-**Target routes:**
-```
-POST   /api/auth/register
-POST   /api/auth/login
-POST   /api/auth/logout
-GET    /api/auth/me
-```
-
-**Files:**
-- `src/app/api/auth/register/route.ts`
-- `src/app/api/auth/login/route.ts`
-- `src/app/api/auth/logout/route.ts`
-- `src/app/api/auth/me/route.ts`
-
-| Route | Logic |
-|---|---|
-| `POST /api/auth/register` | Validate `RegisterSchema` → check email not taken → `hashPassword` → create User → `signToken` → return `{ user, token }` |
-| `POST /api/auth/login` | Validate `LoginSchema` → find user by email → `comparePassword` → `signToken` → return `{ user, token }` |
-| `POST /api/auth/logout` | `requireAuth` → optionally remove FCM token from body → return 200 |
-| `GET /api/auth/me` | `requireAuth` → fetch User from DB (exclude password) → return profile |
-
----
-
-## Step 2 — Users & Profile *(Easy–Medium)* ✅ Complete
-
-**Target routes:**
-```
-GET    /api/users/me
-PUT    /api/users/me
-PUT    /api/users/me/password
-POST   /api/users/me/fcm-token
-DELETE /api/users/me/fcm-token
-GET    /api/users               ?role=&q=&page=
-GET    /api/users/:userId
-PUT    /api/users/:userId        (admin)
-DELETE /api/users/:userId        (admin)
-```
-
-| Route | Allowed Roles | Notes |
-|---|---|---|
-| `GET /api/users/me` | any | Exclude password field |
-| `PUT /api/users/me` | any | Only name + phone; validate `UpdateProfileSchema` |
-| `PUT /api/users/me/password` | any | Verify current password first |
-| `POST /api/users/me/fcm-token` | any | Push to `fcmTokens[]`; deduplicate |
-| `DELETE /api/users/me/fcm-token` | any | Pull from `fcmTokens[]` |
-| `GET /api/users` | owner (painters only), admin (all) | Pagination + `?role=&q=` search on name/email |
-| `GET /api/users/:userId` | admin, or owner (only their assigned painters) | |
-| `PUT /api/users/:userId` | admin | Can change role, status, name |
-| `DELETE /api/users/:userId` | admin | Soft-delete: set `status = 'inactive'` |
-
----
-
-## Step 3 — Jobs *(Medium)* ✅ Complete
-
-**Target routes:**
-```
-GET    /api/jobs ✅
-POST   /api/jobs ✅
-GET    /api/jobs/:jobId ✅
-PUT    /api/jobs/:jobId ✅
-DELETE /api/jobs/:jobId ✅
-GET    /api/jobs/:jobId/painters ✅
-POST   /api/jobs/:jobId/painters ✅
-DELETE /api/jobs/:jobId/painters/:painterId ✅
-GET    /api/jobs/:jobId/painters/:painterId/submissions ✅
-```
-
-**Directory structure** (full `/api/jobs` tree across Steps 3, 5, 7):
-```
-src/app/api/jobs/
-  route.ts                                          — GET, POST
-  [jobId]/
-    route.ts                                        — GET, PUT, DELETE
-    painters/
-      route.ts                                      — GET, POST
-      [painterId]/
-        route.ts                                    — DELETE
-        submissions/
-          route.ts                                  — GET
-    submissions/
-      route.ts                                      — GET, POST
-      [submissionId]/
-        route.ts                                    — GET, PUT, DELETE
-        approve/
-          route.ts                                  — POST
-        reject/
-          route.ts                                  — POST
-        revoke/
-          route.ts                                  — POST
-        photos/
-          [photoId]/
-            route.ts                                — DELETE
-    files/
-      route.ts                                      — GET
-      generate/
-        route.ts                                    — POST
-      generation-status/
-        [taskId]/
-          route.ts                                  — GET
-      [fileId]/
-        route.ts                                    — GET, DELETE
-        download/
-          route.ts                                  — GET
-```
-
-**Role-filtered listing:**
-- Painter → only jobs where `painters[]` contains their userId
-- Owner → only jobs where `ownerId` matches
-- Admin → all jobs
-
-| Route | Notes |
-|---|---|
-| `DELETE /api/jobs/:jobId` | Cascade: delete all Submissions, Photos, GeneratedFiles for this job |
-| `GET /api/jobs/:jobId/painters` | Return painter profiles + submission count per painter for this job |
-| `POST /api/jobs/:jobId/painters` | Add painterId to `painters[]`; idempotent (no duplicate) |
 
 ---
 
@@ -290,37 +159,19 @@ src/app/api/admin/
 
 ---
 
-## Step 9 — Auth Extras *(Medium)* ✅ Complete
-
-**Target routes:**
-```
-POST /api/auth/refresh
-POST /api/auth/forgot-password
-POST /api/auth/reset-password
-```
-
-| Route | Logic |
-|---|---|
-| `POST /api/auth/refresh` | Verify current JWT (even near-expiry), issue fresh 7d token |
-| `POST /api/auth/forgot-password` | Find user by email → generate reset token (store hash in DB or Redis with 1h TTL) → send email via Resend |
-| `POST /api/auth/reset-password` | Validate reset token → update password hash → invalidate token |
-
----
 
 ## Summary: Implementation Order
 
 | Step | Area | Difficulty | Routes | Status |
 |---|---|---|---|---|
-| 0 | Foundation (models, auth, validators, rbac, response helpers, proxy) | — | — | ✅ Done |
-| 1 | Auth: register / login / logout / me | Easy | 4 | ✅ Done |
-| 2 | Users & Profile | Easy–Medium | 9 | ✅ Done |
-| 3 | Jobs | Medium | 9 | ✅ Done |
-| 4 | Uploads (Cloudinary sign) | Medium | 1 | ✅ Done |
-| 5 | Submissions | Medium–Hard | 9 | ← Next |
-| 6 | Notifications | Medium | 4 | |
-| 7 | File Generation & Downloads | Hard | 6 | |
-| 8 | Admin | Medium–Hard | 6 | |
-| 9 | Auth Extras (refresh, forgot/reset password) | Medium | 3 | ✅ Done |
+| 1 | Auth | Medium | 6 | 🔴 |
+| 2 | Users  | Easy–Medium | 9 | ✅ |
+| 3 | Jobs | Medium | 9 | ✅ |
+| 4 | Uploads  | Medium | 1 | 🔴 |
+| 5 | Submissions | Medium–Hard | 9 | 🔴 |
+| 6 | Notifications | Medium | 4 | 🔴 |
+| 7 | File Generation & Downloads | Hard | 6 | 🔴 |
+| 8 | Admin | Medium–Hard | 6 | 🔴 |
 
 **Total: 51 routes**
 
