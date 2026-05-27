@@ -257,3 +257,5 @@ What replaces them is already in BullMQ's API — you're not adding code, you're
 - Needs a lot of work on job routes and upload/sign route and cloudinary.ts.
 
 ## Can select the order of painters before the generation of files (whose submissions, we want to see at top of the file.)
+
+## A cron job to ping database every 5 mins

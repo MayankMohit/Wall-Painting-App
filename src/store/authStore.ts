@@ -105,7 +105,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!token) return;
 
     try {
-      const res = await fetch('/api/auth/me', {
+      const res = await fetch('/api/users/me', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
