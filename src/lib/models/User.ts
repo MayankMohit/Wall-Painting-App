@@ -6,7 +6,8 @@ export interface IUser extends Document {
   password: string;
   role: 'painter' | 'owner' | 'admin';
   name: string;
-  phone?: string;
+  phone: string;
+  emailVerified: boolean;
   fcmTokens: string[];
   status: 'active' | 'inactive' | 'suspended';
   letterhead: { companyName: string; address: string } | null;
@@ -22,7 +23,8 @@ const UserSchema = new Schema<IUser>(
     password: { type: String, required: true },
     role: { type: String, enum: ['painter', 'owner', 'admin'], required: true },
     name: { type: String, required: true, trim: true },
-    phone: { type: String, trim: true },
+    phone: { type: String, required: true, unique: true, trim: true },
+    emailVerified: { type: Boolean, default: false },
     fcmTokens: { type: [String], default: [] },
     status: { type: String, enum: ['active', 'inactive', 'suspended'], default: 'active' },
     letterhead: {

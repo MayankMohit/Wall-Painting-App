@@ -10,11 +10,19 @@ export async function POST(request: Request) {
   if (!parsed.success) return badRequest(parsed.error.issues[0].message);
 
   await connectDB();
-  const { email, password } = parsed.data;
+  const { identifier, password } = parsed.data;
 
-  const user = await User.findOne({ email });
+  const isEmail = identifier.includes('@');
+  const user = await User.findOne(isEmail ? { email: identifier.toLowerCase() } : { phone: identifier });
   if (!user) return err('Invalid credentials', 401);
-  if (user.status !== 'active') return err('Account suspended or inactive', 403);
+
+  if (isEmail && !user.emailVerified) {
+    return err('Email not verified — please log in with your phone number or verify your email first', 403);
+  }
+  if (user.status === 'inactive') return err('Account pending approval', 403);  // later allow to login but dont allow any features and show a banner that account is pending approval
+  if (user.status === 'suspended') {
+    return err(`Account suspended. Contact ${process.env.ADMIN_CONTACT_EMAIL} if you think this is a mistake.`, 403);
+  }
 
   const valid = await comparePassword(password, user.password);
   if (!valid) return err('Invalid credentials', 401);
@@ -23,6 +31,14 @@ export async function POST(request: Request) {
 
   return ok({
     token,
-    user: { id: user._id, email: user.email, name: user.name, role: user.role, phone: user.phone },
+    user: {
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      phone: user.phone,
+      emailVerified: user.emailVerified,
+      status: user.status,
+    },
   });
 }

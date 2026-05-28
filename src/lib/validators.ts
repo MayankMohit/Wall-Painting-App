@@ -1,21 +1,61 @@
 import { z } from 'zod';
 
+export const PhoneRegex = /^\+[1-9]\d{7,14}$/;
+
 export const RegisterSchema = z.object({
-  email: z.email({ error: 'Invalid email address' }),
-  password: z.string().min(8, { error: 'Password must be at least 8 characters' }),
-  name: z.string().min(1, { error: 'Name is required' }).trim(),
-  role: z.enum(['painter', 'owner']),
-  phone: z.string().trim().optional(),
-});
+  name:            z.string().min(1, { error: 'Name is required' }).trim(),
+  email:           z.email({ error: 'Invalid email address' }),
+  phone:           z.string().trim().regex(PhoneRegex, { error: 'Phone must be in E.164 format e.g. +919876543210' }),
+  password:        z.string().min(8, { error: 'Password must be at least 8 characters' }),
+  role:            z.enum(['painter', 'owner']),
+  firebaseIdToken: z.string().min(1, { error: 'Phone verification is required' }),
+  emailOtp:        z.string().length(6).optional(),
+  sessionId:       z.string().optional(),
+}).refine(
+  (d) => d.role !== 'owner' || (d.emailOtp && d.sessionId),
+  { message: 'Email OTP and session ID are required for owner registration', path: ['emailOtp'] }
+);
 
 export const LoginSchema = z.object({
+  identifier: z.string().min(1, { error: 'Email or phone number is required' }),
+  password:   z.string().min(1, { error: 'Password is required' }),
+});
+
+export const VerifyEmailSendSchema = z.object({
   email: z.email({ error: 'Invalid email address' }),
-  password: z.string().min(1, { error: 'Password is required' }),
+});
+
+export const VerifyEmailConfirmSchema = z.object({
+  sessionId: z.string().min(1),
+  otp:       z.string().length(6),
+});
+
+export const ChangeEmailSendSchema = z.object({
+  newEmail:  z.email({ error: 'Invalid email address' }),
+  password:  z.string().min(1, { error: 'Password is required' }),
+});
+
+export const ChangeEmailConfirmSchema = z.object({
+  sessionId: z.string().min(1),
+  otp:       z.string().length(6),
+});
+
+export const LoginOtpSendSchema = z.object({
+  identifier: z.email({ error: 'Invalid email address' }),
+});
+
+export const LoginOtpVerifySchema = z.object({
+  sessionId: z.string().min(1),
+  otp:       z.string().length(6),
+});
+
+export const LoginOtpPhoneSchema = z.object({
+  phone:           z.string().trim().regex(PhoneRegex, { error: 'Invalid phone number' }),
+  firebaseIdToken: z.string().min(1),
 });
 
 export const UpdateProfileSchema = z.object({
   name: z.string().min(1, { error: 'Name is required' }).trim().optional(),
-  phone: z.string().trim().optional(),
 });
 
 export const ChangePasswordSchema = z.object({
@@ -97,7 +137,7 @@ export const AddPainterSchema = z.object({
 export const UpdateAdminUserSchema = z.object({
   name: z.string().min(1, { error: 'Name is required' }).trim().optional(),
   role: z.enum(['painter', 'owner', 'admin']).optional(),
-  status: z.enum(['active', 'inactive', 'suspended']).optional(),
+  status: z.enum(['active', 'inactive', 'suspended']).optional(), // 'suspended' also covers admin-rejected owners
 });
 
 export const SignUploadSchema = z.object({

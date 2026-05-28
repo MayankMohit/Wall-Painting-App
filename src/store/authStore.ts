@@ -5,7 +5,9 @@ export interface User {
   name: string;
   email: string;
   role: 'painter' | 'owner' | 'admin';
-  phone?: string;
+  phone: string;
+  emailVerified: boolean;
+  status: 'active' | 'inactive' | 'suspended';
 }
 
 interface AuthState {
@@ -13,14 +15,43 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  
-  login: (email: string, password: string) => Promise<boolean>;
 
-  registerUser: (userData: { name: string; email: string; password: string; role: 'painter' | 'owner'; phone?: string }) => Promise<boolean>;
+  login: (identifier: string, password: string) => Promise<boolean>;
+  loginWithEmailOtp: (sessionId: string, otp: string) => Promise<boolean>;
+  loginWithPhoneOtp: (phone: string, firebaseIdToken: string) => Promise<boolean>;
+
+  registerUser: (userData: {
+    name: string;
+    email: string;
+    phone: string;
+    password: string;
+    role: 'painter' | 'owner';
+    firebaseIdToken: string;
+    emailOtp?: string;
+    emailSessionId?: string;
+  }) => Promise<boolean>;
 
   logout: () => void;
   checkAuth: () => Promise<void>;
   clearError: () => void;
+}
+
+function persistAuth(token: string) {
+  localStorage.setItem('wallpainter_token', token);
+  document.cookie = `wallpainter_auth_status=true; path=/; max-age=604800`;
+}
+
+async function callApi(url: string, body: unknown): Promise<{ ok: boolean; token?: string; user?: User; error?: string }> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  const payload = json.data ?? json;
+  return res.ok
+    ? { ok: true, token: payload.token, user: payload.user }
+    : { ok: false, error: payload.error ?? payload.message ?? 'Something went wrong' };
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -29,33 +60,52 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  login: async (email, password) => {
+  login: async (identifier, password) => {
     set({ isLoading: true, error: null });
-    
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        set({ error: data.error || data.message || 'Failed to login', isLoading: false });
+      const result = await callApi('/api/auth/login', { identifier, password });
+      if (!result.ok) {
+        set({ error: result.error, isLoading: false });
         return false;
       }
-
-      const { token, user } = data.data || data; 
-
-      localStorage.setItem('wallpainter_token', token);
-      
-      document.cookie = `wallpainter_auth_status=true; path=/; max-age=604800`;
-
-      set({ user, isAuthenticated: true, isLoading: false });
+      persistAuth(result.token!);
+      set({ user: result.user!, isAuthenticated: true, isLoading: false });
       return true;
+    } catch {
+      set({ error: 'Network error. Please try again.', isLoading: false });
+      return false;
+    }
+  },
 
-    } catch (err) {
+  loginWithEmailOtp: async (sessionId, otp) => {
+    set({ isLoading: true, error: null });
+    try {
+      const result = await callApi('/api/auth/login/otp/verify', { sessionId, otp });
+      if (!result.ok) {
+        set({ error: result.error, isLoading: false });
+        return false;
+      }
+      persistAuth(result.token!);
+      set({ user: result.user!, isAuthenticated: true, isLoading: false });
+      return true;
+    } catch {
+      set({ error: 'Network error. Please try again.', isLoading: false });
+      return false;
+    }
+  },
+
+  loginWithPhoneOtp: async (phone, firebaseIdToken) => {
+    set({ isLoading: true, error: null });
+    try {
+      const result = await callApi('/api/auth/login/otp/phone', { phone, firebaseIdToken });
+      if (!result.ok) {
+        set({ error: result.error, isLoading: false });
+        return false;
+      }
+      persistAuth(result.token!);
+      set({ user: result.user!, isAuthenticated: true, isLoading: false });
+      return true;
+    } catch {
       set({ error: 'Network error. Please try again.', isLoading: false });
       return false;
     }
@@ -63,40 +113,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   registerUser: async (userData) => {
     set({ isLoading: true, error: null });
-    
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        set({ error: data.error || data.message || 'Failed to register', isLoading: false });
+      const result = await callApi('/api/auth/register', userData);
+      if (!result.ok) {
+        set({ error: result.error, isLoading: false });
         return false;
       }
-
-      // Success! Extract token and user
-      const { token, user } = data.data || data; 
-
-      // Save token and cookie exactly like login
-      localStorage.setItem('wallpainter_token', token);
-      document.cookie = `wallpainter_auth_status=true; path=/; max-age=604800`;
-
-      set({ user, isAuthenticated: true, isLoading: false });
+      persistAuth(result.token!);
+      set({ user: result.user!, isAuthenticated: true, isLoading: false });
       return true;
-
-    } catch (err) {
+    } catch {
       set({ error: 'Network error. Please try again.', isLoading: false });
       return false;
     }
   },
-  
+
   logout: () => {
     localStorage.removeItem('wallpainter_token');
-    document.cookie = "wallpainter_auth_status=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+    document.cookie = 'wallpainter_auth_status=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     set({ user: null, isAuthenticated: false });
   },
 
@@ -106,20 +140,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       const res = await fetch('/api/users/me', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (res.ok) {
-        const data = await res.json();
-        const user = data.data || data;
+        const json = await res.json();
+        const user = json.data ?? json;
         set({ user, isAuthenticated: true });
       } else {
-        get().logout(); 
+        get().logout();
       }
-    } catch (err) {
-      console.error("Auth check failed:", err);
+    } catch {
+      console.error('Auth check failed');
     }
   },
 
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
 }));

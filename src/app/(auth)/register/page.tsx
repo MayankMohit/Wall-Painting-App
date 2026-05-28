@@ -15,20 +15,9 @@ export default function RegisterPage() {
     clearError();
   }, [clearError]);
 
-  const onSubmit = async (data: any) => {
-    const success = await registerUser({
-      name: data.name,
-      email: data.email,
-      password: data.password,
-      role: data.role,
-      phone: data.phone || undefined, // Backend expects string or undefined
-    });
-    
-    if (success) {
-      // Send them to their respective dashboard instantly!
-      if (data.role === 'owner') router.push('/owner/dashboard');
-      else router.push('/painter/dashboard');
-    }
+  // Phase 9 rewrites this page with inline OTP verification
+  const onSubmit = async (_data: any) => {
+    void registerUser; void router;
   };
 
   return (

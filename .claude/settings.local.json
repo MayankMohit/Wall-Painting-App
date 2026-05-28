@@ -7,7 +7,8 @@
       "Bash(xargs grep *)",
       "Bash(node *)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('exports keys:', list\\(\\(d.get\\('exports'\\) or {}\\).keys\\(\\)\\)[:5]\\)\")",
-      "Bash(xargs wc *)"
+      "Bash(xargs wc *)",
+      "PowerShell(npx tsc --noEmit 2>&1)"
     ]
   }
 }

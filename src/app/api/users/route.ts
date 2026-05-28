@@ -21,12 +21,14 @@ export async function GET(request: Request) {
   const q = searchParams.get('q') ?? '';
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
   const roleParam = searchParams.get('role');
+  const statusParam = searchParams.get('status');
 
   // Owner may only list painters
   const roleFilter = payload.role === 'owner' ? 'painter' : (roleParam ?? undefined);
 
   const filter: Record<string, unknown> = {};
   if (roleFilter) filter.role = roleFilter;
+  if (statusParam && payload.role === 'admin') filter.status = statusParam;
   if (q) {
     filter.$or = [
       { name: { $regex: q, $options: 'i' } },

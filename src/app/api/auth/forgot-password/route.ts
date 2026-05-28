@@ -1,12 +1,11 @@
 import crypto from 'crypto';
-import { Resend } from 'resend';
 import { connectDB } from '@/lib/db';
 import { User } from '@/lib/models';
 import { ForgotPasswordSchema } from '@/lib/validators';
 import { ok, badRequest } from '@/lib/api-response';
+import { sendPasswordResetEmail } from '@/lib/email';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-const NEUTRAL_MSG = 'If that email exists, a reset link has been sent';
+const NEUTRAL_MSG = 'If that account exists, a reset link has been sent';
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -14,10 +13,15 @@ export async function POST(request: Request) {
   if (!parsed.success) return badRequest(parsed.error.issues[0].message);
 
   await connectDB();
-  const user = await User.findOne({ email: parsed.data.email });
+  const user = await User.findOne({ email: parsed.data.email.toLowerCase() });
 
-  // Return same message regardless to prevent email enumeration
+  // Neutral response on missing account — prevent email enumeration
   if (!user) return ok({ message: NEUTRAL_MSG });
+
+  // Email not verified — can't trust ownership; direct them to OTP login instead
+  if (!user.emailVerified) {
+    return ok({ message: 'Use "Login with OTP" to access your account, then change your password from your profile.' });
+  }
 
   const rawToken = crypto.randomBytes(32).toString('hex');
   const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
@@ -27,13 +31,7 @@ export async function POST(request: Request) {
   await user.save();
 
   const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${rawToken}`;
-
-  await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev',
-    to: user.email,
-    subject: 'Password Reset Request',
-    html: `<p>You requested a password reset.</p><p><a href="${resetUrl}">Reset your password</a> — link expires in 1 hour.</p><p>If you did not request this, ignore this email.</p>`,
-  });
+  await sendPasswordResetEmail(user.email, resetUrl);
 
   return ok({ message: NEUTRAL_MSG });
 }
