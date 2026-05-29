@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   const user = await User.findOne({ email: identifier.toLowerCase() });
   if (!user) return err('No account found with that email', 404);
 
-  if (!user.emailVerified) {
+  if (!user.emailVerified && user.role !== 'painter') {
     return err('Email not verified — log in with your phone number instead', 403);
   }
   if (user.status === 'inactive') return err('Account pending approval', 403);

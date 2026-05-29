@@ -25,6 +25,11 @@ export async function POST(request: Request) {
     return err(`Account suspended. Contact ${process.env.ADMIN_CONTACT_EMAIL} if you think this is a mistake.`, 403);
   }
 
+  if (!user.emailVerified) {
+    await User.updateOne({ _id: user._id }, { emailVerified: true });
+    user.emailVerified = true;
+  }
+
   const token = signToken({ userId: user._id.toString(), role: user.role });
 
   return ok({

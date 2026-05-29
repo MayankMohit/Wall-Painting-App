@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
+import EmailSection from '@/components/common/EmailSection';
 
 export default function AdminProfilePage() {
-  const { user } = useAuthStore();
+  const { user, checkAuth } = useAuthStore();
   const [profileData, setProfileData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -137,6 +138,8 @@ export default function AdminProfilePage() {
         </div>
         
       </div>
+
+      {user && <EmailSection user={user} onEmailUpdated={checkAuth} />}
     </div>
   );
 }

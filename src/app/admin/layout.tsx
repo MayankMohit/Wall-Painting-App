@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
@@ -7,7 +8,9 @@ import { useAuthStore } from '@/store/authStore';
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout, user } = useAuthStore();
+  const { logout, user, checkAuth } = useAuthStore();
+
+  useEffect(() => { checkAuth(); }, []);
 
   const handleLogout = () => {
     logout();

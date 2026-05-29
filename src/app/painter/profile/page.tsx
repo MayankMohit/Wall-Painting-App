@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
+import EmailSection from '@/components/common/EmailSection';
 
 export default function PainterProfilePage() {
-  const { user } = useAuthStore();
+  const { user, checkAuth } = useAuthStore();
   const [profileData, setProfileData] = useState<any>(null);
 
   useEffect(() => {
@@ -73,6 +74,8 @@ export default function PainterProfilePage() {
           </div>
         </div>
       </div>
+
+      {user && <EmailSection user={user} onEmailUpdated={checkAuth} />}
     </div>
   );
 }

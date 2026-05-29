@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
@@ -7,7 +8,15 @@ import { useAuthStore } from '@/store/authStore';
 export default function OwnerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout, user } = useAuthStore();
+  const { logout, user, checkAuth } = useAuthStore();
+
+  useEffect(() => { checkAuth(); }, []);
+
+  useEffect(() => {
+    if (user?.role === 'owner' && user.status !== 'active') {
+      router.replace('/pending-approval');
+    }
+  }, [user, router]);
 
   const handleLogout = () => {
     logout();

@@ -114,7 +114,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   registerUser: async (userData) => {
     set({ isLoading: true, error: null });
     try {
-      const result = await callApi('/api/auth/register', userData);
+      // API expects `sessionId`; surface-level interface uses `emailSessionId` for clarity
+      const { emailSessionId, ...rest } = userData;
+      const apiPayload = emailSessionId ? { ...rest, sessionId: emailSessionId } : rest;
+      const result = await callApi('/api/auth/register', apiPayload);
       if (!result.ok) {
         set({ error: result.error, isLoading: false });
         return false;
