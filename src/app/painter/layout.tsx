@@ -26,7 +26,7 @@ export default function PainterLayout({ children }: { children: React.ReactNode 
             
             {/* Left Side: Logo & Main Links */}
             <div className="flex items-center gap-8">
-              <div className="flex-shrink-0 flex items-center">
+              <div className="shrink-0 flex items-center">
                 <span className="text-xl font-black text-blue-600 tracking-tight">
                   Wall<span className="text-gray-900">Painter</span>
                 </span>

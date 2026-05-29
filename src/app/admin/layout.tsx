@@ -35,7 +35,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             {/* Left Side: Logo & Main Links */}
             <div className="flex items-center gap-8">
-              <div className="flex-shrink-0 flex items-center">
+              <div className="shrink-0 flex items-center">
                 <span className="text-xl font-black tracking-tight text-white">
                   WallPainter <span className="text-teal-400 font-medium text-sm border-l-2 border-slate-700 ml-2 pl-2">System Admin</span>
                 </span>
