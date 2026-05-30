@@ -4,9 +4,17 @@ import { requireAuth } from '@/lib/rbac';
 import { ok, err, forbidden, notFound, badRequest } from '@/lib/api-response';
 import { Submission } from '@/lib/models/Submission';
 import { Photo } from '@/lib/models/Photo';
+import { v2 as cloudinary } from 'cloudinary';
+
+// Configure Cloudinary (uses your backend environment variables)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function DELETE(
-  request: Request, 
+  request: Request,
   { params }: { params: Promise<{ jobId: string, submissionId: string, photoId: string }> }
 ) {
   await connectDB();
@@ -38,15 +46,21 @@ export async function DELETE(
       }
     }
 
-    const deletedPhoto = await Photo.findOneAndDelete({ _id: photoId, jobId }, { session });
-    if (!deletedPhoto) {
+    const photoToDelete = await Photo.findOne({ _id: photoId, jobId }).session(session);
+    if (!photoToDelete) {
       await session.abortTransaction();
       session.endSession();
       return notFound('Photo not found');
     }
 
-    submission.images = submission.images.filter(id => id.toString() !== photoId);
-    
+    if (photoToDelete.cloudinaryId) {
+      await cloudinary.uploader.destroy(photoToDelete.cloudinaryId);
+    }
+
+    await Photo.findByIdAndDelete(photoId, { session });
+
+    submission.images = submission.images.filter((id: any) => id.toString() !== photoId);
+
     if (submission.status === 'rejected') {
       submission.status = 'pending';
     }

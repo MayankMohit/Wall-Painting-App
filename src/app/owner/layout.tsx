@@ -34,7 +34,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
             <div className="flex items-center gap-8">
               <div className="shrink-0 flex items-center">
                 <span className="text-xl font-black text-indigo-600 tracking-tight">
-                  WallPainter <span className="text-gray-900 font-medium text-sm border-l-2 border-gray-300 ml-2 pl-2">Admin</span>
+                  WallPainter <span className="text-gray-900 font-medium text-sm border-l-2 border-gray-300 ml-2 pl-2">Owner</span>
                 </span>
               </div>
               

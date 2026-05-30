@@ -5,6 +5,13 @@ import { ok, err, forbidden, notFound, badRequest } from '@/lib/api-response';
 import { Submission } from '@/lib/models/Submission';
 import { Photo } from '@/lib/models/Photo';
 import { UpdateSubmissionSchema } from '@/lib/validators';
+import { v2 as cloudinary } from 'cloudinary';
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function GET(request: Request, { params }: { params: Promise<{ jobId: string, submissionId: string }> }) {
   try {
@@ -126,20 +133,20 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ j
     }
 
     if (auth.role === 'painter') {
-      if (submission.painterId.toString() !== auth.userId) {
         await session.abortTransaction();
         session.endSession();
         return forbidden();
-      }
-      if (submission.status === 'approved') {
-        await session.abortTransaction();
-        session.endSession();
-        return badRequest('Cannot delete an approved submission');
+    }
+
+    const photosToDelete = await Photo.find({ _id: { $in: submission.images } }).session(session);
+
+    for (const photo of photosToDelete) {
+      if (photo.cloudinaryId) {
+        await cloudinary.uploader.destroy(photo.cloudinaryId);
       }
     }
 
     await Photo.deleteMany({ _id: { $in: submission.images } }, { session });
-
     await submission.deleteOne({ session });
 
     await session.commitTransaction();

@@ -12,10 +12,10 @@ const bcrypt = require('bcryptjs');
 
 // ── Edit these ────────────────────────────────────────────────────────────────
 const ADMIN = {
-  name:  'Mayank',
-  email: 'mayankmohitagarwal7@gmail.com',
-  phone: '+919876543210',
-  password: 'mayank@69',
+  name:  'Krish',
+  email: 'krishkrsquare@gmail.com',
+  phone: '+919334500158',
+  password: 'Krish123456#',
 };
 // ─────────────────────────────────────────────────────────────────────────────
 

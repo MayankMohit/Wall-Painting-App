@@ -4,79 +4,85 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 
-// Data structure matching GET /api/jobs for a painter
+// Data structure perfectly matching your JobSchema
 interface Job {
   _id: string;
-  jobNumber: string;
-  jobName: string;
-  location: string;
-  status: 'active' | 'completed';
-  mySubmissions: number;
+  companyName: string;
+  description?: string;
+  status: 'active' | 'completed' | 'invoiced';
+  submissions: any[]; 
 }
 
 export default function PainterDashboard() {
   const { user } = useAuthStore();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    let isMounted = true; // Tracks if the component is currently visible
+    let isMounted = true;
 
     const fetchJobs = async () => {
-      // 1. Force loading state to true whenever this runs
-      setIsLoading(true); 
+      setIsLoading(true);
+      setError('');
 
-      // 2. Simulate the API delay (or eventually use real await fetch('/api/jobs'))
-      await new Promise(resolve => setTimeout(resolve, 800));
+      try {
+        const token = localStorage.getItem('wallpainter_token');
+        if (!token) throw new Error('Authentication token missing. Please log in.');
 
-      // 3. ONLY update the state if the user hasn't clicked away
-      if (isMounted) {
-        setJobs([
-          {
-            _id: 'job_1042',
-            jobNumber: '#1042',
-            jobName: 'Tech Park Block A - Exterior',
-            location: '123 Main St, Tech Park',
-            status: 'active',
-            mySubmissions: 4,
-          },
-          {
-            _id: 'job_1088',
-            jobNumber: '#1088',
-            jobName: 'Corporate Blvd - Main Lobby',
-            location: '456 Corporate Blvd',
-            status: 'active',
-            mySubmissions: 0,
-          },
-        ]);
-        setIsLoading(false);
+        // This hits your backend, which automatically filters for jobs where this painter's ID is in the painters array!
+        const res = await fetch('/api/jobs', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || errData.message || 'Failed to fetch jobs');
+        }
+
+        const json = await res.json();
+        
+        // Safely extract the jobs array from your backend's pagination object
+        const fetchedJobs: Job[] = json?.data?.jobs || json?.jobs || [];
+
+        if (isMounted) {
+          setJobs(fetchedJobs);
+          setIsLoading(false);
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setError(err.message);
+          setIsLoading(false);
+        }
       }
     };
 
     fetchJobs();
 
-    // Cleanup: If the component unmounts, just flip the flag.
-    // This stops React from trying to update state on a page that isn't there!
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   return (
     <div className="space-y-6">
       {/* Header Section */}
-      <header className="border-b pb-6">
+      <header className="border-b border-gray-200 pb-6 mt-4">
         <h2 className="text-3xl font-bold text-gray-900">
           Welcome back, {user?.name?.split(' ')[0] || 'Painter'}!
         </h2>
-        <p className="text-gray-500 mt-2">Here are the jobs currently assigned to you.</p>
+        <p className="text-gray-500 mt-2">Here are the projects currently assigned to you.</p>
       </header>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg relative shadow-sm">
+          {error}
+        </div>
+      )}
 
       {/* Loading State */}
       {isLoading ? (
-        <div className="flex justify-center items-center py-20">
+        <div className="flex flex-col justify-center items-center py-20 gap-3">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-gray-500 font-medium">Loading your assignments...</span>
+          <span className="text-gray-500 font-medium">Loading your assignments...</span>
         </div>
       ) : (
         /* Jobs Grid */
@@ -87,22 +93,30 @@ export default function PainterDashboard() {
               className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow flex flex-col justify-between"
             >
               <div>
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <span className="text-sm font-bold text-blue-600">{job.jobNumber}</span>
-                    <h3 className="font-bold text-lg text-gray-900 mt-1">{job.jobName}</h3>
+                <div className="flex justify-between items-start mb-4 gap-4">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-xl text-gray-900 truncate">{job.companyName}</h3>
                   </div>
-                  <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">
+                  <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider shrink-0 ${
+                    job.status === 'active' ? 'bg-blue-100 text-blue-800' : 
+                    job.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                    'bg-amber-100 text-amber-800'
+                  }`}>
                     {job.status}
                   </span>
                 </div>
                 
                 <div className="space-y-2 mb-6">
+                  {job.description && (
+                    <p className="text-gray-600 text-sm flex items-start gap-2">
+                      <span>📍</span> 
+                      <span className="line-clamp-2">{job.description}</span>
+                    </p>
+                  )}
                   <p className="text-gray-600 text-sm flex items-center gap-2">
-                    📍 {job.location}
-                  </p>
-                  <p className="text-gray-600 text-sm flex items-center gap-2">
-                    🖼️ {job.mySubmissions} Submissions uploaded
+                    <span>🖼️</span> 
+                    {/* Note: This shows total submissions on the job. To get only THIS painter's submissions, we'd need a different backend query */}
+                    {job.submissions?.length || 0} Total project photos
                   </p>
                 </div>
               </div>
@@ -111,18 +125,19 @@ export default function PainterDashboard() {
               <div className="flex gap-3 pt-4 border-t border-gray-100">
                 <Link 
                   href={`/painter/jobs/${job._id}`}
-                  className="w-1/2 text-center bg-gray-50 text-gray-700 py-2 rounded-md font-medium border border-gray-200 hover:bg-gray-100 transition-colors"
+                  className="w-full text-center bg-blue-50 text-blue-700 py-2.5 rounded-lg font-bold border border-blue-100 hover:bg-blue-100 transition-colors"
                 >
-                  View Details
+                  Enter the Job
                 </Link>
-                
               </div>
             </div>
           ))}
 
-          {jobs.length === 0 && (
-            <div className="col-span-full bg-gray-50 p-10 text-center rounded-xl border border-dashed border-gray-300">
-              <p className="text-gray-500 font-medium">You don't have any active jobs assigned right now.</p>
+          {jobs.length === 0 && !error && (
+            <div className="col-span-full bg-gray-50 p-12 text-center rounded-xl border border-dashed border-gray-300">
+              <div className="text-4xl mb-3">🎨</div>
+              <p className="text-gray-900 font-bold text-lg">No active assignments</p>
+              <p className="text-gray-500 mt-1">You don't have any active jobs assigned right now. Check back later!</p>
             </div>
           )}
         </div>

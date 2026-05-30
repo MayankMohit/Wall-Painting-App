@@ -3,77 +3,57 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-// Data structure matching GET /api/jobs for the owner
-interface JobSummary {
+// Data structure perfectly matching your Mongoose JobSchema
+interface Job {
   _id: string;
-  jobNumber: string;
-  jobName: string;
-  location: string;
-  status: 'active' | 'completed';
-  stats: {
-    paintersAssigned: number;
-    pendingReviews: number;
-    approvedPhotos: number;
-  };
+  companyName: string;
+  description?: string;
+  status: 'active' | 'completed' | 'invoiced';
+  painters: string[];
+  submissions: string[];
   createdAt: string;
 }
 
 export default function OwnerJobsListPage() {
-  const [jobs, setJobs] = useState<JobSummary[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'invoiced'>('all');
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchJobs = async () => {
       setIsLoading(true);
+      setError('');
 
-      // ---------------------------------------------------------
-      // API TESTING PLACEHOLDER: GET /api/jobs (Admin View)
-      // ---------------------------------------------------------
-      await new Promise(resolve => setTimeout(resolve, 700));
+      try {
+        const token = localStorage.getItem('wallpainter_token');
+        if (!token) throw new Error('Authentication token missing. Please log in.');
 
-      if (isMounted) {
-        setJobs([
-          {
-            _id: 'job_1042',
-            jobNumber: '#1042',
-            jobName: 'Tech Park Block A - Exterior',
-            location: '123 Main St, Tech Park',
-            status: 'active',
-            stats: { paintersAssigned: 2, pendingReviews: 3, approvedPhotos: 12 },
-            createdAt: 'Oct 12, 2024'
-          },
-          {
-            _id: 'job_1088',
-            jobNumber: '#1088',
-            jobName: 'Corporate Blvd - Main Lobby',
-            location: '456 Corporate Blvd',
-            status: 'active',
-            stats: { paintersAssigned: 1, pendingReviews: 5, approvedPhotos: 0 },
-            createdAt: 'Oct 15, 2024'
-          },
-          {
-            _id: 'job_1090',
-            jobNumber: '#1090',
-            jobName: 'City Center Mall - Level 1',
-            location: '890 Center Mall',
-            status: 'active',
-            stats: { paintersAssigned: 3, pendingReviews: 0, approvedPhotos: 24 },
-            createdAt: 'Oct 18, 2024'
-          },
-          {
-            _id: 'job_0995',
-            jobNumber: '#0995',
-            jobName: 'Riverside Apartments - Phase 1',
-            location: '100 River Road',
-            status: 'completed',
-            stats: { paintersAssigned: 4, pendingReviews: 0, approvedPhotos: 45 },
-            createdAt: 'Aug 02, 2024'
-          }
-        ]);
-        setIsLoading(false);
+        const res = await fetch('/api/jobs', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || errData.message || 'Failed to fetch jobs');
+        }
+
+        const json = await res.json();
+        
+        // Extract the jobs array from your backend's pagination object
+        const fetchedJobs: Job[] = json?.data?.jobs || json?.jobs || [];
+
+        if (isMounted) {
+          setJobs(fetchedJobs);
+          setIsLoading(false);
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setError(err.message);
+          setIsLoading(false);
+        }
       }
     };
 
@@ -92,7 +72,7 @@ export default function OwnerJobsListPage() {
     <div className="space-y-6">
       
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 pb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 pb-6 mt-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">All Jobs</h1>
           <p className="text-gray-500 mt-1">Manage projects, painters, and review photo submissions.</p>
@@ -105,9 +85,15 @@ export default function OwnerJobsListPage() {
         </Link>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative shadow-sm">
+          {error}
+        </div>
+      )}
+
       {/* Filters */}
-      <div className="flex gap-2">
-        {['all', 'active', 'completed'].map((f) => (
+      <div className="flex flex-wrap gap-2">
+        {['all', 'active', 'completed', 'invoiced'].map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f as any)}
@@ -134,39 +120,31 @@ export default function OwnerJobsListPage() {
             <div key={job._id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
               
               {/* Card Header */}
-              <div className="p-6 border-b border-gray-100 flex justify-between items-start">
-                <div>
-                  <span className="text-sm font-bold text-indigo-600">{job.jobNumber}</span>
-                  <h3 className="font-bold text-xl text-gray-900 mt-1">{job.jobName}</h3>
-                  <p className="text-gray-500 text-sm mt-1 flex items-center gap-1">
-                    📍 {job.location}
+              <div className="p-6 border-b border-gray-100 flex justify-between items-start gap-4">
+                <div className="min-w-0">
+                  <h3 className="font-bold text-xl text-gray-900 truncate">{job.companyName}</h3>
+                  <p className="text-gray-500 text-sm mt-1 line-clamp-2">
+                    {job.description || 'No description provided.'}
                   </p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                  job.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shrink-0 ${
+                  job.status === 'active' ? 'bg-indigo-100 text-indigo-800' : 
+                  job.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                  'bg-amber-100 text-amber-800'
                 }`}>
                   {job.status}
                 </span>
               </div>
 
               {/* Stats Row */}
-              <div className="bg-gray-50 p-4 grid grid-cols-3 divide-x divide-gray-200 border-b border-gray-100">
+              <div className="bg-gray-50 p-4 grid grid-cols-2 divide-x divide-gray-200 border-b border-gray-100">
                 <div className="text-center px-2">
-                  <div className="text-lg font-black text-gray-900">{job.stats.paintersAssigned}</div>
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mt-1">Painters</div>
-                </div>
-                <div className="text-center px-2 relative">
-                  {job.stats.pendingReviews > 0 && (
-                    <span className="absolute top-0 right-2 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
-                  )}
-                  <div className={`text-lg font-black ${job.stats.pendingReviews > 0 ? 'text-yellow-600' : 'text-gray-900'}`}>
-                    {job.stats.pendingReviews}
-                  </div>
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mt-1">Pending</div>
+                  <div className="text-lg font-black text-gray-900">{job.painters?.length || 0}</div>
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mt-1">Assigned Painters</div>
                 </div>
                 <div className="text-center px-2">
-                  <div className="text-lg font-black text-gray-900">{job.stats.approvedPhotos}</div>
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mt-1">Approved</div>
+                  <div className="text-lg font-black text-gray-900">{job.submissions?.length || 0}</div>
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mt-1">Total Submissions</div>
                 </div>
               </div>
 
