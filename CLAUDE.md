@@ -23,7 +23,7 @@ Single Next.js 16 full-stack app with three user roles: **Painters** (submit wor
 Frontend (React 19 + Zustand + RTK Query) → API Routes (Next.js) → MongoDB + External Services
 ```
 
-External services: MongoDB Atlas (DB), Cloudinary (image CDN + watermarking), Cloudflare R2 (file storage), Upstash Redis + Bull (background job queue), Firebase FCM (push notifications), Resend (email).
+External services: MongoDB Atlas (DB), Cloudinary (image CDN + watermarking), Cloudflare R2 (file storage), Redis (Upstash for dev, self-hosted on VM for prod) + BullMQ (background job queue), Firebase FCM (push notifications), Resend (email).
 
 ## Source Layout
 
