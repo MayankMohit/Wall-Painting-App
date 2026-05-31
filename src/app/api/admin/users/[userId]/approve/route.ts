@@ -1,9 +1,9 @@
 import { connectDB } from '@/lib/db';
-import { User, Notification } from '@/lib/models';
+import { User } from '@/lib/models';
 import { requireRole } from '@/lib/rbac';
-import { admin } from '@/lib/firebase-admin';
 import { sendOwnerApprovedEmail } from '@/lib/email';
 import { ok, notFound, badRequest } from '@/lib/api-response';
+import { notify } from '@/lib/notify/emit';
 
 const EXCLUDED = '-password -resetPasswordToken -resetPasswordExpires';
 
@@ -19,6 +19,8 @@ export async function PATCH(
     throw e;
   }
 
+  void payload;
+
   const { userId } = await context.params;
 
   await connectDB();
@@ -32,22 +34,10 @@ export async function PATCH(
 
   await Promise.allSettled([
     sendOwnerApprovedEmail(user.email, user.name),
-    Notification.create({
-      userId: user._id,
-      title: 'Account approved',
-      body: 'Your owner account has been approved. You can now log in.',
+    notify.emit('account.approved', {
+      recipientId: String(user._id),
+      data: { name: user.name },
     }),
-    ...(user.fcmTokens.length > 0
-      ? user.fcmTokens.map((token) =>
-          admin.messaging().send({
-            token,
-            notification: {
-              title: 'Account approved',
-              body: 'Your owner account has been approved. You can now log in.',
-            },
-          })
-        )
-      : []),
   ]);
 
   const updated = await User.findById(userId).select(EXCLUDED);

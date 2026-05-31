@@ -10,7 +10,8 @@
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "worker": "tsx workers/notifyWorker.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1049.0",
@@ -19,7 +20,7 @@
     "axios": "^1.16.1",
     "bcryptjs": "^3.0.3",
     "browser-image-compression": "^2.0.2",
-    "bull": "^4.16.5",
+    "bullmq": "^5.77.6",
     "cloudinary": "^2.10.0",
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
@@ -55,6 +56,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }

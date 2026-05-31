@@ -3,26 +3,29 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 export interface INotification extends Document {
   _id: Types.ObjectId;
   userId: Types.ObjectId;
+  eventId?: string;
   title: string;
   body: string;
   data?: Record<string, unknown>;
-  read: boolean;
+  readAt: Date | null;
   createdAt: Date;
-  updatedAt: Date;
 }
 
 const NotificationSchema = new Schema<INotification>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    title: { type: String, required: true },
-    body: { type: String, required: true },
-    data: { type: Schema.Types.Mixed },
-    read: { type: Boolean, default: false },
+    userId:  { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    eventId: { type: String },
+    title:   { type: String, required: true },
+    body:    { type: String, required: true },
+    data:    { type: Schema.Types.Mixed },
+    readAt:  { type: Date, default: null },
   },
-  { timestamps: true }
+  { timestamps: { createdAt: true, updatedAt: false } }
 );
 
-NotificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
+NotificationSchema.index({ userId: 1, createdAt: -1 });
+NotificationSchema.index({ userId: 1, readAt: 1, createdAt: -1 });
+NotificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7_776_000 }); // 90-day TTL
 
 if (process.env.NODE_ENV === 'development') {
   delete mongoose.models['Notification'];

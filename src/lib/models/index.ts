@@ -5,6 +5,7 @@ export { Photo } from './Photo';
 export { GeneratedFile } from './GeneratedFile';
 export { BackgroundJob } from './BackgroundJob';
 export { Notification } from './Notification';
+export { NotificationPreference } from './NotificationPreference';
 
 export type { IUser } from './User';
 export type { IJob } from './Job';
@@ -13,3 +14,4 @@ export type { IPhoto } from './Photo';
 export type { IGeneratedFile } from './GeneratedFile';
 export type { IBackgroundJob } from './BackgroundJob';
 export type { INotification } from './Notification';
+export type { INotificationPreference } from './NotificationPreference';

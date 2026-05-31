@@ -60,6 +60,14 @@ export async function sendOwnerRejectedEmail(
   });
 }
 
+export async function sendNotificationEmail(
+  to: string,
+  subject: string,
+  html: string
+): Promise<void> {
+  await resend.emails.send({ from: FROM, to, subject, html });
+}
+
 export async function sendAdminNewOwnerNotification(
   to: string,
   owner: { name: string; email: string; phone: string }

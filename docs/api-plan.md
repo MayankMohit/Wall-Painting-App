@@ -164,10 +164,10 @@ src/app/api/admin/
 
 | Step | Area | Difficulty | Routes | Status |
 |---|---|---|---|---|
-| 1 | Auth | Medium | 6 | 🔴 |
+| 1 | Auth | Medium | 6 | ✅ |
 | 2 | Users  | Easy–Medium | 9 | ✅ |
 | 3 | Jobs | Medium | 9 | ✅ |
-| 4 | Uploads  | Medium | 1 | 🔴 |
+| 4 | Uploads  | Medium | 1 | ✅ |
 | 5 | Submissions | Medium–Hard | 9 | 🔴 |
 | 6 | Notifications | Medium | 4 | 🔴 |
 | 7 | File Generation & Downloads | Hard | 6 | 🔴 |

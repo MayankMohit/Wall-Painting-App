@@ -143,3 +143,14 @@ export const UpdateAdminUserSchema = z.object({
 export const SignUploadSchema = z.object({
   folder: z.string().trim().optional(),
 });
+
+export const NotificationPreferenceSchema = z.object({
+  push:  z.record(z.string(), z.boolean()).optional(),
+  email: z.record(z.string(), z.boolean()).optional(),
+  quietHours: z.object({
+    start: z.string().regex(/^\d{2}:\d{2}$/, { error: 'Use HH:MM format' }),
+    end:   z.string().regex(/^\d{2}:\d{2}$/, { error: 'Use HH:MM format' }),
+    tz:    z.string().min(1, { error: 'Timezone is required' }),
+  }).nullable().optional(),
+  digest: z.boolean().optional(),
+});

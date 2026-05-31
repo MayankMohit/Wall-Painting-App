@@ -132,7 +132,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
+    const token    = localStorage.getItem('wallpainter_token');
+    const fcmToken = localStorage.getItem('wallpainter_fcm_token');
+    if (token) {
+      fetch('/api/auth/logout', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify(fcmToken ? { fcmToken } : {}),
+      }).catch(() => {});
+    }
     localStorage.removeItem('wallpainter_token');
+    localStorage.removeItem('wallpainter_fcm_token');
     document.cookie = 'wallpainter_auth_status=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     set({ user: null, isAuthenticated: false });
   },

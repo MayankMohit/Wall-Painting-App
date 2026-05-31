@@ -6,6 +6,7 @@ import { created, badRequest, err } from '@/lib/api-response';
 import { admin } from '@/lib/firebase-admin';
 import { verifyEmailOtp } from '@/lib/otp';
 import { sendAdminNewOwnerNotification } from '@/lib/email';
+import { notify } from '@/lib/notify/emit';
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -48,9 +49,10 @@ export async function POST(request: Request) {
 
   if (role === 'owner') {
     const admins = await User.find({ role: 'admin' }, 'email').lean();
-    await Promise.allSettled(
-      admins.map((a) => sendAdminNewOwnerNotification(a.email, { name, email, phone }))
-    );
+    await Promise.allSettled([
+      ...admins.map((a) => sendAdminNewOwnerNotification(a.email, { name, email, phone })),
+      notify.emit('owner.registered', { data: { name, email } }),
+    ]);
   }
 
   const token = signToken({ userId: user._id.toString(), role: user.role });

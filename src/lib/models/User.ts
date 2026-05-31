@@ -37,7 +37,6 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
-UserSchema.index({ email: 1 });
 UserSchema.index({ role: 1, status: 1 });
 
 if (process.env.NODE_ENV === 'development') {
