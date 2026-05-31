@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import EmailSection from '@/components/common/EmailSection';
+import { NotificationPreferences } from '@/components/common/NotificationPreferences';
 
 export default function OwnerProfilePage() {
   const { user, checkAuth } = useAuthStore();
@@ -104,6 +105,11 @@ export default function OwnerProfilePage() {
       </div>
 
       {user && <EmailSection user={user} onEmailUpdated={checkAuth} />}
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 className="text-lg font-bold text-gray-900 mb-4">Notification Preferences</h2>
+        <NotificationPreferences />
+      </div>
     </div>
   );
 }

@@ -9,55 +9,35 @@ Run phases in order — each phase builds on the previous one.
 
 ### Services
 
-```bash
+```powershell
 # Terminal 1 — Next.js dev server
 npm run dev
 
-# Terminal 2 — notify worker
+# Terminal 2 — notify worker (Phases 3, 5, 6, 7, 8, 10)
 npm run worker
-
-# Redis — Upstash URL is in .env, no local process needed
 ```
 
 ### Shell setup
 
-Run once at the start of every test session. Replace the tokens with real values.
+Run once at the start of every test session. Replace token placeholders with real values.
 
-**bash / WSL**
-```bash
-# If running from WSL, find your Windows host IP
-export HOST=$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}')
-# If running from the same machine as the server, use localhost
-export HOST=localhost
-
-export ADMIN_TOKEN="eyJ..."
-export OWNER_TOKEN="eyJ..."
-export PAINTER_TOKEN="eyJ..."
-export BASE="http://$HOST:3000"
-```
-
-**PowerShell**
 ```powershell
-$BASE   = "http://localhost:3000"
-$ADMIN  = @{ Authorization = "Bearer eyJ..." }
-$OWNER  = @{ Authorization = "Bearer eyJ..." }
-$PAINTER = @{ Authorization = "Bearer eyJ..." }
-$JSON   = @{ Authorization = "Bearer eyJ..."; "Content-Type" = "application/json" }
+$BASE          = "http://localhost:3000"
+$ADMIN_TOKEN   = "eyJ..."     # replace
+$OWNER_TOKEN   = "eyJ..."
+$PAINTER_TOKEN = "eyJ..."
+$ADMIN   = @{ Authorization = "Bearer $ADMIN_TOKEN" }
+$OWNER   = @{ Authorization = "Bearer $OWNER_TOKEN" }
+$PAINTER = @{ Authorization = "Bearer $PAINTER_TOKEN" }
+
+# Fill in after Phase 1.2 and DB setup
+$NOTIF_ID         = ""   # a notification _id from Phase 1.2
+$PENDING_OWNER_ID = ""   # owner with status: inactive
+$PAINTER_ID       = ""   # a painter's _id
 ```
 
 ### Login helper
 
-**bash**
-```bash
-get_token() {
-  curl -s -X POST $BASE/api/auth/login \
-    -H "Content-Type: application/json" \
-    -d "{\"identifier\":\"$1\",\"password\":\"$2\"}" | python -m json.tool
-}
-get_token admin@example.com password123
-```
-
-**PowerShell**
 ```powershell
 function Get-Token($email, $pass) {
   $r = Invoke-RestMethod -Uri "$BASE/api/auth/login" -Method POST `
@@ -65,17 +45,22 @@ function Get-Token($email, $pass) {
     -Body "{`"identifier`":`"$email`",`"password`":`"$pass`"}"
   $r.data.token
 }
-$ADMIN_TOKEN = Get-Token "admin@example.com" "password123"
+$ADMIN_TOKEN   = Get-Token "admin@example.com" "password123"
+$OWNER_TOKEN   = Get-Token "owner@example.com" "password123"
+$PAINTER_TOKEN = Get-Token "painter@example.com" "password123"
+$ADMIN   = @{ Authorization = "Bearer $ADMIN_TOKEN" }
+$OWNER   = @{ Authorization = "Bearer $OWNER_TOKEN" }
+$PAINTER = @{ Authorization = "Bearer $PAINTER_TOKEN" }
 ```
 
 ### Test accounts needed
 
 | Variable | Role | Status |
 |---|---|---|
-| `ADMIN_TOKEN` | admin | active |
-| `OWNER_TOKEN` | owner | active |
-| `PAINTER_TOKEN` | painter | active |
-| `PENDING_OWNER_ID` | owner | inactive (pending approval) |
+| `$ADMIN_TOKEN` | admin | active |
+| `$OWNER_TOKEN` | owner | active |
+| `$PAINTER_TOKEN` | painter | active |
+| `$PENDING_OWNER_ID` | owner | inactive (pending approval) |
 
 ### MongoDB quick reference
 
@@ -99,13 +84,6 @@ No worker needed. Tests `GET /api/notifications`, `PUT /api/notifications/[id]/r
 
 ### 1.1 Seed — admin test endpoint
 
-**bash**
-```bash
-curl -s -X POST $BASE/api/notifications/test \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
-```
-
-**PowerShell**
 ```powershell
 Invoke-RestMethod -Uri "$BASE/api/notifications/test" -Method POST -Headers $ADMIN
 ```
@@ -128,13 +106,6 @@ targeted because the event audience is `kind: "role", role: "admin"`.
 
 ### 1.2 Fetch list — default (20 notifications, newest first)
 
-**bash**
-```bash
-curl -s "$BASE/api/notifications" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
-```
-
-**PowerShell**
 ```powershell
 $r = Invoke-RestMethod -Uri "$BASE/api/notifications" -Headers $ADMIN
 $r.data.unreadCount
@@ -150,10 +121,8 @@ $r.data.notifications.Count
 
 ### 1.3 Fetch unread only
 
-**bash**
-```bash
-curl -s "$BASE/api/notifications?unread=true" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/notifications?unread=true" -Headers $ADMIN
 ```
 
 **Expected** — all items in `notifications` have `readAt: null`. `unreadCount` matches array length.
@@ -162,16 +131,11 @@ curl -s "$BASE/api/notifications?unread=true" \
 
 ### 1.4 Limit parameter — custom value
 
-**bash**
-```bash
-# Seed 10 notifications first, then test limit
-for i in {1..10}; do
-  curl -s -X POST $BASE/api/notifications/test \
-    -H "Authorization: Bearer $ADMIN_TOKEN" > /dev/null
-done
-
-curl -s "$BASE/api/notifications?limit=3" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+1..10 | ForEach-Object {
+  Invoke-RestMethod -Uri "$BASE/api/notifications/test" -Method POST -Headers $ADMIN | Out-Null
+}
+Invoke-RestMethod -Uri "$BASE/api/notifications?limit=3" -Headers $ADMIN
 ```
 
 **Expected** — exactly 3 items in `notifications`. `unreadCount` reflects total unread (not just 3).
@@ -180,10 +144,8 @@ curl -s "$BASE/api/notifications?limit=3" \
 
 ### 1.5 Limit parameter — cap at 50
 
-**bash**
-```bash
-curl -s "$BASE/api/notifications?limit=999" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/notifications?limit=999" -Headers $ADMIN
 ```
 
 **Expected** — at most 50 items. No error — the value is silently clamped.
@@ -192,10 +154,8 @@ curl -s "$BASE/api/notifications?limit=999" \
 
 ### 1.6 Limit parameter — invalid value
 
-**bash**
-```bash
-curl -s "$BASE/api/notifications?limit=abc" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/notifications?limit=abc" -Headers $ADMIN
 ```
 
 **Expected** — falls back to default of 20, no error (NaN → 0 → Math.min clamps to 20).
@@ -204,10 +164,8 @@ curl -s "$BASE/api/notifications?limit=abc" \
 
 ### 1.7 Unread + limit combined
 
-**bash**
-```bash
-curl -s "$BASE/api/notifications?unread=true&limit=2" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/notifications?unread=true&limit=2" -Headers $ADMIN
 ```
 
 **Expected** — at most 2 items, all with `readAt: null`. `unreadCount` still reflects total.
@@ -223,19 +181,8 @@ should be equal to or older than the previous item. Verify manually from the res
 
 ### 1.9 Mark one notification read
 
-Copy an `_id` from the response above.
-
-**bash**
-```bash
-export NOTIF_ID="6a1ca12a94c8244e5c0ff291"  # replace with real id
-
-curl -s -X PUT "$BASE/api/notifications/$NOTIF_ID/read" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
-```
-
-**PowerShell**
 ```powershell
-$NOTIF_ID = "6a1ca12a94c8244e5c0ff291"
+$NOTIF_ID = "6a1ca12a94c8244e5c0ff291"  # replace with real _id from 1.2
 Invoke-RestMethod -Uri "$BASE/api/notifications/$NOTIF_ID/read" -Method PUT -Headers $ADMIN
 ```
 
@@ -245,12 +192,8 @@ Invoke-RestMethod -Uri "$BASE/api/notifications/$NOTIF_ID/read" -Method PUT -Hea
 
 ### 1.10 Mark read is idempotent
 
-Call the same endpoint twice. The second call should not error.
-
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/notifications/$NOTIF_ID/read" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/notifications/$NOTIF_ID/read" -Method PUT -Headers $ADMIN
 ```
 
 **Expected** — `200` again. `readAt` is updated to a slightly newer timestamp (idempotent).
@@ -259,10 +202,8 @@ curl -s -X PUT "$BASE/api/notifications/$NOTIF_ID/read" \
 
 ### 1.11 Unread count drops after mark read
 
-**bash**
-```bash
-curl -s "$BASE/api/notifications?unread=true" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/notifications?unread=true" -Headers $ADMIN
 ```
 
 **Expected** — `unreadCount` is one less than before 1.9.
@@ -271,12 +212,8 @@ curl -s "$BASE/api/notifications?unread=true" \
 
 ### 1.12 New user — empty notifications
 
-Log in as the painter (who has never received a notification).
-
-**bash**
-```bash
-curl -s "$BASE/api/notifications" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/notifications" -Headers $PAINTER
 ```
 
 **Expected**
@@ -288,15 +225,6 @@ curl -s "$BASE/api/notifications" \
 
 ### 1.13 Mark all read
 
-Ensure there are multiple unread notifications for the admin, then:
-
-**bash**
-```bash
-curl -s -X POST "$BASE/api/notifications/read-all" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
-```
-
-**PowerShell**
 ```powershell
 Invoke-RestMethod -Uri "$BASE/api/notifications/read-all" -Method POST -Headers $ADMIN
 ```
@@ -308,12 +236,8 @@ belonging to this user only (not other users).
 
 ### 1.14 Mark all read — nothing to mark
 
-With zero unread notifications:
-
-**bash**
-```bash
-curl -s -X POST "$BASE/api/notifications/read-all" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/notifications/read-all" -Method POST -Headers $ADMIN
 ```
 
 **Expected** — `{ "data": { "updated": 0 } }`. No error.
@@ -322,13 +246,8 @@ curl -s -X POST "$BASE/api/notifications/read-all" \
 
 ### 1.15 Notifications are scoped per user
 
-Admin's notifications are not visible to the painter and vice versa.
-Fetch with painter token — should only return painter's own notifications (currently empty).
-
-**bash**
-```bash
-curl -s "$BASE/api/notifications" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/notifications" -Headers $PAINTER
 ```
 
 **Expected** — `notifications: []`, `unreadCount: 0`. Admin's notifications do not appear.
@@ -337,12 +256,8 @@ curl -s "$BASE/api/notifications" \
 
 ### 1.16 Security — cross-user mark read
 
-Try to mark the admin's notification as read using the painter token.
-
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/notifications/$NOTIF_ID/read" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" | python -m json.tool
+```powershell
+try { Invoke-RestMethod -Uri "$BASE/api/notifications/$NOTIF_ID/read" -Method PUT -Headers $PAINTER } catch { $_.Exception.Response.StatusCode }
 ```
 
 **Expected** — `404`. Painter cannot see or modify another user's notification.
@@ -351,12 +266,8 @@ curl -s -X PUT "$BASE/api/notifications/$NOTIF_ID/read" \
 
 ### 1.17 Security — valid ObjectId but non-existent
 
-Generate a random valid ObjectId that doesn't exist in the DB.
-
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/notifications/000000000000000000000000/read" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+try { Invoke-RestMethod -Uri "$BASE/api/notifications/000000000000000000000000/read" -Method PUT -Headers $ADMIN } catch { $_.Exception.Response.StatusCode }
 ```
 
 **Expected** — `404`.
@@ -365,10 +276,8 @@ curl -s -X PUT "$BASE/api/notifications/000000000000000000000000/read" \
 
 ### 1.18 Security — invalid ObjectId format
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/notifications/not-an-id/read" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+try { Invoke-RestMethod -Uri "$BASE/api/notifications/not-an-id/read" -Method PUT -Headers $ADMIN } catch { $_.Exception.Response.StatusCode }
 ```
 
 **Expected** — `404` (ObjectId validation rejects before querying).
@@ -377,41 +286,35 @@ curl -s -X PUT "$BASE/api/notifications/not-an-id/read" \
 
 ### 1.19 Security — no auth token
 
-**bash**
-```bash
-curl -s "$BASE/api/notifications" | python -m json.tool
-curl -s -X POST "$BASE/api/notifications/read-all" | python -m json.tool
-curl -s -X PUT "$BASE/api/notifications/$NOTIF_ID/read" | python -m json.tool
+```powershell
+try { Invoke-RestMethod -Uri "$BASE/api/notifications" } catch { $_.Exception.Response.StatusCode }
+try { Invoke-RestMethod -Uri "$BASE/api/notifications/read-all" -Method POST } catch { $_.Exception.Response.StatusCode }
+try { Invoke-RestMethod -Uri "$BASE/api/notifications/$NOTIF_ID/read" -Method PUT } catch { $_.Exception.Response.StatusCode }
 ```
 
-**Expected** — `401` for all three.
+**Expected** — `Unauthorized` (401) for all three.
 
 ---
 
 ### 1.20 Security — non-admin calling test endpoint
 
-**bash**
-```bash
-curl -s -X POST "$BASE/api/notifications/test" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" | python -m json.tool
-
-curl -s -X POST "$BASE/api/notifications/test" \
-  -H "Authorization: Bearer $OWNER_TOKEN" | python -m json.tool
+```powershell
+try { Invoke-RestMethod -Uri "$BASE/api/notifications/test" -Method POST -Headers $PAINTER } catch { $_.Exception.Response.StatusCode }
+try { Invoke-RestMethod -Uri "$BASE/api/notifications/test" -Method POST -Headers $OWNER } catch { $_.Exception.Response.StatusCode }
 ```
 
-**Expected** — `403` for both.
+**Expected** — `Forbidden` (403) for both.
 
 ---
 
 ### 1.21 Security — malformed JWT
 
-**bash**
-```bash
-curl -s "$BASE/api/notifications" \
-  -H "Authorization: Bearer thisisnotavalidjwt" | python -m json.tool
+```powershell
+$BAD = @{ Authorization = "Bearer thisisnotavalidjwt" }
+try { Invoke-RestMethod -Uri "$BASE/api/notifications" -Headers $BAD } catch { $_.Exception.Response.StatusCode }
 ```
 
-**Expected** — `401`.
+**Expected** — `Unauthorized` (401).
 
 ---
 
@@ -424,12 +327,8 @@ Tests `GET /api/users/me/notification-preferences` and
 
 ### 2.1 Default preferences — first-time user
 
-Use the painter who has no preferences doc yet.
-
-**bash**
-```bash
-curl -s "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Headers $PAINTER
 ```
 
 **Expected**
@@ -451,12 +350,9 @@ painter yet. GET returns a hardcoded default without creating anything.
 
 ### 2.2 First PUT creates a DB doc
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"push":{"*":false}}' | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" -Body '{"push":{"*":false}}'
 ```
 
 **Expected response** — `push: { "*": false }`, email and quietHours unchanged.
@@ -467,12 +363,9 @@ curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
 
 ### 2.3 Second PUT updates — no duplicate doc created
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"email":{"*":false}}' | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" -Body '{"email":{"*":false}}'
 ```
 
 **Check MongoDB** — still exactly ONE doc for this painter. `push: { "*": false }` and
@@ -482,12 +375,9 @@ curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
 
 ### 2.4 Partial update does not overwrite unrelated fields
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"digest":true}' | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" -Body '{"digest":true}'
 ```
 
 **Expected** — `digest: true`, but `push: { "*": false }` and `email: { "*": false }`
@@ -497,12 +387,10 @@ are still set from 2.2 and 2.3.
 
 ### 2.5 Per-event override alongside wildcard
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"push":{"*":true,"submission.create":false}}' | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" `
+  -Body '{"push":{"*":true,"submission.create":false}}'
 ```
 
 **Expected** — `push: { "*": true, "submission.create": false }`.
@@ -512,12 +400,10 @@ Meaning: all push on except for `submission.create` specifically.
 
 ### 2.6 Set quiet hours
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"quietHours":{"start":"22:00","end":"08:00","tz":"Asia/Kolkata"}}' | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" `
+  -Body '{"quietHours":{"start":"22:00","end":"08:00","tz":"Asia/Kolkata"}}'
 ```
 
 **Expected** — `quietHours: { "start": "22:00", "end": "08:00", "tz": "Asia/Kolkata" }`.
@@ -527,12 +413,10 @@ Other fields unchanged from previous PUT.
 
 ### 2.7 Update quiet hours — change end time only
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"quietHours":{"start":"22:00","end":"09:00","tz":"Asia/Kolkata"}}' | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" `
+  -Body '{"quietHours":{"start":"22:00","end":"09:00","tz":"Asia/Kolkata"}}'
 ```
 
 **Expected** — `end` changed to `09:00`, `start` and `tz` remain.
@@ -541,12 +425,9 @@ curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
 
 ### 2.8 Clear quiet hours
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"quietHours":null}' | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" -Body '{"quietHours":null}'
 ```
 
 **Expected** — `quietHours: null`. All other fields unchanged.
@@ -555,12 +436,8 @@ curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
 
 ### 2.9 GET reflects latest state
 
-After all the PUTs above, GET should return the current saved state.
-
-**bash**
-```bash
-curl -s "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Headers $PAINTER
 ```
 
 **Expected** — matches what was last PUT. GET is never stale.
@@ -569,12 +446,8 @@ curl -s "$BASE/api/users/me/notification-preferences" \
 
 ### 2.10 Preferences are per-user — users are independent
 
-Fetch with admin token. The admin should have default prefs (no doc in DB).
-
-**bash**
-```bash
-curl -s "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Headers $ADMIN
 ```
 
 **Expected** — defaults `{ "*": true }` for both push and email. Painter's changes
@@ -584,12 +457,12 @@ above do not affect the admin.
 
 ### 2.11 Validation — invalid quiet hours format (non-HH:MM)
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"quietHours":{"start":"10pm","end":"8am","tz":"Asia/Kolkata"}}' | python -m json.tool
+```powershell
+try {
+  Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+    -Headers $PAINTER -ContentType "application/json" `
+    -Body '{"quietHours":{"start":"10pm","end":"8am","tz":"Asia/Kolkata"}}'
+} catch { $_.Exception.Response.StatusCode }
 ```
 
 **Expected** — `400 Bad Request`. Zod regex `^\d{2}:\d{2}$` rejects `10pm`.
@@ -598,12 +471,12 @@ curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
 
 ### 2.12 Validation — quietHours missing tz
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"quietHours":{"start":"22:00","end":"08:00"}}' | python -m json.tool
+```powershell
+try {
+  Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+    -Headers $PAINTER -ContentType "application/json" `
+    -Body '{"quietHours":{"start":"22:00","end":"08:00"}}'
+} catch { $_.Exception.Response.StatusCode }
 ```
 
 **Expected** — `400 Bad Request`. `tz` is required inside quietHours.
@@ -612,12 +485,9 @@ curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
 
 ### 2.13 Validation — empty body
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{}' | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" -Body '{}'
 ```
 
 **Expected** — `200`. All fields are optional in the schema — empty body is a no-op
@@ -627,12 +497,11 @@ update (returns current state).
 
 ### 2.14 Validation — non-boolean push value
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"push":{"*":"yes"}}' | python -m json.tool
+```powershell
+try {
+  Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+    -Headers $PAINTER -ContentType "application/json" -Body '{"push":{"*":"yes"}}'
+} catch { $_.Exception.Response.StatusCode }
 ```
 
 **Expected** — `400 Bad Request`. Zod requires boolean values in the push map.
@@ -641,11 +510,12 @@ curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
 
 ### 2.15 Security — no auth token
 
-**bash**
-```bash
-curl -s "$BASE/api/users/me/notification-preferences" | python -m json.tool
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Content-Type: application/json" -d '{"digest":true}' | python -m json.tool
+```powershell
+try { Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" } catch { $_.Exception.Response.StatusCode }
+try {
+  Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+    -ContentType "application/json" -Body '{"digest":true}'
+} catch { $_.Exception.Response.StatusCode }
 ```
 
 **Expected** — `401` for both.
@@ -654,12 +524,10 @@ curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
 
 ### 2.16 Reset painter to defaults before next phases
 
-**bash**
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"push":{"*":true},"email":{"*":true},"quietHours":null,"digest":false}' > /dev/null
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" `
+  -Body '{"push":{"*":true},"email":{"*":true},"quietHours":null,"digest":false}' | Out-Null
 ```
 
 ---
@@ -683,10 +551,8 @@ If not — check Redis URL in `.env` and re-run `npm run worker`.
 
 ### 3.2 Push job — trigger and verify in terminal
 
-**bash**
-```bash
-curl -s -X POST "$BASE/api/notifications/test" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/notifications/test" -Method POST -Headers $ADMIN
 ```
 
 **Expected in worker terminal**
@@ -735,7 +601,6 @@ db.users.findOne({ email: "admin@example.com" }, { fcmTokens: 1 })
 
 ### 3.5 Push job — multiple FCM tokens on one user
 
-Insert two fake tokens (one invalid, one valid if you have a real device):
 ```js
 db.users.updateOne(
   { email: "admin@example.com" },
@@ -750,25 +615,8 @@ After: `fcmTokens` array is empty.
 
 ### 3.6 Email job — trigger via submission.reject event
 
-The easiest way to test an email job without a full submission flow is to call
-`notify.emit` directly from `mongosh`:
-
-```js
-// In mongosh — paste the painter's userId
-const painterId = "6a1987c5163b0ee6f6bb706e"
-const data = {
-  painterName: "Test Painter",
-  reason: "Images are too dark",
-  code: "SUB-001",
-  jobUrl: "http://localhost:3000/jobs/test"
-}
-
-// This requires running a small script; use the test route approach below instead
-```
-
-**Easier approach** — temporarily add a test route or call via the file generation
-route in your app. Or trigger a real submission rejection from the owner dashboard
-in Phase 6.
+The easiest way to test an email job without a full submission flow is to reject a real
+submission from the owner dashboard (see Phase 6).
 
 **Expected:**
 - Worker logs `[notifyWorker] email:<jobId> completed`
@@ -779,17 +627,13 @@ in Phase 6.
 
 ### 3.7 Dedup — same data produces same SHA1 hash
 
-Call the test endpoint twice rapidly:
-
-**bash**
-```bash
-curl -s -X POST "$BASE/api/notifications/test" -H "Authorization: Bearer $ADMIN_TOKEN" &
-curl -s -X POST "$BASE/api/notifications/test" -H "Authorization: Bearer $ADMIN_TOKEN" &
-wait
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/notifications/test" -Method POST -Headers $ADMIN | Out-Null
+Invoke-RestMethod -Uri "$BASE/api/notifications/test" -Method POST -Headers $ADMIN | Out-Null
 ```
 
 **Expected:**
-- Two `Notification` docs in MongoDB (in-app always written)
+- Two `Notification` docs per admin in MongoDB (in-app always written)
 - Only ONE push job processed by worker (BullMQ dedup by jobId)
 - Worker terminal shows only one `completed` line per admin
 
@@ -816,9 +660,8 @@ to connect DB in `sendFcmToUser`.
 **Expected** — worker logs a failure and retries with exponential backoff (1s, 2s,
 4s, 8s, 16s). After 5 attempts it marks the job `failed`.
 
-Reconnect MongoDB. The `failed` job stays in BullMQ's failed set (inspect via
-Redis CLI if available):
-```bash
+Reconnect MongoDB. The `failed` job stays in BullMQ's failed set (inspect via Redis CLI if available):
+```
 redis-cli LRANGE bull:notify:failed 0 -1
 ```
 
@@ -836,19 +679,17 @@ persists jobs in Redis between worker restarts.
 
 ## Phase 4 — SSE Live Stream
 
-Tests `GET /api/notifications/stream`.
+Tests `GET /api/notifications/stream`. Use `curl.exe` (native Windows curl) for all
+SSE tests — `Invoke-RestMethod` buffers the entire response and cannot stream.
 
 ---
 
 ### 4.1 Open a persistent connection
 
-**bash**
-```bash
-curl -N "$BASE/api/notifications/stream" \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
+```powershell
+# Run in a dedicated terminal — leave it open
+curl.exe -N "$BASE/api/notifications/stream" -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
-
-`-N` disables buffering. Leave this running in its own terminal.
 
 **Expected** — connection stays open and prints:
 ```
@@ -861,10 +702,8 @@ curl -N "$BASE/api/notifications/stream" \
 
 In a second terminal while 4.1 is open:
 
-**bash**
-```bash
-curl -s -X POST "$BASE/api/notifications/test" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" > /dev/null
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/notifications/test" -Method POST -Headers $ADMIN | Out-Null
 ```
 
 **Expected** — the first terminal immediately prints (no refresh, no polling delay):
@@ -889,21 +728,15 @@ Appears every 25 seconds to prevent proxy/load-balancer timeouts.
 
 ### 4.4 User isolation — events do not bleed across users
 
-Open two streams simultaneously, one per user:
+```powershell
+# Terminal A — admin stream
+curl.exe -N "$BASE/api/notifications/stream" -H "Authorization: Bearer $ADMIN_TOKEN"
 
-**Terminal A (admin)**
-```bash
-curl -N "$BASE/api/notifications/stream" -H "Authorization: Bearer $ADMIN_TOKEN"
-```
+# Terminal B — painter stream
+curl.exe -N "$BASE/api/notifications/stream" -H "Authorization: Bearer $PAINTER_TOKEN"
 
-**Terminal B (painter)**
-```bash
-curl -N "$BASE/api/notifications/stream" -H "Authorization: Bearer $PAINTER_TOKEN"
-```
-
-Trigger admin test endpoint (targets only admins):
-```bash
-curl -s -X POST "$BASE/api/notifications/test" -H "Authorization: Bearer $ADMIN_TOKEN" > /dev/null
+# Third terminal — trigger admin-only event
+Invoke-RestMethod -Uri "$BASE/api/notifications/test" -Method POST -Headers $ADMIN | Out-Null
 ```
 
 **Expected** — Terminal A receives the event. Terminal B stays silent.
@@ -912,11 +745,10 @@ curl -s -X POST "$BASE/api/notifications/test" -H "Authorization: Bearer $ADMIN_
 
 ### 4.5 Multiple concurrent connections for same user both receive events
 
-Open two streams with the same admin token:
+Open two streams with the same admin token (two separate terminals):
 
-**Terminal A and B** — both running:
-```bash
-curl -N "$BASE/api/notifications/stream" -H "Authorization: Bearer $ADMIN_TOKEN"
+```powershell
+curl.exe -N "$BASE/api/notifications/stream" -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
 Trigger a notification. **Expected** — both terminals print the event. Each SSE
@@ -931,8 +763,6 @@ Close the curl stream with `Ctrl+C`. Check:
 - Worker terminal unaffected
 
 Redis subscriber for that connection should clean up within seconds.
-If you have Redis CLI: `CLIENT LIST` should not show dangling idle subscribers
-after ~5 seconds.
 
 ---
 
@@ -950,9 +780,8 @@ Note: notifications that arrived while disconnected are NOT replayed via SSE
 
 ### 4.8 Unauthenticated request
 
-**bash**
-```bash
-curl -N "$BASE/api/notifications/stream"
+```powershell
+curl.exe -N "$BASE/api/notifications/stream"
 ```
 
 **Expected** — `401` immediately. Connection does not stay open.
@@ -961,10 +790,8 @@ curl -N "$BASE/api/notifications/stream"
 
 ### 4.9 Expired / invalid token
 
-**bash**
-```bash
-curl -N "$BASE/api/notifications/stream" \
-  -H "Authorization: Bearer thisisinvalid"
+```powershell
+curl.exe -N "$BASE/api/notifications/stream" -H "Authorization: Bearer thisisinvalid"
 ```
 
 **Expected** — `401` immediately.
@@ -1021,14 +848,8 @@ db.notifications.find({ eventId: "job.created" }).sort({ createdAt: -1 })
 
 ### 5.4 actorId exclusion — actor does not receive own notification
 
-When an owner creates a job and is also somehow a painter on it (edge case), they
-should NOT receive the `job.created` notification because they are the actor.
-
-In practice: verify the owner who performs an action doesn't get notified via the
-`actorId` exclusion in `emit()`. This is enforced at the emit level:
-```ts
-if (actorId) recipients.delete(actorId);
-```
+When an owner creates a job, they should NOT receive the `job.created` notification
+because they are the actor. Enforced by `if (actorId) recipients.delete(actorId)` in `emit()`.
 
 ---
 
@@ -1038,23 +859,16 @@ The `file.failed` event has two targets:
 - `kind: "explicit"` → `["push", "email", "inApp"]`
 - `kind: "role", role: "admin"` → `["inApp"]`
 
-If the file owner is an admin, they should receive all three channels (union of
-`["push", "email", "inApp"]` and `["inApp"]` = `["push", "email", "inApp"]`).
-If the file owner is an owner-role user, they get all three; admins get only inApp.
-
+If the file owner is an owner-role user, they get all three channels; admins get only inApp.
 Verify by triggering a file failure and counting push jobs queued:
 - Owner gets push + email job queued → worker shows two `completed` lines
-- Each admin gets one push job queued (inApp only, but push is in the explicit target)
-
-Wait — re-read the event definition. `file.failed` explicit target has `push`, so
-the file owner gets push. Admin role target only has `inApp`. Verify in `events.ts`.
+- Each admin gets no push job (inApp only for admin target)
 
 ---
 
 ### 5.6 Unknown eventId — error handling
 
-Call `notify.emit` with a non-existent event ID. This can only be triggered from
-code — add a temporary test or use the worker test harness.
+Call `notify.emit` with a non-existent event ID (requires a temporary test route or direct code call).
 
 **Expected** — `throw new Error('Unknown notification event: badEventId')` from `emit()`.
 The route should catch this and return a 500 or handle it gracefully.
@@ -1070,10 +884,9 @@ Confirms Stage 4 changes: no raw `admin.messaging()` calls, no inline
 
 ### 6.1 Source code verification — no inline FCM
 
-**bash**
-```bash
-grep -r "admin\.messaging()" src/app/api/
-grep -r "Notification\.create" src/app/api/
+```powershell
+Get-ChildItem -Recurse src\app\api -Filter "*.ts" | Select-String "admin\.messaging\(\)"
+Get-ChildItem -Recurse src\app\api -Filter "*.ts" | Select-String "Notification\.create"
 ```
 
 **Expected** — both return zero results.
@@ -1113,12 +926,6 @@ registration (6.2). No new doc was created for a painter registration.
 
 ### 6.4 Approve owner → owner gets notification, not admin
 
-```bash
-curl -s -X PATCH "$BASE/api/admin/users/$PENDING_OWNER_ID/approve" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
-```
-
-**PowerShell**
 ```powershell
 Invoke-RestMethod -Uri "$BASE/api/admin/users/$PENDING_OWNER_ID/approve" `
   -Method PATCH -Headers $ADMIN
@@ -1141,13 +948,13 @@ db.notifications.findOne({ userId: ObjectId("ADMIN_ID"), eventId: "account.appro
 
 ### 6.5 Approve — already active owner returns 400
 
-**bash**
-```bash
-curl -s -X PATCH "$BASE/api/admin/users/$PENDING_OWNER_ID/approve" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+# Run twice — second call should fail
+try {
+  Invoke-RestMethod -Uri "$BASE/api/admin/users/$PENDING_OWNER_ID/approve" `
+    -Method PATCH -Headers $ADMIN
+} catch { $_.Exception.Response.StatusCode }
 ```
-
-Run this a second time (owner is now `active`).
 
 **Expected** — `400 Bad Request: "User is not pending approval"`.
 
@@ -1155,12 +962,11 @@ Run this a second time (owner is now `active`).
 
 ### 6.6 Approve — non-owner user returns 400
 
-Try to approve a painter account.
-
-**bash**
-```bash
-curl -s -X PATCH "$BASE/api/admin/users/$PAINTER_ID/approve" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+try {
+  Invoke-RestMethod -Uri "$BASE/api/admin/users/$PAINTER_ID/approve" `
+    -Method PATCH -Headers $ADMIN
+} catch { $_.Exception.Response.StatusCode }
 ```
 
 **Expected** — `400 Bad Request: "User is not an owner"`.
@@ -1169,10 +975,11 @@ curl -s -X PATCH "$BASE/api/admin/users/$PAINTER_ID/approve" \
 
 ### 6.7 Approve — non-existent user returns 404
 
-**bash**
-```bash
-curl -s -X PATCH "$BASE/api/admin/users/000000000000000000000000/approve" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+try {
+  Invoke-RestMethod -Uri "$BASE/api/admin/users/000000000000000000000000/approve" `
+    -Method PATCH -Headers $ADMIN
+} catch { $_.Exception.Response.StatusCode }
 ```
 
 **Expected** — `404 Not found`.
@@ -1181,11 +988,10 @@ curl -s -X PATCH "$BASE/api/admin/users/000000000000000000000000/approve" \
 
 ### 6.8 Reject owner → notification body includes reason
 
-```bash
-curl -s -X PATCH "$BASE/api/admin/users/$PENDING_OWNER_ID/reject" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"reason":"Incomplete business details"}' | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/admin/users/$PENDING_OWNER_ID/reject" -Method PATCH `
+  -Headers $ADMIN -ContentType "application/json" `
+  -Body '{"reason":"Incomplete business details"}'
 ```
 
 **Check MongoDB:**
@@ -1198,9 +1004,9 @@ db.notifications.findOne({ eventId: "account.rejected" })
 
 ### 6.9 Reject without reason — still works
 
-```bash
-curl -s -X PATCH "$BASE/api/admin/users/$ANOTHER_PENDING_ID/reject" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/admin/users/$ANOTHER_PENDING_ID/reject" `
+  -Method PATCH -Headers $ADMIN
 ```
 
 **Expected** — `200`. Notification body: `"Your registration was rejected."` (default message).
@@ -1209,14 +1015,10 @@ curl -s -X PATCH "$BASE/api/admin/users/$ANOTHER_PENDING_ID/reject" \
 
 ### 6.10 Logout cleans up FCM token
 
-Log in via browser, allow FCM permission (token stored in DB). Then:
-
-**bash**
-```bash
-curl -s -X POST "$BASE/api/auth/logout" \
-  -H "Authorization: Bearer $OWNER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"fcmToken":"<token-from-db>"}' | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/auth/logout" -Method POST `
+  -Headers $OWNER -ContentType "application/json" `
+  -Body '{"fcmToken":"<token-from-db>"}'
 ```
 
 **Expected** — `{ "data": { "message": "Logged out" } }`.
@@ -1231,12 +1033,9 @@ db.users.findOne({ email: "owner@example.com" }, { fcmTokens: 1 })
 
 ### 6.11 Logout without FCM token — still works
 
-**bash**
-```bash
-curl -s -X POST "$BASE/api/auth/logout" \
-  -H "Authorization: Bearer $OWNER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{}' | python -m json.tool
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/auth/logout" -Method POST `
+  -Headers $OWNER -ContentType "application/json" -Body '{}'
 ```
 
 **Expected** — `200`. No error when `fcmToken` is not provided.
@@ -1418,12 +1217,9 @@ These tests verify the `channelAllowed()` logic and mandatory event bypass.
 
 ### 8.1 Push disabled — in-app still created
 
-Set painter's push to off:
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"push":{"*":false}}'
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" -Body '{"push":{"*":false}}'
 ```
 
 Emit a `submission.create` targeting the painter (requires a real submission).
@@ -1441,12 +1237,9 @@ db.notifications.findOne({ userId: ObjectId("PAINTER_ID"), eventId: "submission.
 
 ### 8.2 Email disabled — push still delivered
 
-Set email to off, push still on:
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"email":{"*":false}}'
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" -Body '{"email":{"*":false}}'
 ```
 
 Trigger a `submission.reject` (has both push + email channels).
@@ -1460,12 +1253,10 @@ Trigger a `submission.reject` (has both push + email channels).
 
 ### 8.3 Mandatory event bypasses all preferences
 
-Set painter to have everything off:
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"push":{"*":false},"email":{"*":false},"quietHours":{"start":"00:00","end":"23:59","tz":"UTC"}}'
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" `
+  -Body '{"push":{"*":false},"email":{"*":false},"quietHours":{"start":"00:00","end":"23:59","tz":"UTC"}}'
 ```
 
 Trigger `user.suspended` for the painter (mandatory event). This requires setting the
@@ -1480,14 +1271,10 @@ painter status to active first, then using the admin suspend endpoint.
 
 ### 8.4 Quiet hours — normal event blocked
 
-Set quiet hours covering the current time:
-
-```bash
-# Get current UTC time in HH:MM and set a window around it
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"quietHours":{"start":"00:00","end":"23:59","tz":"UTC"}}'
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" `
+  -Body '{"quietHours":{"start":"00:00","end":"23:59","tz":"UTC"}}'
 ```
 
 Emit a normal-urgency event (`submission.create`) to the painter.
@@ -1513,13 +1300,10 @@ Same quiet hours config from 8.4. Emit an urgent event (`submission.reject`) to 
 
 ### 8.6 Quiet hours — overnight range
 
-Set quiet hours 22:00–08:00 (crosses midnight). Test at 23:30 UTC:
-
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"quietHours":{"start":"22:00","end":"08:00","tz":"UTC"}}'
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" `
+  -Body '{"quietHours":{"start":"22:00","end":"08:00","tz":"UTC"}}'
 ```
 
 If current time is between 22:00–00:00 or 00:00–08:00 UTC, normal events should be
@@ -1529,11 +1313,10 @@ blocked. If current time is 08:01–21:59 UTC, normal events should go through.
 
 ### 8.7 Per-event override — specific event disabled
 
-```bash
-curl -s -X PUT "$BASE/api/users/me/notification-preferences" \
-  -H "Authorization: Bearer $PAINTER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"push":{"*":true,"submission.approve":false}}'
+```powershell
+Invoke-RestMethod -Uri "$BASE/api/users/me/notification-preferences" -Method PUT `
+  -Headers $PAINTER -ContentType "application/json" `
+  -Body '{"push":{"*":true,"submission.approve":false}}'
 ```
 
 Trigger `submission.approve` for painter → no push job.
@@ -1586,9 +1369,6 @@ db.notificationpreferences.insertOne({ userId: ObjectId("EXISTING_USER_ID"), pus
 
 ### 9.4 Notification data field — arbitrary payload stored correctly
 
-Trigger a notification with complex nested data. Check that the `data` field is
-persisted as-is in MongoDB and returned in the API response.
-
 ```js
 db.notifications.findOne({ eventId: "admin.bg_job_failed" })
 // data: { queue: "test", jobId: "test-0", error: "manual test trigger" }
@@ -1610,17 +1390,12 @@ db.notifications.findOne({})
 
 ---
 
-### 10.1 Rapid concurrent emits — no duplicate notifications
+### 10.1 Rapid concurrent emits — no duplicate push jobs
 
-Fire 10 test endpoint calls simultaneously:
-
-**bash**
-```bash
-for i in {1..10}; do
-  curl -s -X POST "$BASE/api/notifications/test" \
-    -H "Authorization: Bearer $ADMIN_TOKEN" &
-done
-wait
+```powershell
+1..10 | ForEach-Object {
+  Invoke-RestMethod -Uri "$BASE/api/notifications/test" -Method POST -Headers $ADMIN | Out-Null
+}
 ```
 
 **Check MongoDB:**
@@ -1638,11 +1413,10 @@ are deduplicated — worker processes fewer than 10 jobs due to SHA1 dedup.
 
 ### 10.2 Large notification list performance
 
-Seed 50+ notifications for one user and measure response time:
-
-```bash
-time curl -s "$BASE/api/notifications?limit=50" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" > /dev/null
+```powershell
+Measure-Command {
+  Invoke-RestMethod -Uri "$BASE/api/notifications?limit=50" -Headers $ADMIN
+} | Select-Object -ExpandProperty TotalMilliseconds
 ```
 
 **Expected** — response in under 200ms with proper indexes in place.

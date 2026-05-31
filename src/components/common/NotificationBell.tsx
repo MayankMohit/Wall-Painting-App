@@ -51,7 +51,7 @@ function NotificationItem({
     >
       <div className="flex items-start gap-2">
         {!isRead && (
-          <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-blue-500" />
+          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
         )}
         <div className={isRead ? 'ml-4' : ''}>
           <p className="text-sm font-medium text-gray-900 leading-snug">{notif.title}</p>

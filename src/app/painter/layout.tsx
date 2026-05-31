@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
+import { NotificationBell } from '@/components/common/NotificationBell';
 
 export default function PainterLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -56,9 +57,10 @@ export default function PainterLayout({ children }: { children: React.ReactNode 
               </div>
             </div>
 
-            {/* Right Side: Logout */}
-            <div className="flex items-center">
-              <button 
+            {/* Right Side: Bell + Logout */}
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <button
                 onClick={handleLogout}
                 className="text-sm font-bold text-gray-500 hover:text-red-600 transition-colors px-4 py-2 rounded-md hover:bg-red-50 border border-transparent hover:border-red-100"
               >

@@ -309,7 +309,7 @@ Add exports: `NotificationPreference`, `INotificationPreference`.
 
 ### Stage 1 Verification
 
-```bash
+```powershell
 npx tsc --noEmit   # zero errors
 ```
 
@@ -366,7 +366,14 @@ Start Redis → `npm run worker` → emit test event → `Notification` doc appe
 
 ### Stage 3 Verification
 
-`npx tsc --noEmit` + curl each endpoint with Bearer token.
+```powershell
+npx tsc --noEmit
+# Test each route
+$ADMIN = @{ Authorization = "Bearer <token>" }
+Invoke-RestMethod -Uri "http://localhost:3000/api/notifications" -Headers $ADMIN
+Invoke-RestMethod -Uri "http://localhost:3000/api/notifications/test" -Method POST -Headers $ADMIN
+Invoke-RestMethod -Uri "http://localhost:3000/api/users/me/notification-preferences" -Headers $ADMIN
+```
 
 ---
 
@@ -391,9 +398,12 @@ Start Redis → `npm run worker` → emit test event → `Notification` doc appe
 
 ### Stage 4 Verification
 
-- `npx tsc --noEmit`
-- `git grep "admin.messaging()" src/` → zero results
-- `git grep "Notification.create" src/app/api/` → zero results (only in lib)
+```powershell
+npx tsc --noEmit
+Get-ChildItem -Recurse src\app\api -Filter "*.ts" | Select-String "admin\.messaging\(\)"    # zero results
+Get-ChildItem -Recurse src\app\api -Filter "*.ts" | Select-String "Notification\.create"   # zero results
+```
+
 - Register owner → admin in-app doc in MongoDB
 - Approve owner → `Notification` doc + push job in queue
 

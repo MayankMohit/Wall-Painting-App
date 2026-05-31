@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
+import { NotificationBell } from '@/components/common/NotificationBell';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -57,9 +58,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </div>
             </div>
 
-            {/* Right Side: Profile & Logout */}
-            {/* Right Side: Profile & Logout */}
+            {/* Right Side: Bell + Profile & Logout */}
             <div className="flex items-center gap-4">
+              <NotificationBell />
               <Link
                 href="/admin/profile"
                 className="text-sm font-medium text-slate-400 hidden sm:flex items-center gap-2 hover:text-teal-400 transition-colors px-3 py-2 rounded-md hover:bg-slate-800"
