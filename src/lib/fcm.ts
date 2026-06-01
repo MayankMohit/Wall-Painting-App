@@ -18,7 +18,16 @@ export async function sendFcmToUser(
         token,
         notification: { title: payload.title, body: payload.body },
         ...(payload.data ? { data: payload.data } : {}),
-        webpush: { notification: { icon: '/icon-192.png' } },
+        webpush: {
+          notification: {
+            icon:     '/icon-512.png',
+            badge:    '/icon-192.png',
+            tag:      'wallo-notif',
+            renotify: true,
+          },
+          // Clicking the OS notification opens/focuses the app
+          fcmOptions: { link: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000' },
+        },
       });
     } catch (e: unknown) {
       const code = (e as { code?: string }).code;

@@ -10,10 +10,15 @@ export async function POST(request: Request) {
     return e as Response;
   }
 
-  await notify.emit('admin.bg_job_failed', {
-    recipientId: payload.userId,
-    data: { queue: 'test', jobId: 'test-0', error: 'manual test trigger' },
-  });
+  const body = await request.json().catch(() => ({}));
+  const eventId     = typeof body?.eventId     === 'string' ? body.eventId     : 'admin.bg_job_failed';
+  const recipientId = typeof body?.recipientId === 'string' ? body.recipientId : payload.userId;
+  const actorId     = typeof body?.actorId     === 'string' ? body.actorId     : undefined;
+  const data        = body?.data && typeof body.data === 'object' ? body.data
+    : { queue: 'test', jobId: 'test-0', error: 'manual test trigger' };
 
-  return ok({ message: 'Test notification emitted' });
+  await notify.emit(eventId, { recipientId, actorId, data });
+
+  return ok({
+    message: 'Test notification emitted' });
 }

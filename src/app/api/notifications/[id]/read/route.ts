@@ -23,7 +23,7 @@ export async function PUT(
   const notif = await Notification.findOneAndUpdate(
     { _id: id, userId: payload.userId },
     { readAt: new Date() },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 
   if (!notif) return notFound();

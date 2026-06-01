@@ -1,5 +1,5 @@
-import { getApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage, type MessagePayload } from 'firebase/messaging';
+import { firebaseApp } from '@/lib/firebase-client';
 
 export async function registerFCM(): Promise<string | null> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null;
@@ -9,10 +9,12 @@ export async function registerFCM(): Promise<string | null> {
     if (permission !== 'granted') return null;
 
     const registration = await navigator.serviceWorker.register(
-      '/firebase-messaging-sw.js'
+      '/firebase-messaging-sw.js',
+      { updateViaCache: 'none' } // always fetch latest SW, never serve stale cached version
     );
+    await registration.update();
 
-    const messaging = getMessaging(getApp());
+    const messaging = getMessaging(firebaseApp);
     const token = await getToken(messaging, {
       vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!,
       serviceWorkerRegistration: registration,
@@ -44,7 +46,7 @@ export function setupFCMForeground(
 ): () => void {
   if (typeof window === 'undefined') return () => {};
   try {
-    const messaging = getMessaging(getApp());
+    const messaging = getMessaging(firebaseApp);
     return onMessage(messaging, handler);
   } catch {
     return () => {};

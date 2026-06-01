@@ -16,10 +16,19 @@ const DEFAULT_PREF: PrefLike = {
   digest: false,
 };
 
+// MongoDB BSON disallows dots in field names. We encode '.' → '__dot__' before
+// writing and decode on read so the public API always uses the original keys.
+export function encodeMapKey(k: string): string { return k.replace(/\./g, '__dot__'); }
+function decodeMapKey(k: string): string        { return k.replace(/__dot__/g, '.'); }
+
 function toMap(value: unknown): Map<string, boolean> {
-  if (value instanceof Map) return value as Map<string, boolean>;
+  if (value instanceof Map) {
+    return new Map([...value].map(([k, v]) => [decodeMapKey(String(k)), v as boolean]));
+  }
   if (value && typeof value === 'object') {
-    return new Map(Object.entries(value as Record<string, boolean>));
+    return new Map(
+      Object.entries(value as Record<string, boolean>).map(([k, v]) => [decodeMapKey(k), v])
+    );
   }
   return new Map([['*', true]]);
 }

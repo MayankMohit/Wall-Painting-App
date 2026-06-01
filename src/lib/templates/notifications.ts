@@ -132,7 +132,7 @@ export const templates: Record<string, EventTemplate> = {
   },
 
   'user.suspended': {
-    inApp:  (d) => ({ title: 'Account suspended', body: String(d.reason ?? '') }),
+    inApp:  (d) => ({ title: 'Account suspended', body: String(d.reason || 'Your account has been suspended.') }),
     email:  (d) => renderUserSuspendedEmail({
       name:         String(d.name ?? ''),
       reason:       String(d.reason ?? ''),

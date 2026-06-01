@@ -2,7 +2,7 @@ import { connectDB } from '@/lib/db';
 import { NotificationPreference } from '@/lib/models';
 import { requireAuth } from '@/lib/rbac';
 import { ok, badRequest } from '@/lib/api-response';
-import { getPreference, type PrefLike } from '@/lib/notify/preferences';
+import { getPreference, encodeMapKey, type PrefLike } from '@/lib/notify/preferences';
 import { NotificationPreferenceSchema } from '@/lib/validators';
 
 function serializePref(pref: PrefLike) {
@@ -12,6 +12,10 @@ function serializePref(pref: PrefLike) {
     quietHours: pref.quietHours,
     digest:     pref.digest,
   };
+}
+
+function encodeKeys(obj: Record<string, boolean>): Record<string, boolean> {
+  return Object.fromEntries(Object.entries(obj).map(([k, v]) => [encodeMapKey(k), v]));
 }
 
 export async function GET(request: Request) {
@@ -42,24 +46,22 @@ export async function PUT(request: Request) {
 
   const { push, email, quietHours, digest } = parsed.data;
 
-  const update: Record<string, unknown> = {};
-  if (push       !== undefined) update['push']       = push;
-  if (email      !== undefined) update['email']      = email;
-  if (quietHours !== undefined) update['quietHours'] = quietHours;
-  if (digest     !== undefined) update['digest']     = digest;
+  // Encode dots in map keys — BSON field names cannot contain '.'.
+  // decodeMapKey() in getPreference()/toMap() reverses this on read.
+  const rawUpdate: Record<string, unknown> = {};
+  if (push       !== undefined) rawUpdate['push']       = encodeKeys(push);
+  if (email      !== undefined) rawUpdate['email']      = encodeKeys(email);
+  if (quietHours !== undefined) rawUpdate['quietHours'] = quietHours ?? null;
+  if (digest     !== undefined) rawUpdate['digest']     = digest;
 
-  const doc = await NotificationPreference.findOneAndUpdate(
-    { userId: payload.userId },
-    { $set: update },
-    { upsert: true, new: true }
-  );
+  if (Object.keys(rawUpdate).length > 0) {
+    await NotificationPreference.findOneAndUpdate(
+      { userId: payload.userId },
+      { $set: rawUpdate },
+      { upsert: true }
+    );
+  }
 
-  const pref: PrefLike = {
-    push:       doc.push instanceof Map ? doc.push : new Map(Object.entries(doc.push as object) as [string, boolean][]),
-    email:      doc.email instanceof Map ? doc.email : new Map(Object.entries(doc.email as object) as [string, boolean][]),
-    quietHours: doc.quietHours ?? null,
-    digest:     doc.digest,
-  };
-
+  const pref = await getPreference(payload.userId);
   return ok(serializePref(pref));
 }

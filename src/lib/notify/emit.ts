@@ -24,8 +24,8 @@ export async function deliver(
   const notif = await Notification.create({
     userId,
     eventId: ev.id,
-    title:   inAppContent.title,
-    body:    inAppContent.body,
+    title:   inAppContent.title  || ev.id,
+    body:    inAppContent.body   || '—',
     data,
   });
 

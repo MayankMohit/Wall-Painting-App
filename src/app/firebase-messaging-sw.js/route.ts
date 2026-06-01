@@ -18,13 +18,42 @@ importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-com
 firebase.initializeApp(${JSON.stringify(config)});
 var messaging = firebase.messaging();
 
+// Firebase Web SDK v9+ does NOT auto-display when onBackgroundMessage is
+// registered — we must call showNotification ourselves. Server sends title/body
+// in the 'notification' field (see lib/fcm.ts), so read from payload.notification.
 messaging.onBackgroundMessage(function(payload) {
-  var title = (payload.notification && payload.notification.title) || 'New notification';
-  var body  = (payload.notification && payload.notification.body)  || '';
+  var n     = payload.notification || {};
+  var title = n.title || 'Wallo';
+  var body  = n.body  || '';
   self.registration.showNotification(title, {
-    body: body,
-    icon: '/icon-192.png',
+    body:     body,
+    icon:     '/icon-512.png',
+    badge:    '/icon-192.png',
+    tag:      'wallo-notif',
+    renotify: true,
+    data:     { url: self.location.origin },
   });
+});
+
+// Click on OS notification → focus existing tab or open new one
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  var targetUrl = (event.notification.data && event.notification.data.url) || self.location.origin;
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(windowClients) {
+      // Find an existing app tab and focus + navigate it
+      for (var i = 0; i < windowClients.length; i++) {
+        var client = windowClients[i];
+        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+          client.focus();
+          if ('navigate' in client) return client.navigate(targetUrl);
+          return;
+        }
+      }
+      // No existing tab — open a new one
+      return clients.openWindow(targetUrl);
+    })
+  );
 });
 `.trimStart();
 

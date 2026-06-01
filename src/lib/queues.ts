@@ -11,7 +11,7 @@ function redisConnection() {
     port:     Number(url.port) || (isTls ? 6380 : 6379),
     ...(url.password ? { password: decodeURIComponent(url.password) } : {}),
     ...(url.username && url.username !== 'default' ? { username: url.username } : {}),
-    ...(isTls ? { tls: {} } : {}),
+    ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
   };
 }
 
