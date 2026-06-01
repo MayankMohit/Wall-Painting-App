@@ -22,20 +22,13 @@ function Toast({ id, title, body }: NotifToast) {
 
   return (
     <div className="notif-slide-in flex items-start gap-3 w-80 rounded-xl bg-white shadow-xl border border-gray-100 overflow-hidden">
-      {/* Colored left strip + icon — clicking navigates to app */}
-      <button
-        onClick={() => { removeToast(id); window.location.href = '/'; }}
-        className="flex-shrink-0 flex items-center justify-center w-10 self-stretch bg-blue-600 hover:bg-blue-700 transition-colors cursor-pointer"
-        aria-label="Open app"
-      >
+      {/* Colored left strip + icon — decorative only */}
+      <div className="shrink-0 flex items-center justify-center w-10 self-stretch bg-blue-600">
         <BellFilledIcon />
-      </button>
+      </div>
 
-      {/* Content — clicking navigates to app */}
-      <button
-        onClick={() => { removeToast(id); window.location.href = '/'; }}
-        className="flex-1 min-w-0 py-3 text-left hover:bg-gray-50 transition-colors"
-      >
+      {/* Content — non-interactive */}
+      <div className="flex-1 min-w-0 py-3 text-left">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-600 leading-none mb-1">
           Wallo
         </p>
@@ -43,12 +36,12 @@ function Toast({ id, title, body }: NotifToast) {
         {body && (
           <p className="text-xs text-gray-500 mt-0.5 leading-snug line-clamp-2">{body}</p>
         )}
-      </button>
+      </div>
 
       {/* Dismiss button */}
       <button
         onClick={() => removeToast(id)}
-        className="flex-shrink-0 mt-2 mr-2 p-1 rounded-full text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+        className="shrink-0 mt-2 mr-2 p-1 rounded-full text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
         aria-label="Dismiss"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -70,7 +63,7 @@ export function NotificationToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2 items-end pointer-events-none">
+    <div className="fixed bottom-4 right-4 z-9999 flex flex-col gap-2 items-end pointer-events-none">
       {toasts.map((t) => (
         <div key={t.id} className="pointer-events-auto relative">
           <Toast {...t} />

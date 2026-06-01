@@ -1,7 +1,16 @@
+// Single module-level AudioContext that's reused across notification chimes.
+// Browsers cap simultaneous AudioContexts (Chrome warns at ~6); creating a new
+// one per chime exhausts the budget within a session and the sound stops.
+let _ctx: AudioContext | null = null;
+
 export function playNotificationSound(muted: boolean): void {
   if (muted || typeof window === 'undefined') return;
   try {
-    const ctx   = new AudioContext();
+    if (!_ctx) _ctx = new AudioContext();
+    // Browser auto-suspends the context until a user gesture; resume() is a
+    // no-op when already running and harmless before any gesture.
+    if (_ctx.state === 'suspended') _ctx.resume().catch(() => {});
+    const ctx = _ctx;
     const notes = [880, 659]; // A5 → E5 descending chime
     notes.forEach((freq, i) => {
       const osc  = ctx.createOscillator();

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAppDispatch } from '@/store/hooks';
 import {
   useGetNotificationsQuery,
+  useGetPreferencesQuery,
   useMarkReadMutation,
   useMarkAllReadMutation,
   notificationsApi,
@@ -14,8 +15,39 @@ import { playNotificationSound } from '@/lib/notificationSound';
 import { registerFCM } from '@/lib/firebase-fcm';
 
 // Module-level dedup: prevents double sound when Strict Mode mounts effects
-// twice or when two SSE connections briefly overlap.
+// twice or when two SSE connections briefly overlap. Bounded to MAX_SEEN_IDS
+// entries with FIFO eviction so it cannot grow without bound across a long
+// session — JS Sets preserve insertion order, so the first .values() entry
+// is always the oldest.
+const MAX_SEEN_IDS = 200;
 const _seenNotifIds = new Set<string>();
+
+// Pure helper: is "now" inside the user's quiet-hours window, evaluated in the
+// stored timezone? Used to silence the in-app toast + chime client-side. The
+// server already blocks push/email via its own quiet-hours check; the in-app
+// row and SSE publish always happen by design so the bell badge stays accurate.
+function isInQuietHours(
+  qh: { start: string; end: string; tz: string } | null | undefined
+): boolean {
+  if (!qh) return false;
+  try {
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: qh.tz,
+      hour:     '2-digit',
+      minute:   '2-digit',
+      hour12:   false,
+    });
+    const parts  = formatter.formatToParts(new Date());
+    const hour   = parts.find((p) => p.type === 'hour')?.value   ?? '00';
+    const minute = parts.find((p) => p.type === 'minute')?.value ?? '00';
+    const current = `${hour}:${minute}`;
+    // Overnight range (e.g. 22:00 → 08:00)
+    if (qh.start > qh.end) return current >= qh.start || current <= qh.end;
+    return current >= qh.start && current <= qh.end;
+  } catch {
+    return false;
+  }
+}
 
 function SpeakerOnIcon() {
   return (
@@ -104,6 +136,19 @@ export function NotificationBell() {
   const toggleMute          = useNotificationUiStore((s) => s.toggleMute);
   const addToast            = useNotificationUiStore((s) => s.addToast);
 
+  // Pull the user's quietHours pref (shared cache with the prefs panel).
+  const { data: prefs } = useGetPreferencesQuery(undefined, { skip: !isAuthenticated });
+
+  // Refs so the SSE effect doesn't tear down + reopen the stream every time
+  // the user toggles mute or edits quiet hours. The handler reads from
+  // `.current` to always see the latest value without being a dep.
+  const mutedRef    = useRef(muted);
+  const addToastRef = useRef(addToast);
+  const qhRef       = useRef(prefs?.quietHours ?? null);
+  useEffect(() => { mutedRef.current    = muted;                     }, [muted]);
+  useEffect(() => { addToastRef.current = addToast;                  }, [addToast]);
+  useEffect(() => { qhRef.current       = prefs?.quietHours ?? null; }, [prefs?.quietHours]);
+
   const { data, isLoading } = useGetNotificationsQuery(undefined, {
     skip:            !isAuthenticated,
     pollingInterval: 60_000,
@@ -143,21 +188,40 @@ export function NotificationBell() {
 
         const reader  = res.body.getReader();
         const decoder = new TextDecoder();
+        // Buffer carries any trailing partial line between reads so a chunk
+        // boundary in the middle of a `data: {...}` event no longer drops the
+        // JSON.parse and silently loses the toast + sound.
+        let buffer = '';
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const text = decoder.decode(value, { stream: true });
-          for (const line of text.split('\n')) {
+          buffer += decoder.decode(value, { stream: true });
+
+          let nl: number;
+          while ((nl = buffer.indexOf('\n')) !== -1) {
+            const line = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 1);
             if (!line.startsWith('data: ')) continue;
             dispatch(notificationsApi.util.invalidateTags(['Notification']));
             try {
               const payload = JSON.parse(line.slice(6)) as { id?: string; title?: string; body?: string };
               if (payload.title) {
                 if (payload.id && _seenNotifIds.has(payload.id)) continue;
-                if (payload.id) _seenNotifIds.add(payload.id);
-                addToast({ title: payload.title, body: payload.body ?? '' });
-                playNotificationSound(muted);
+                if (payload.id) {
+                  _seenNotifIds.add(payload.id);
+                  if (_seenNotifIds.size > MAX_SEEN_IDS) {
+                    const oldest = _seenNotifIds.values().next().value;
+                    if (oldest) _seenNotifIds.delete(oldest);
+                  }
+                }
+                // Bell badge already updated above via invalidateTags. During
+                // quiet hours, suppress the intrusive toast + chime here so
+                // the UI stays silent while still tracking unread counts.
+                if (!isInQuietHours(qhRef.current)) {
+                  addToastRef.current({ title: payload.title, body: payload.body ?? '' });
+                  playNotificationSound(mutedRef.current);
+                }
               }
             } catch {}
           }
@@ -166,7 +230,7 @@ export function NotificationBell() {
     })();
 
     return () => ctrl.abort();
-  }, [isAuthenticated, dispatch, muted, addToast]);
+  }, [isAuthenticated, dispatch]);
 
   if (!isAuthenticated) return null;
 

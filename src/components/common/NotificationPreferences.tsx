@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useGetPreferencesQuery,
   useUpdatePreferencesMutation,
@@ -23,7 +23,7 @@ function Toggle({
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
+        className={`relative inline-flex h-5 w-10 shrink-0 items-center rounded-full transition-colors focus:outline-none ${
           checked ? 'bg-blue-600' : 'bg-gray-200'
         }`}
       >
@@ -46,6 +46,17 @@ export function NotificationPreferences() {
 
   // Local toggle for quiet-hours section visibility when no QH is set yet
   const [quietEnabled, setQuietEnabled] = useState(false);
+
+  // Controlled local state for the time pickers. Synced from server prefs via
+  // useEffect so an edit from another tab (or an RTK refetch) flows through
+  // to the inputs, without React fighting the user's typing during the
+  // in-flight mutation in this tab.
+  const qhStartFromPrefs = prefs?.quietHours?.start;
+  const qhEndFromPrefs   = prefs?.quietHours?.end;
+  const [qhStart, setQhStart] = useState(qhStartFromPrefs ?? '22:00');
+  const [qhEnd,   setQhEnd]   = useState(qhEndFromPrefs   ?? '08:00');
+  useEffect(() => { if (qhStartFromPrefs) setQhStart(qhStartFromPrefs); }, [qhStartFromPrefs]);
+  useEffect(() => { if (qhEndFromPrefs)   setQhEnd(qhEndFromPrefs);     }, [qhEndFromPrefs]);
 
   if (!isAuthenticated || isLoading || !prefs) return null;
 
@@ -96,7 +107,23 @@ export function NotificationPreferences() {
             checked={showQH}
             onChange={(v) => {
               setQuietEnabled(v);
-              if (!v) save({ quietHours: null });
+              if (v) {
+                // Persist defaults (or whatever the user last edited locally)
+                // when toggling on, so the choice survives a refresh. Without
+                // this the toggle reverts to off because the server still has
+                // quietHours = null.
+                if (!qh) {
+                  save({
+                    quietHours: {
+                      start: qhStart,
+                      end:   qhEnd,
+                      tz:    Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    },
+                  });
+                }
+              } else {
+                save({ quietHours: null });
+              }
             }}
           />
         </div>
@@ -107,16 +134,17 @@ export function NotificationPreferences() {
               <label className="block text-xs text-gray-500 mb-1">From</label>
               <input
                 type="time"
-                defaultValue={qh?.start ?? '22:00'}
-                onChange={(e) =>
+                value={qhStart}
+                onChange={(e) => {
+                  setQhStart(e.target.value);
                   save({
                     quietHours: {
                       start: e.target.value,
-                      end:   qh?.end ?? '08:00',
-                      tz:    qh?.tz  ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+                      end:   qhEnd,
+                      tz:    qh?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
                     },
-                  })
-                }
+                  });
+                }}
                 className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
@@ -124,16 +152,17 @@ export function NotificationPreferences() {
               <label className="block text-xs text-gray-500 mb-1">Until</label>
               <input
                 type="time"
-                defaultValue={qh?.end ?? '08:00'}
-                onChange={(e) =>
+                value={qhEnd}
+                onChange={(e) => {
+                  setQhEnd(e.target.value);
                   save({
                     quietHours: {
-                      start: qh?.start ?? '22:00',
+                      start: qhStart,
                       end:   e.target.value,
-                      tz:    qh?.tz    ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+                      tz:    qh?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
                     },
-                  })
-                }
+                  });
+                }}
                 className="w-full rounded border border-gray-200 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>

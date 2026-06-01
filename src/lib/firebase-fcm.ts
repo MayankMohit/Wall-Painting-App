@@ -1,7 +1,21 @@
 import { getMessaging, getToken, onMessage, type MessagePayload } from 'firebase/messaging';
 import { firebaseApp } from '@/lib/firebase-client';
 
+// Module-level flag: once registerFCM has successfully completed in this
+// browser session, return the cached token instead of re-running the full
+// permission/SW/getToken/POST flow on every caller (e.g. bell clicks).
+// Resets implicitly on full page reload. Also self-resets if the cached
+// token disappears from localStorage (e.g. after logout) so a fresh login
+// re-registers correctly.
+let _fcmRegistered = false;
+
 export async function registerFCM(): Promise<string | null> {
+  if (_fcmRegistered) {
+    const cached = typeof window !== 'undefined' ? localStorage.getItem('wallpainter_fcm_token') : null;
+    if (cached) return cached;
+    _fcmRegistered = false;
+  }
+
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null;
 
   try {
@@ -35,6 +49,7 @@ export async function registerFCM(): Promise<string | null> {
       });
     }
 
+    _fcmRegistered = true;
     return token;
   } catch {
     return null;

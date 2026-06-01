@@ -4,7 +4,16 @@ A ranked list of issues found while auditing the notifications code. Severity re
 
 ---
 
-## 1. `_seenNotifIds` Set grows unbounded (memory leak)
+## ~~1. `_seenNotifIds` Set grows unbounded (memory leak)~~ ✅ RESOLVED
+
+**Resolution:** Bounded the `Set` to `MAX_SEEN_IDS = 200` with FIFO eviction (JS Sets preserve insertion order, so `_seenNotifIds.values().next().value` is always the oldest). Existing `.has()` / `.add()` semantics unchanged at the call site; eviction is a 4-line block right after `add`. Verified with `tsc --noEmit`.
+
+**File touched:** `src/components/common/NotificationBell.tsx`
+
+---
+
+<details>
+<summary>Original entry (for reference)</summary>
 
 **File:** `src/components/common/NotificationBell.tsx:18`
 
@@ -12,59 +21,77 @@ A ranked list of issues found while auditing the notifications code. Severity re
 const _seenNotifIds = new Set<string>();
 ```
 
-Module-level `Set` is appended on every SSE message and never trimmed. In a long-running session (single-page app left open for hours), the set grows without bound and survives logout/login because it lives at module scope.
+Module-level `Set` is appended on every SSE message and never trimmed. In a long-running session the set grows without bound and survives logout/login because it lives at module scope.
 
-**Fix sketch:** cap at e.g. 200 entries with FIFO eviction, or use a small LRU. Could also key on a sliding window of `createdAt`.
+</details>
 
 ---
 
-## 2. SSE chunk-splitting drops messages
+## ~~2. SSE chunk-splitting drops messages~~ ✅ RESOLVED
+
+**Resolution:** Added a `buffer` string that carries any trailing partial line between `reader.read()` iterations. The inner loop now uses `indexOf('\n')` to consume only complete lines, leaving any remainder in the buffer for the next chunk. JSON.parse can no longer split a `data: {...}` event across reads.
+
+**File touched:** `src/components/common/NotificationBell.tsx`
+
+---
+
+<details>
+<summary>Original entry (for reference)</summary>
 
 **File:** `src/components/common/NotificationBell.tsx:144-163`
 
 ```ts
 const text = decoder.decode(value, { stream: true });
 for (const line of text.split('\n')) {
-  if (!line.startsWith('data: ')) continue;
   ...
-  const payload = JSON.parse(line.slice(6)) as { ... };
 ```
 
-No line buffer between reads. A `data: {...}\n\n` event split across two TCP chunks → `JSON.parse` throws → swallowed by the empty `catch {}` → toast + sound silently lost. The bell still updates because `invalidateTags(['Notification'])` fires before the JSON parse, but the live alert UX breaks intermittently under load or slow connections.
+No line buffer between reads — a `data: {...}` event split across two TCP chunks → `JSON.parse` throws → swallowed by the empty `catch {}` → toast + sound silently lost.
 
-**Fix sketch:** keep a `buffer` string across iterations; only consume complete lines (`\n\n` event boundary), keep the trailing partial.
+</details>
 
 ---
 
-## 3. SSE reconnects on every mute toggle
+## ~~3. SSE reconnects on every mute toggle~~ ✅ RESOLVED
+
+**Resolution:** Added `mutedRef` and `addToastRef`, synced via tiny `useEffect`s. The SSE handler now reads `mutedRef.current` / `addToastRef.current` inside the loop, so the latest value is always visible without those values being effect deps. Deps array is now `[isAuthenticated, dispatch]` — both stable — so the SSE connection persists across mute toggles.
+
+**File touched:** `src/components/common/NotificationBell.tsx`
+
+---
+
+<details>
+<summary>Original entry (for reference)</summary>
 
 **File:** `src/components/common/NotificationBell.tsx:129-169`
 
-```ts
-useEffect(() => {
-  ...
-}, [isAuthenticated, dispatch, muted, addToast]);
-```
+`muted` and `addToast` were in deps → toggling the speaker icon tore down the SSE fetch, aborted the reader, and reopened a fresh stream + new Redis `SUBSCRIBE`.
 
-`muted` and `addToast` are in deps. Toggling the speaker icon tears down the SSE fetch, aborts the reader, and reopens a fresh stream — including a new Redis `SUBSCRIBE` on the server. Wasteful and racy if a notification arrives mid-tear-down.
-
-**Fix sketch:** drop `muted` and `addToast` from deps; read `muted` via `useNotificationUiStore.getState().muted` (or a `useRef` synced in a separate effect) inside the handler so the value is current without re-running the effect.
+</details>
 
 ---
 
-## 4. AudioContext leak in `playNotificationSound`
+## ~~4. AudioContext leak in `playNotificationSound`~~ ✅ RESOLVED
+
+**Resolution:** One module-level lazy `AudioContext` (`_ctx`) is created on first chime and reused thereafter. If the browser has auto-suspended it (autoplay policy), we call `.resume()` before scheduling oscillators — a no-op when already running and harmless before any user gesture. Single context = no more 6-context Chrome cap.
+
+**File touched:** `src/lib/notificationSound.ts`
+
+---
+
+<details>
+<summary>Original entry (for reference)</summary>
 
 **File:** `src/lib/notificationSound.ts`
 
 ```ts
 const ctx = new AudioContext();
-notes.forEach(...);
 // ctx never closed
 ```
 
-A new `AudioContext` per chime, never `close()`d. Chrome warns at ~6 simultaneous contexts and stops creating new ones. After enough notifications in one session, the chime silently dies.
+A new `AudioContext` per chime, never `close()`d. Chrome warns at ~6 simultaneous contexts and stops creating new ones — after enough notifications in one session the chime silently dies.
 
-**Fix sketch:** use a single module-level lazily-created `AudioContext`, or `close()` it after `osc.stop()` completes (`osc.onended = () => ctx.close()`).
+</details>
 
 ---
 
@@ -82,7 +109,16 @@ Same gap likely exists for `submission.create`, `submission.resubmit`, `submissi
 
 ---
 
-## 6. `NotificationToast` does a full page reload
+## ~~6. `NotificationToast` does a full page reload~~ ✅ RESOLVED
+
+**Resolution:** Removed the navigation click handler from the toast entirely (it was deemed unnecessary — the bell update + OS popup already inform the user). The colored strip and content `<button>`s were converted to non-interactive `<div>`s; `useRouter`, `openApp`, the click-affordance hover classes, and `aria-label="Open app"` are gone. Only the dismiss (X) button remains clickable. Scope: in-app React toast only — the OS-level Web Push click handler in `firebase-messaging-sw.js` (`notificationclick` → `clients.openWindow`) is untouched.
+
+**File touched:** `src/components/common/NotificationToast.tsx`
+
+---
+
+<details>
+<summary>Original entry (for reference)</summary>
 
 **File:** `src/components/common/NotificationToast.tsx:27,36`
 
@@ -90,13 +126,22 @@ Same gap likely exists for `submission.create`, `submission.resubmit`, `submissi
 onClick={() => { removeToast(id); window.location.href = '/'; }}
 ```
 
-Clicking the toast hard-navigates via `window.location.href`, discarding the RTK Query cache and re-downloading the JS bundle. On a focused tab the user already sees the bell update — the navigation is unnecessary; if a destination is wanted, it should be via Next's `useRouter().push('/')`.
+Hard-navigates, discarding RTK Query cache and re-downloading the JS bundle.
 
-**Fix sketch:** import `useRouter` from `next/navigation`, call `router.push('/')` (or skip navigation entirely and just close the toast).
+</details>
 
 ---
 
-## 7. `NotificationPreferences` time inputs are uncontrolled
+## ~~7. `NotificationPreferences` time inputs are uncontrolled~~ ✅ RESOLVED
+
+**Resolution:** Added local `qhStart` / `qhEnd` state initialized from `prefs.quietHours`, kept in sync with server values via two small `useEffect`s. Inputs are now `value`-controlled (no more `defaultValue`). The onChange handler updates local state first, then dispatches the mutation. As a side-benefit, the `save` calls for one field now read the other from local state (`qhStart` / `qhEnd`) instead of `qh?.start` / `qh?.end` from the cache — eliminating a latent race where a quick From→Until edit could send a stale `start` to the server before RTK Query had refetched. All hook declarations stay before the early return (Rules of Hooks intact). The Toggle, channel toggles, save button, and "Saving…" indicator are untouched.
+
+**File touched:** `src/components/common/NotificationPreferences.tsx`
+
+---
+
+<details>
+<summary>Original entry (for reference)</summary>
 
 **File:** `src/components/common/NotificationPreferences.tsx:110, 127`
 
@@ -104,9 +149,9 @@ Clicking the toast hard-navigates via `window.location.href`, discarding the RTK
 <input type="time" defaultValue={qh?.start ?? '22:00'} onChange={...} />
 ```
 
-`defaultValue` only seeds the initial value. If the server returns updated `quietHours` after another tab edits them, the input doesn't reflect the new state. Also, if RTK Query refetches and `prefs` changes, the user sees a stale field value.
+`defaultValue` only seeds — server-side updates from another tab or RTK refetch don't flow through.
 
-**Fix sketch:** swap `defaultValue` → `value` and ensure local state is derived from `prefs.quietHours` (or use `key={qh?.start}` as a quick remount workaround).
+</details>
 
 ---
 
@@ -142,23 +187,22 @@ The server (`src/lib/fcm.ts`) sends FCM messages with the `notification: { title
 
 ---
 
-## 9. Bell re-runs `registerFCM()` on every click
+## ~~9. Bell re-runs `registerFCM()` on every click~~ ✅ RESOLVED
+
+**Resolution:** Made `registerFCM()` itself idempotent within a session via a module-level `_fcmRegistered` flag in `firebase-fcm.ts`. Once the full permission/SW/getToken/POST flow completes, subsequent calls return the cached `localStorage.wallpainter_fcm_token` instead of repeating the work. If that cached token is missing (e.g. after logout clears localStorage), the flag self-resets and the next call runs the flow fresh — so re-login as a different user still registers correctly. No changes needed in `NotificationBell.tsx` or `useFCM` — both share the short-circuit. Resets implicitly on full page reload.
+
+**File touched:** `src/lib/firebase-fcm.ts`
+
+---
+
+<details>
+<summary>Original entry (for reference)</summary>
 
 **File:** `src/components/common/NotificationBell.tsx:177-189`
 
-```ts
-onClick={async () => {
-  setOpen((v) => !v);
-  ...
-  } else if (Notification.permission === 'granted') {
-    registerFCM().catch(() => {});  // every click
-  }
-}}
-```
+Every dropdown open re-fetched a VAPID token from Firebase and POSTed it to `/api/users/me/fcm-token`. Wasteful network + Firebase quota.
 
-Every dropdown open re-fetches a VAPID token from Firebase and POSTs it to `/api/users/me/fcm-token`. Wasteful network + Firebase quota. Should run at most once per session (or once per token expiry).
-
-**Fix sketch:** gate behind a module-level boolean or a ref; `useFCM` already registers once on auth — only call from the bell when the token was previously cleared / when permission transitions from `default` → `granted`.
+</details>
 
 ---
 
