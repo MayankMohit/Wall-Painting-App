@@ -169,7 +169,7 @@ src/app/api/admin/
 | 3 | Jobs | Medium | 9 | ✅ |
 | 4 | Uploads  | Medium | 1 | ✅ |
 | 5 | Submissions | Medium–Hard | 9 | 🔴 |
-| 6 | Notifications | Medium | 4 | 🔴 |
+| 6 | Notifications | Medium | 4 | ✅ |
 | 7 | File Generation & Downloads | Hard | 6 | 🔴 |
 | 8 | Admin | Medium–Hard | 6 | 🔴 |
 

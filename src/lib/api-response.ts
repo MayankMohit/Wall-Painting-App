@@ -1,3 +1,5 @@
+import { HttpError } from '@/lib/errors';
+
 export function ok(data: unknown, status = 200): Response {
   return Response.json({ data }, { status });
 }
@@ -24,4 +26,15 @@ export function unauthorized(): Response {
 
 export function badRequest(msg: string): Response {
   return Response.json({ error: msg }, { status: 400 });
+}
+
+// Throws an HttpError that the middleware errorHandler will catch and serialize
+// into the standard error envelope. Use this outside of middleware composers.
+export function fail(
+  status  : number,
+  code    : string,
+  message : string,
+  details?: Record<string, unknown>
+): never {
+  throw new HttpError(status, code, message, details);
 }
