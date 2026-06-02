@@ -36,7 +36,8 @@ function ResetPasswordForm() {
       });
       const json = await res.json();
       if (!res.ok) {
-        setError((json.data ?? json).error ?? 'Failed to reset password. The link may have expired.');
+        const e = (json.data ?? json).error;
+        setError((typeof e === 'string' ? e : e?.message) ?? 'Failed to reset password. The link may have expired.');
         return;
       }
       setSuccess(true);

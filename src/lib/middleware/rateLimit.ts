@@ -12,7 +12,7 @@ const TIERS: Record<RateLimitTier, { max: number; windowMs: number }> = {
 export async function checkRateLimit(
   tier    : RateLimitTier,
   keyValue: string,
-  keyType : 'ip' | 'user' = 'ip'
+  keyType : 'ip' | 'user' | 'id' = 'ip'
 ): Promise<void> {
   const redis          = await getRedis();
   const { max, windowMs } = TIERS[tier];

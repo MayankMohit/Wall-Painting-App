@@ -2,18 +2,21 @@ import crypto from 'crypto';
 import { generateOtp, storeEmailOtp } from '@/lib/otp';
 import { sendOtpEmail } from '@/lib/email';
 import { VerifyEmailSendSchema } from '@/lib/validators';
-import { ok, badRequest } from '@/lib/api-response';
+import { withMiddleware } from '@/lib/middleware';
+import type { z } from 'zod';
 
-export async function POST(request: Request) {
-  const body = await request.json();
-  const parsed = VerifyEmailSendSchema.safeParse(body);
-  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
+type VerifyEmailSendBody = z.infer<typeof VerifyEmailSendSchema>;
 
-  const sessionId = crypto.randomUUID();
-  const otp = generateOtp();
+export const POST = withMiddleware({ rateLimit: 'strict', schema: VerifyEmailSendSchema })(
+  async (req, ctx) => {
+    const { email } = ctx.body as VerifyEmailSendBody;
 
-  await storeEmailOtp(sessionId, otp);
-  await sendOtpEmail(parsed.data.email, otp, 'register');
+    const sessionId = crypto.randomUUID();
+    const otp = generateOtp();
 
-  return ok({ sessionId });
-}
+    await storeEmailOtp(sessionId, otp);
+    await sendOtpEmail(email, otp, 'register');
+
+    return Response.json({ data: { sessionId } });
+  }
+);

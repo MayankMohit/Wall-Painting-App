@@ -3,28 +3,31 @@ import { connectDB } from '@/lib/db';
 import { User } from '@/lib/models';
 import { ResetPasswordSchema } from '@/lib/validators';
 import { hashPassword } from '@/lib/auth';
-import { ok, badRequest, err } from '@/lib/api-response';
+import { HttpError, ErrorCodes } from '@/lib/errors';
+import { withMiddleware } from '@/lib/middleware';
+import type { z } from 'zod';
 
-export async function POST(request: Request) {
-  const body = await request.json();
-  const parsed = ResetPasswordSchema.safeParse(body);
-  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
+type ResetPasswordBody = z.infer<typeof ResetPasswordSchema>;
 
-  await connectDB();
-  const { token, newPassword } = parsed.data;
-  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+export const POST = withMiddleware({ rateLimit: 'strict', schema: ResetPasswordSchema, audit: 'AUTH_RESET_PASSWORD' })(
+  async (req, ctx) => {
+    const { token, newPassword } = ctx.body as ResetPasswordBody;
 
-  const user = await User.findOne({
-    resetPasswordToken: hashedToken,
-    resetPasswordExpires: { $gt: new Date() },
-  });
+    await connectDB();
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-  if (!user) return err('Invalid or expired reset token', 400);
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: new Date() },
+    });
 
-  user.password = await hashPassword(newPassword);
-  user.resetPasswordToken = undefined;
-  user.resetPasswordExpires = undefined;
-  await user.save();
+    if (!user) throw new HttpError(400, ErrorCodes.NOT_FOUND, 'Invalid or expired reset token');
 
-  return ok({ message: 'Password reset successfully' });
-}
+    user.password = await hashPassword(newPassword);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    return Response.json({ data: { message: 'Password reset successfully' } });
+  }
+);

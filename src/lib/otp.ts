@@ -19,6 +19,13 @@ export async function verifyEmailOtp(sessionId: string, otp: string): Promise<bo
   return true;
 }
 
+// Check without consuming — used by the pre-registration confirm step
+export async function peekEmailOtp(sessionId: string, otp: string): Promise<boolean> {
+  const redis = await getRedis();
+  const stored = await redis.get(`otp:email:${sessionId}`);
+  return stored === otp;
+}
+
 // --- Change-email OTP (stores newEmail + userId so confirm never trusts client) ---
 
 export async function storeChangeEmailOtp(

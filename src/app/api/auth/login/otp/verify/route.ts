@@ -3,45 +3,52 @@ import { User } from '@/lib/models';
 import { verifyLoginOtp } from '@/lib/otp';
 import { signToken } from '@/lib/auth';
 import { LoginOtpVerifySchema } from '@/lib/validators';
-import { ok, badRequest, err } from '@/lib/api-response';
+import { ErrorCodes } from '@/lib/errors';
+import { withMiddleware } from '@/lib/middleware';
+import { checkRateLimit } from '@/lib/middleware/rateLimit';
+import type { z } from 'zod';
 
-export async function POST(request: Request) {
-  const body = await request.json();
-  const parsed = LoginOtpVerifySchema.safeParse(body);
-  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
+type LoginOtpVerifyBody = z.infer<typeof LoginOtpVerifySchema>;
 
-  const { sessionId, otp } = parsed.data;
+export const POST = withMiddleware({ rateLimit: 'standard', schema: LoginOtpVerifySchema, audit: 'AUTH_LOGIN_OTP' })(
+  async (req, ctx) => {
+    const { sessionId, otp } = ctx.body as LoginOtpVerifyBody;
 
-  const result = await verifyLoginOtp(sessionId, otp);
-  if (!result) return err('Invalid or expired OTP', 401);
+    await checkRateLimit('strict', sessionId, 'id');
 
-  await connectDB();
-  const user = await User.findOne({ email: result.email });
-  if (!user) return err('Invalid or expired OTP', 401);
+    const result = await verifyLoginOtp(sessionId, otp);
+    if (!result) return ctx.fail(401, ErrorCodes.INVALID_CREDENTIALS, 'Invalid or expired OTP');
 
-  // Re-run status guard — admin may have changed status between send and verify
-  if (user.status === 'inactive') return err('Account pending approval', 403);
-  if (user.status === 'suspended') {
-    return err(`Account suspended. Contact ${process.env.ADMIN_CONTACT_EMAIL} if you think this is a mistake.`, 403);
+    await connectDB();
+    const user = await User.findOne({ email: result.email });
+    if (!user) return ctx.fail(401, ErrorCodes.INVALID_CREDENTIALS, 'Invalid or expired OTP');
+
+    // Re-run status guard — admin may have changed status between send and verify
+    if (user.status === 'inactive') ctx.fail(403, ErrorCodes.ACCOUNT_DISABLED, 'Account pending approval');
+    if (user.status === 'suspended') {
+      ctx.fail(403, ErrorCodes.ACCOUNT_DISABLED, `Account suspended. Contact ${process.env.ADMIN_CONTACT_EMAIL} if you think this is a mistake.`);
+    }
+
+    if (!user.emailVerified) {
+      await User.updateOne({ _id: user._id }, { emailVerified: true });
+      user.emailVerified = true;
+    }
+
+    const token = signToken({ userId: user._id.toString(), role: user.role });
+
+    return Response.json({
+      data: {
+        token,
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          phone: user.phone,
+          emailVerified: user.emailVerified,
+          status: user.status,
+        },
+      },
+    });
   }
-
-  if (!user.emailVerified) {
-    await User.updateOne({ _id: user._id }, { emailVerified: true });
-    user.emailVerified = true;
-  }
-
-  const token = signToken({ userId: user._id.toString(), role: user.role });
-
-  return ok({
-    token,
-    user: {
-      id: user._id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      phone: user.phone,
-      emailVerified: user.emailVerified,
-      status: user.status,
-    },
-  });
-}
+);

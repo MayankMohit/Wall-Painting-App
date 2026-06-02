@@ -34,10 +34,6 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
-# local dev scripts containing credentials
-emit-test-notif.sh
-emit-test-notif.ps1
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts

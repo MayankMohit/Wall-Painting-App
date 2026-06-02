@@ -1,45 +1,43 @@
 import { connectDB } from '@/lib/db';
 import { User } from '@/lib/models';
-import { requireRole } from '@/lib/rbac';
 import { sendOwnerApprovedEmail } from '@/lib/email';
-import { ok, notFound, badRequest } from '@/lib/api-response';
 import { notify } from '@/lib/notify/emit';
+import { HttpError, ErrorCodes } from '@/lib/errors';
+import { withRole } from '@/lib/middleware';
 
-const EXCLUDED = '-password -resetPasswordToken -resetPasswordExpires';
+const EXCLUDE = '-password -resetPasswordToken -resetPasswordExpires';
 
-export async function PATCH(
-  request: Request,
-  context: { params: Promise<{ userId: string }> }
-) {
-  let payload;
-  try {
-    payload = await requireRole(request, 'admin');
-  } catch (e) {
-    if (e instanceof Response) return e;
-    throw e;
+export const PATCH = withRole(['admin'], { audit: 'ADMIN_USER_APPROVE' })(
+  async (req, ctx) => {
+    const { userId } = ctx.params;
+
+    await connectDB();
+    const user = await User.findById(userId);
+    if (!user) throw new HttpError(404, ErrorCodes.NOT_FOUND, 'User not found');
+
+    if (user.role !== 'owner') {
+      ctx.fail(400, ErrorCodes.VALIDATION_ERROR, 'Only owner accounts require approval');
+    }
+    if (user.status !== 'inactive') {
+      ctx.fail(409, ErrorCodes.VALIDATION_ERROR, 'User is not pending approval');
+    }
+
+    user.status = 'active';
+    await user.save();
+
+    ctx.setAudit('ADMIN_USER_APPROVE', { type: 'User', id: userId });
+
+    // Email direct (account.approved event only covers push + inApp)
+    await Promise.allSettled([
+      sendOwnerApprovedEmail(user.email, user.name),
+      notify.emit('account.approved', {
+        recipientId: String(user._id),
+        actorId: ctx.user!.userId,
+        data: { name: user.name },
+      }),
+    ]);
+
+    const updated = await User.findById(userId).select(EXCLUDE).lean();
+    return Response.json({ data: updated });
   }
-
-  void payload;
-
-  const { userId } = await context.params;
-
-  await connectDB();
-  const user = await User.findById(userId);
-  if (!user) return notFound('User not found');
-  if (user.role !== 'owner') return badRequest('User is not an owner');
-  if (user.status !== 'inactive') return badRequest('User is not pending approval');
-
-  user.status = 'active';
-  await user.save();
-
-  await Promise.allSettled([
-    sendOwnerApprovedEmail(user.email, user.name),
-    notify.emit('account.approved', {
-      recipientId: String(user._id),
-      data: { name: user.name },
-    }),
-  ]);
-
-  const updated = await User.findById(userId).select(EXCLUDED);
-  return ok(updated);
-}
+);

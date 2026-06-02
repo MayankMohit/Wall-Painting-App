@@ -144,6 +144,10 @@ export const UpdateAdminUserSchema = z.object({
   status: z.enum(['active', 'inactive', 'suspended']).optional(), // 'suspended' also covers admin-rejected owners
 });
 
+export const AdminReasonSchema = z.object({
+  reason: z.string().min(1).trim().optional(),
+});
+
 export const SignUploadSchema = z.object({
   folder: z.string().trim().optional(),
 });

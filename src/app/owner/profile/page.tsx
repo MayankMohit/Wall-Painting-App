@@ -18,7 +18,12 @@ export default function OwnerProfilePage() {
 
   useEffect(() => {
     let isMounted = true;
-    
+
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
     const fetchProfile = async () => {
       try {
         const token = localStorage.getItem('wallpainter_token');

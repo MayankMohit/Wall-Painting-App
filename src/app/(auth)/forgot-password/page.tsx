@@ -23,7 +23,8 @@ export default function ForgotPasswordPage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        setError((json.data ?? json).error ?? 'Something went wrong. Please try again.');
+        const e = (json.data ?? json).error;
+        setError((typeof e === 'string' ? e : e?.message) ?? 'Something went wrong. Please try again.');
         return;
       }
       // Show the server message verbatim — backend returns different copy for

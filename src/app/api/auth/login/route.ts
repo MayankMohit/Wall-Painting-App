@@ -2,43 +2,51 @@ import { connectDB } from '@/lib/db';
 import { User } from '@/lib/models';
 import { comparePassword, signToken } from '@/lib/auth';
 import { LoginSchema } from '@/lib/validators';
-import { ok, badRequest, err } from '@/lib/api-response';
+import { HttpError, ErrorCodes } from '@/lib/errors';
+import { withMiddleware } from '@/lib/middleware';
+import { checkRateLimit } from '@/lib/middleware/rateLimit';
+import type { z } from 'zod';
 
-export async function POST(request: Request) {
-  const body = await request.json();
-  const parsed = LoginSchema.safeParse(body);
-  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
+type LoginBody = z.infer<typeof LoginSchema>;
 
-  await connectDB();
-  const { identifier, password } = parsed.data;
+export const POST = withMiddleware({ rateLimit: 'standard', schema: LoginSchema, audit: 'AUTH_LOGIN' })(
+  async (req, ctx) => {
+    const { identifier, password } = ctx.body as LoginBody;
 
-  const isEmail = identifier.includes('@');
-  const user = await User.findOne(isEmail ? { email: identifier.toLowerCase() } : { phone: identifier });
-  if (!user) return err('Invalid credentials', 401);
+    await checkRateLimit('strict', identifier.toLowerCase(), 'id');
 
-  if (isEmail && !user.emailVerified) {
-    return err('Email not verified — please log in with your phone number or verify your email first', 403);
+    await connectDB();
+    const isEmail = identifier.includes('@');
+    const user = await User.findOne(isEmail ? { email: identifier.toLowerCase() } : { phone: identifier });
+
+    if (!user) throw new HttpError(401, ErrorCodes.INVALID_CREDENTIALS, 'Invalid credentials');
+
+    if (isEmail && !user.emailVerified) {
+      ctx.fail(403, ErrorCodes.NOT_AUTHORIZED, 'Email not verified — please log in with your phone number or verify your email first');
+    }
+    if (user.status === 'inactive') ctx.fail(403, ErrorCodes.ACCOUNT_DISABLED, 'Account pending approval');
+    if (user.status === 'suspended') {
+      ctx.fail(403, ErrorCodes.ACCOUNT_DISABLED, `Account suspended. Contact ${process.env.ADMIN_CONTACT_EMAIL} if you think this is a mistake.`);
+    }
+
+    const valid = await comparePassword(password, user.password);
+    if (!valid) ctx.fail(401, ErrorCodes.INVALID_CREDENTIALS, 'Invalid credentials');
+
+    const token = signToken({ userId: user._id.toString(), role: user.role });
+
+    return Response.json({
+      data: {
+        token,
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          phone: user.phone,
+          emailVerified: user.emailVerified,
+          status: user.status,
+        },
+      },
+    });
   }
-  if (user.status === 'inactive') return err('Account pending approval', 403);  // later allow to login but dont allow any features and show a banner that account is pending approval
-  if (user.status === 'suspended') {
-    return err(`Account suspended. Contact ${process.env.ADMIN_CONTACT_EMAIL} if you think this is a mistake.`, 403);
-  }
-
-  const valid = await comparePassword(password, user.password);
-  if (!valid) return err('Invalid credentials', 401);
-
-  const token = signToken({ userId: user._id.toString(), role: user.role });
-
-  return ok({
-    token,
-    user: {
-      id: user._id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      phone: user.phone,
-      emailVerified: user.emailVerified,
-      status: user.status,
-    },
-  });
-}
+);

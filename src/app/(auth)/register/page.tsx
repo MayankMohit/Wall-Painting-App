@@ -34,6 +34,7 @@ export default function RegisterPage() {
   const [emailOtpInput, setEmailOtpInput] = useState('');
   const [showEmailOtp, setShowEmailOtp] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
+  const [emailConfirming, setEmailConfirming] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
@@ -147,7 +148,8 @@ export default function RegisterPage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        setEmailError((json.data ?? json).error ?? 'Failed to send OTP');
+        const e = (json.data ?? json).error;
+        setEmailError((typeof e === 'string' ? e : e?.message) ?? 'Failed to send OTP');
         return;
       }
       setEmailSessionId((json.data ?? json).sessionId);
@@ -159,14 +161,37 @@ export default function RegisterPage() {
     }
   }
 
+  async function confirmEmailOtp(otp: string) {
+    if (!emailSessionId) return;
+    setEmailConfirming(true);
+    setEmailError(null);
+    try {
+      const res = await fetch('/api/auth/verify/email/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: emailSessionId, otp }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const e = (json.data ?? json).error;
+        setEmailError((typeof e === 'string' ? e : e?.message) ?? 'Invalid OTP. Please try again.');
+        setEmailOtpInput('');
+        return;
+      }
+      setEmailVerified(true);
+      setShowEmailOtp(false);
+    } catch {
+      setEmailError('Network error. Please try again.');
+      setEmailOtpInput('');
+    } finally {
+      setEmailConfirming(false);
+    }
+  }
+
   function handleEmailOtpChange(val: string) {
     const digits = val.replace(/\D/g, '').slice(0, 6);
     setEmailOtpInput(digits);
-    // Auto-confirm at 6 digits — actual verification happens server-side on submit
-    if (digits.length === 6) {
-      setEmailVerified(true);
-      setShowEmailOtp(false);
-    }
+    if (digits.length === 6) confirmEmailOtp(digits);
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
@@ -277,9 +302,10 @@ export default function RegisterPage() {
                 value={emailOtpInput}
                 onChange={e => handleEmailOtpChange(e.target.value)}
                 maxLength={6}
-                placeholder="Enter 6-digit OTP from your email"
+                disabled={emailConfirming}
+                placeholder={emailConfirming ? 'Verifying…' : 'Enter 6-digit OTP from your email'}
                 autoFocus
-                className="mt-2 w-full rounded-md border-2 border-blue-300 px-3 py-2.5 text-sm tracking-widest text-gray-900 focus:border-blue-600 focus:outline-none"
+                className="mt-2 w-full rounded-md border-2 border-blue-300 px-3 py-2.5 text-sm tracking-widest text-gray-900 focus:border-blue-600 focus:outline-none disabled:bg-gray-50"
               />
             )}
           </div>

@@ -94,7 +94,8 @@ export default function LoginPage() {
         });
         const json = await res.json();
         if (!res.ok) {
-          setSendError((json.data ?? json).error ?? 'Failed to send OTP');
+          const e = (json.data ?? json).error;
+          setSendError((typeof e === 'string' ? e : e?.message) ?? 'Failed to send OTP');
           return;
         }
         setSessionId((json.data ?? json).sessionId);

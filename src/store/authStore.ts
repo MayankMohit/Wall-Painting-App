@@ -33,12 +33,47 @@ interface AuthState {
 
   logout: () => void;
   checkAuth: () => Promise<void>;
+  refreshToken: () => Promise<void>;
   clearError: () => void;
 }
 
 function persistAuth(token: string) {
   localStorage.setItem('wallpainter_token', token);
   document.cookie = `wallpainter_auth_status=true; path=/; max-age=604800`;
+}
+
+// ── Token refresh scheduling ──────────────────────────────────────────────────
+
+let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearRefreshTimer() {
+  if (_refreshTimer) {
+    clearTimeout(_refreshTimer);
+    _refreshTimer = null;
+  }
+}
+
+function decodeJwtExp(token: string): number | null {
+  try {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(part));
+    return typeof payload.exp === 'number' ? payload.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+// Schedules a proactive refresh ~1 hour before the token expires.
+function scheduleRefresh(token: string, refresh: () => void) {
+  clearRefreshTimer();
+  const exp = decodeJwtExp(token);
+  if (!exp) return;
+  const msUntilRefresh = exp * 1000 - Date.now() - 60 * 60 * 1000; // 1 h before expiry
+  if (msUntilRefresh <= 0) {
+    refresh();
+    return;
+  }
+  _refreshTimer = setTimeout(refresh, msUntilRefresh);
 }
 
 async function callApi(url: string, body: unknown): Promise<{ ok: boolean; token?: string; user?: User; error?: string }> {
@@ -49,9 +84,10 @@ async function callApi(url: string, body: unknown): Promise<{ ok: boolean; token
   });
   const json = await res.json();
   const payload = json.data ?? json;
+  const e = payload.error;
   return res.ok
     ? { ok: true, token: payload.token, user: payload.user }
-    : { ok: false, error: payload.error ?? payload.message ?? 'Something went wrong' };
+    : { ok: false, error: (typeof e === 'string' ? e : e?.message) ?? payload.message ?? 'Something went wrong' };
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -69,6 +105,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
       persistAuth(result.token!);
+      scheduleRefresh(result.token!, () => get().refreshToken());
       set({ user: result.user!, isAuthenticated: true, isLoading: false });
       return true;
     } catch {
@@ -86,6 +123,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
       persistAuth(result.token!);
+      scheduleRefresh(result.token!, () => get().refreshToken());
       set({ user: result.user!, isAuthenticated: true, isLoading: false });
       return true;
     } catch {
@@ -103,6 +141,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
       persistAuth(result.token!);
+      scheduleRefresh(result.token!, () => get().refreshToken());
       set({ user: result.user!, isAuthenticated: true, isLoading: false });
       return true;
     } catch {
@@ -123,6 +162,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
       persistAuth(result.token!);
+      scheduleRefresh(result.token!, () => get().refreshToken());
       set({ user: result.user!, isAuthenticated: true, isLoading: false });
       return true;
     } catch {
@@ -132,6 +172,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
+    clearRefreshTimer();
     const token    = localStorage.getItem('wallpainter_token');
     const fcmToken = localStorage.getItem('wallpainter_fcm_token');
     if (token) {
@@ -158,12 +199,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (res.ok) {
         const json = await res.json();
         const user = json.data ?? json;
+        scheduleRefresh(token, () => get().refreshToken());
         set({ user, isAuthenticated: true });
       } else {
         get().logout();
       }
     } catch {
       console.error('Auth check failed');
+    }
+  },
+
+  refreshToken: async () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('wallpainter_token') : null;
+    if (!token) return;
+    try {
+      const res = await fetch('/api/auth/refresh', {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const newToken = (json.data ?? json).token as string;
+        persistAuth(newToken);
+        scheduleRefresh(newToken, () => get().refreshToken());
+      } else {
+        // Token rejected (revoked or corrupted) — force logout
+        get().logout();
+      }
+    } catch {
+      // Network blip — retry in 60 s rather than logging out
+      _refreshTimer = setTimeout(() => get().refreshToken(), 60_000);
     }
   },
 

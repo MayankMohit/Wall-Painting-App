@@ -1,16 +1,9 @@
-import { requireAuth } from '@/lib/rbac';
 import { signToken } from '@/lib/auth';
-import { ok } from '@/lib/api-response';
+import { withAuth } from '@/lib/middleware';
 
-export async function POST(request: Request) {
-  let payload;
-  try {
-    payload = await requireAuth(request);
-  } catch (e) {
-    if (e instanceof Response) return e;
-    throw e;
+export const POST = withAuth({ rateLimit: 'standard' })(
+  async (req, ctx) => {
+    const token = signToken({ userId: ctx.user!.userId, role: ctx.user!.role });
+    return Response.json({ data: { token } });
   }
-
-  const token = signToken({ userId: payload.userId, role: payload.role });
-  return ok({ token });
-}
+);

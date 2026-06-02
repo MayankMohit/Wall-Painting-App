@@ -70,7 +70,7 @@ export const NOTIF_EVENTS: Record<string, NotifEvent> = {
     id: 'file.failed', category: 'file', urgency: 'urgent',
     targets: [
       { audience: { kind: 'explicit' },             channels: ['push', 'email', 'inApp'] },
-      { audience: { kind: 'role', role: 'admin' },  channels: ['inApp'] },
+      { audience: { kind: 'role', role: 'admin' },  channels: ['push', 'inApp'] },
     ],
   },
   'auth.password_reset': {
@@ -95,7 +95,7 @@ export const NOTIF_EVENTS: Record<string, NotifEvent> = {
   },
   'admin.storage_quota': {
     id: 'admin.storage_quota', category: 'admin', urgency: 'normal',
-    targets: [{ audience: { kind: 'role', role: 'admin' }, channels: ['email', 'inApp'] }],
+    targets: [{ audience: { kind: 'role', role: 'admin' }, channels: ['push', 'email', 'inApp'] }],
   },
   'account.approved': {
     id: 'account.approved', category: 'auth', urgency: 'normal',
@@ -108,6 +108,6 @@ export const NOTIF_EVENTS: Record<string, NotifEvent> = {
   'owner.registered': {
     id: 'owner.registered', category: 'admin', urgency: 'normal',
     // email is handled directly by sendAdminNewOwnerNotification in register/route.ts
-    targets: [{ audience: { kind: 'role', role: 'admin' }, channels: ['inApp'] }],
+    targets: [{ audience: { kind: 'role', role: 'admin' }, channels: ['push', 'inApp'] }],
   },
 };

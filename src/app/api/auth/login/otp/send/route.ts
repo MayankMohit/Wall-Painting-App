@@ -4,31 +4,36 @@ import { User } from '@/lib/models';
 import { generateOtp, storeLoginOtp } from '@/lib/otp';
 import { sendOtpEmail } from '@/lib/email';
 import { LoginOtpSendSchema } from '@/lib/validators';
-import { ok, badRequest, err } from '@/lib/api-response';
+import { ErrorCodes } from '@/lib/errors';
+import { withMiddleware } from '@/lib/middleware';
+import { checkRateLimit } from '@/lib/middleware/rateLimit';
+import type { z } from 'zod';
 
-export async function POST(request: Request) {
-  const body = await request.json();
-  const parsed = LoginOtpSendSchema.safeParse(body);
-  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
+type LoginOtpSendBody = z.infer<typeof LoginOtpSendSchema>;
 
-  await connectDB();
-  const { identifier } = parsed.data;
+export const POST = withMiddleware({ rateLimit: 'standard', schema: LoginOtpSendSchema })(
+  async (req, ctx) => {
+    const { identifier } = ctx.body as LoginOtpSendBody;
 
-  const user = await User.findOne({ email: identifier.toLowerCase() });
-  if (!user) return err('No account found with that email', 404);
+    await checkRateLimit('strict', identifier.toLowerCase(), 'id');
 
-  if (!user.emailVerified && user.role !== 'painter') {
-    return err('Email not verified — log in with your phone number instead', 403);
+    await connectDB();
+    const user = await User.findOne({ email: identifier.toLowerCase() });
+    if (!user) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'No account found with that email');
+
+    if (!user.emailVerified && user.role !== 'painter') {
+      ctx.fail(403, ErrorCodes.NOT_AUTHORIZED, 'Email not verified — log in with your phone number instead');
+    }
+    if (user.status === 'inactive') ctx.fail(403, ErrorCodes.ACCOUNT_DISABLED, 'Account pending approval');
+    if (user.status === 'suspended') {
+      ctx.fail(403, ErrorCodes.ACCOUNT_DISABLED, `Account suspended. Contact ${process.env.ADMIN_CONTACT_EMAIL} if you think this is a mistake.`);
+    }
+
+    const sessionId = crypto.randomUUID();
+    const otp = generateOtp();
+    await storeLoginOtp(sessionId, otp, user.email);
+    await sendOtpEmail(user.email, otp, 'login');
+
+    return Response.json({ data: { sessionId } });
   }
-  if (user.status === 'inactive') return err('Account pending approval', 403);
-  if (user.status === 'suspended') {
-    return err(`Account suspended. Contact ${process.env.ADMIN_CONTACT_EMAIL} if you think this is a mistake.`, 403);
-  }
-
-  const sessionId = crypto.randomUUID();
-  const otp = generateOtp();
-  await storeLoginOtp(sessionId, otp, user.email);
-  await sendOtpEmail(user.email, otp, 'login');
-
-  return ok({ sessionId });
-}
+);

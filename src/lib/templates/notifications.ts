@@ -148,6 +148,7 @@ export const templates: Record<string, EventTemplate> = {
   },
 
   'admin.storage_quota': {
+    push:   (d) => ({ title: 'Storage quota alert', body: `${d.service} approaching free-tier limit` }),
     inApp:  (d) => ({ title: 'Storage quota alert', body: `${d.service} approaching free-tier limit` }),
     email:  (d) => renderAdminStorageQuotaEmail({
       service:      String(d.service ?? ''),
