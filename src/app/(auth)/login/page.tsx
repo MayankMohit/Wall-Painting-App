@@ -10,8 +10,12 @@ import { useAuthStore } from '@/store/authStore';
 type Tab = 'password' | 'otp';
 
 function redirectAfterLogin(role: string, status: string, router: ReturnType<typeof useRouter>) {
-  if (role === 'owner' && status !== 'active') {
-    router.push('/pending-approval');
+  if (role === 'owner') {
+    if (status !== 'active') {
+      router.push('/pending-approval');
+    } else {
+      router.push('/owner/jobs');
+    }
   } else {
     router.push(`/${role}/dashboard`);
   }

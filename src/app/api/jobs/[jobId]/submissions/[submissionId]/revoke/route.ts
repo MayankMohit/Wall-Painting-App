@@ -2,7 +2,7 @@ import { connectDB } from '@/lib/db';
 import { requireAuth } from '@/lib/rbac';
 import { ok, err, forbidden, notFound, badRequest } from '@/lib/api-response';
 import { Submission } from '@/lib/models/Submission';
-import { RejectSubmissionSchema } from '@/lib/validators';
+import { RevokeSubmissionSchema } from '@/lib/validators';
 
 export async function PUT(request: Request, { params }: { params: Promise<{ jobId: string, submissionId: string }> }) {
   // 1. FAIL FAST: Guard security boundary instantly
@@ -11,7 +11,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ jobI
 
   // 2. FAIL FAST: Validate request body via Zod before DB connection
   const body = await request.json().catch(() => ({}));
-  const parsed = RejectSubmissionSchema.safeParse(body);
+  const parsed = RevokeSubmissionSchema.safeParse(body);
   if (!parsed.success) return badRequest(parsed.error.issues[0].message);
 
   const { jobId, submissionId } = await params;
@@ -22,23 +22,22 @@ export async function PUT(request: Request, { params }: { params: Promise<{ jobI
     const submission = await Submission.findOne({ _id: submissionId, jobId });
     if (!submission) return notFound('Submission not found');
 
-    // 3. THE BOUNCER: Prevent rejecting an already approved submission
-    if (submission.status === 'approved') {
-      return badRequest('Cannot reject a submission that has already been approved.');
+    if (submission.status !== 'approved') {
+      return badRequest('Only approved submissions can be revoked back to pending.');
     }
 
-    // Update status, reason, and timestamp
-    submission.status = 'rejected';
-    submission.rejectionReason = parsed.data.rejectionReason;
-    submission.rejectedAt = new Date(); 
+    submission.status = 'pending';
+    
+    // If you added 'revokeNote' to your Mongoose Schema, you can save it here:
+    // if (parsed.data.revokeNote) submission.revokeNote = parsed.data.revokeNote;
 
     await submission.save();
 
-    return ok({ message: 'Submission rejected successfully.' });
+    return ok({ message: 'Approval revoked. Submission is now pending.' });
   } catch (e) {
-    console.error('[Reject Submission Error]:', e);
-    // 4. PREVENT 500 MASKS: Ensure thrown Responses (like Auth failures) escape the catch block
+    console.error('[Revoke Submission Error]:', e);
+    // 5. PREVENT 500 MASKS
     if (e instanceof Response) return e;
-    return err('Failed to reject submission', 500);
+    return err('Failed to revoke submission', 500);
   }
 }

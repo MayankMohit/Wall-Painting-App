@@ -4,14 +4,35 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 
-// Data structure perfectly matching your JobSchema
+interface Submission {
+  _id: string;
+  status: 'pending' | 'approved' | 'rejected';
+}
+
 interface Job {
   _id: string;
   companyName: string;
-  description?: string;
   status: 'active' | 'completed' | 'invoiced';
-  submissions: any[]; 
+  updatedAt: string;
+  painters: any[]; 
+  submissions: Submission[]; 
 }
+
+// Helper to format "Last edited" time
+const getRelativeTime = (dateString: string) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
+  if (diffInSeconds < 86400) {
+    const hrs = Math.floor(diffInSeconds / 3600);
+    return hrs === 1 ? '1 hr ago' : `${hrs} hrs ago`;
+  }
+  if (diffInSeconds < 172800) return 'Yesterday';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
 
 export default function PainterDashboard() {
   const { user } = useAuthStore();
@@ -30,7 +51,6 @@ export default function PainterDashboard() {
         const token = localStorage.getItem('wallpainter_token');
         if (!token) throw new Error('Authentication token missing. Please log in.');
 
-        // This hits your backend, which automatically filters for jobs where this painter's ID is in the painters array!
         const res = await fetch('/api/jobs', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -41,8 +61,6 @@ export default function PainterDashboard() {
         }
 
         const json = await res.json();
-        
-        // Safely extract the jobs array from your backend's pagination object
         const fetchedJobs: Job[] = json?.data?.jobs || json?.jobs || [];
 
         if (isMounted) {
@@ -58,22 +76,22 @@ export default function PainterDashboard() {
     };
 
     fetchJobs();
-
     return () => { isMounted = false; };
   }, []);
 
   return (
     <div className="space-y-6">
+      
       {/* Header Section */}
-      <header className="border-b border-gray-200 pb-6 mt-4">
-        <h2 className="text-3xl font-bold text-gray-900">
-          Welcome back, {user?.name?.split(' ')[0] || 'Painter'}!
-        </h2>
-        <p className="text-gray-500 mt-2">Here are the projects currently assigned to you.</p>
+      <header className="border-b border-gray-200 pb-6 mt-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">My Jobs</h1>
+          <p className="text-gray-500 mt-1 font-medium">Welcome back, {user?.name?.split(' ')[0] || 'Painter'}. Here are your active assignments.</p>
+        </div>
       </header>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg relative shadow-sm">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl shadow-sm text-sm font-medium">
           {error}
         </div>
       )}
@@ -81,63 +99,79 @@ export default function PainterDashboard() {
       {/* Loading State */}
       {isLoading ? (
         <div className="flex flex-col justify-center items-center py-20 gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
           <span className="text-gray-500 font-medium">Loading your assignments...</span>
         </div>
       ) : (
+        
         /* Jobs Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {jobs.map((job) => (
-            <div 
-              key={job._id} 
-              className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex justify-between items-start mb-4 gap-4">
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-xl text-gray-900 truncate">{job.companyName}</h3>
-                  </div>
-                  <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider shrink-0 ${
-                    job.status === 'active' ? 'bg-blue-100 text-blue-800' : 
-                    job.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
-                    'bg-amber-100 text-amber-800'
-                  }`}>
-                    {job.status}
-                  </span>
-                </div>
-                
-                <div className="space-y-2 mb-6">
-                  {job.description && (
-                    <p className="text-gray-600 text-sm flex items-start gap-2">
-                      <span>📍</span> 
-                      <span className="line-clamp-2">{job.description}</span>
-                    </p>
-                  )}
-                  <p className="text-gray-600 text-sm flex items-center gap-2">
-                    <span>🖼️</span> 
-                    {/* Note: This shows total submissions on the job. To get only THIS painter's submissions, we'd need a different backend query */}
-                    {job.submissions?.length || 0} Total project photos
-                  </p>
-                </div>
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {jobs.map((job) => {
+            // Calculate pending submissions for this specific job
+            // Note: If your API doesn't populate submissions yet, this will default to 0.
+            const pendingCount = job.submissions?.filter(s => s.status === 'pending').length || 0;
+            const paintersCount = job.painters?.length || 1;
 
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <Link 
-                  href={`/painter/jobs/${job._id}`}
-                  className="w-full text-center bg-blue-50 text-blue-700 py-2.5 rounded-lg font-bold border border-blue-100 hover:bg-blue-100 transition-colors"
-                >
-                  Enter the Job
-                </Link>
-              </div>
-            </div>
-          ))}
+            return (
+              <Link 
+                href={`/painter/jobs/${job._id}`}
+                key={job._id} 
+                className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-200 transition-all group flex flex-col justify-between h-full cursor-pointer"
+              >
+                <div>
+                  <div className="flex justify-between items-start mb-2 gap-4">
+                    <h3 className="font-black text-xl text-gray-900 truncate group-hover:text-indigo-600 transition-colors">
+                      {job.companyName}
+                    </h3>
+                    {job.status !== 'active' && (
+                      <span className="text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-widest bg-gray-100 text-gray-600 shrink-0">
+                        {job.status}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <p className="text-xs text-gray-400 font-medium mb-6">
+                    Last edited {getRelativeTime(job.updatedAt)}
+                  </p>
+                  
+                  <div className="space-y-3">
+                    {/* Team Size */}
+                    <div className="flex items-center gap-3 text-sm font-medium text-gray-600">
+                      <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center border border-gray-200 shrink-0 text-gray-400">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                      </div>
+                      {paintersCount} {paintersCount === 1 ? 'Painter' : 'Painters'} assigned
+                    </div>
+
+                    {/* Pending Status */}
+                    <div className="flex items-center gap-3 text-sm font-medium">
+                      {pendingCount > 0 ? (
+                        <>
+                          <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center border border-orange-100 shrink-0 text-orange-500">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                          </div>
+                          <span className="text-[#EA580C]">{pendingCount} pending submissions</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center border border-emerald-100 shrink-0 text-emerald-500">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                          </div>
+                          <span className="text-emerald-600 font-bold">All clear</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
 
           {jobs.length === 0 && !error && (
-            <div className="col-span-full bg-gray-50 p-12 text-center rounded-xl border border-dashed border-gray-300">
-              <div className="text-4xl mb-3">🎨</div>
-              <p className="text-gray-900 font-bold text-lg">No active assignments</p>
-              <p className="text-gray-500 mt-1">You don't have any active jobs assigned right now. Check back later!</p>
+            <div className="col-span-full bg-white p-16 text-center rounded-2xl border border-gray-200 shadow-sm">
+              <div className="text-5xl mb-4">🙌</div>
+              <p className="text-gray-900 font-black text-xl tracking-tight">No active assignments</p>
+              <p className="text-gray-500 mt-2 font-medium">You don't have any jobs assigned right now. Enjoy the break!</p>
             </div>
           )}
         </div>

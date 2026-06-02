@@ -7,6 +7,7 @@ import Link from 'next/link';
 interface Photo {
   _id: string;
   cloudinaryUrl: string;
+  previewCloudinaryUrl: string;
 }
 
 export default function ReviewSubmissionPage({ params }: { params: Promise<{ jobId: string, id: string }> }) {
@@ -31,6 +32,7 @@ export default function ReviewSubmissionPage({ params }: { params: Promise<{ job
   // Selection & Viewing states
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [isRevoking, setIsRevoking] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -72,7 +74,6 @@ export default function ReviewSubmissionPage({ params }: { params: Promise<{ job
   // --- EDIT DETAILS LOGIC ---
   const handleStartEditing = () => {
     setEditLocation(submission.location);
-    // Convert backend [[w, h]] format to frontend state array
     setEditSizes(submission.sizes.map((s: number[]) => ({ width: s[0].toString(), height: s[1].toString() })));
     setIsEditingDetails(true);
   };
@@ -87,7 +88,6 @@ export default function ReviewSubmissionPage({ params }: { params: Promise<{ job
     setIsProcessing(true);
     try {
       const token = localStorage.getItem('wallpainter_token');
-      // Format sizes back to backend [[w, h]] format
       const formattedSizes = editSizes.map(s => [Number(s.width), Number(s.height)]);
       
       const res = await fetch(`/api/jobs/${jobId}/submissions/${submissionId}`, {
@@ -101,13 +101,43 @@ export default function ReviewSubmissionPage({ params }: { params: Promise<{ job
 
       if (!res.ok) throw new Error('Failed to update details');
 
-      // Update local state instantly
       setSubmission({ ...submission, location: editLocation, sizes: formattedSizes });
       setIsEditingDetails(false);
       setIsProcessing(false);
     } catch (err: any) {
       alert(err.message || 'Failed to save changes');
       setIsProcessing(false);
+    }
+  };
+
+  // --- REVOKE LOGIC ---
+  const handleRevoke = async () => {
+    if (!confirm('Are you sure you want to revoke this approval? This will change the status back to Pending.')) return;
+    
+    setIsRevoking(true);
+    try {
+      const token = localStorage.getItem('wallpainter_token');
+      const res = await fetch(`/api/jobs/${jobId}/submissions/${submissionId}/revoke`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to revoke approval');
+      }
+
+      alert('Approval revoked. The submission is now pending.');
+      window.location.reload(); 
+
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsRevoking(false);
     }
   };
 
@@ -161,7 +191,7 @@ export default function ReviewSubmissionPage({ params }: { params: Promise<{ job
   if (error) return <div className="p-10 text-center text-red-600 font-bold bg-red-50 rounded-xl mt-6">{error}</div>;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 mt-6 relative">
+    <div className="max-w-4xl mx-auto space-y-6 mt-6 relative pb-12">
       
       {/* Fullscreen Image Lightbox Overlay */}
       {fullscreenImage && (
@@ -237,7 +267,6 @@ export default function ReviewSubmissionPage({ params }: { params: Promise<{ job
                       placeholder="H"
                     />
                     
-                    {/* Add/Remove logic can be added here if needed, keeping it simple to just edit existing arrays for the owner */}
                     {editSizes.length > 1 && (
                       <button 
                         onClick={() => setEditSizes(editSizes.filter((_, i) => i !== idx))}
@@ -312,13 +341,14 @@ export default function ReviewSubmissionPage({ params }: { params: Promise<{ job
                   isSelected ? 'border-emerald-500 shadow-md scale-[1.02]' : 'border-transparent border-gray-200'
                 }`}
               >
+                {/* Changed to use previewCloudinaryUrl for fast loading */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img.cloudinaryUrl} alt="Wall Angle" className="w-full h-48 object-cover" />
+                <img src={img.previewCloudinaryUrl || img.cloudinaryUrl} alt="Wall Angle" className="w-full h-48 object-cover" />
                 
                 <button
                   onClick={(e) => {
                     e.stopPropagation(); 
-                    setFullscreenImage(img.cloudinaryUrl);
+                    setFullscreenImage(img.cloudinaryUrl); // Uses High-Res URL for full screen
                   }}
                   className="absolute bottom-3 right-3 bg-black/60 hover:bg-black text-white p-2.5 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100 shadow-sm"
                   title="View Fullscreen"
@@ -337,58 +367,82 @@ export default function ReviewSubmissionPage({ params }: { params: Promise<{ job
         </div>
       </div>
 
-      {/* Review Actions (Only show if pending) */}
-      {submission?.status === 'pending' && (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mt-8 animate-in fade-in duration-300">
-          {!showRejectForm ? (
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button 
-                onClick={() => handleAction('approve')}
-                disabled={isProcessing || selectedImageIds.length === 0}
-                className="flex-1 bg-emerald-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:bg-emerald-400 disabled:cursor-not-allowed"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
-                {isProcessing ? 'Processing...' : 'Approve Selected Images'}
-              </button>
-              <button 
-                onClick={() => setShowRejectForm(true)}
-                disabled={isProcessing}
-                className="flex-1 bg-white text-red-600 border-2 border-red-200 py-3 px-4 rounded-lg font-bold hover:bg-red-50 hover:border-red-300 transition-colors flex items-center justify-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12"></path></svg>
-                Reject & Request Changes
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
-              <h3 className="text-red-700 font-bold">Request Changes</h3>
-              <textarea
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                placeholder="Explain what the painter needs to fix (e.g., 'Lighting is too dark on the final photo, please re-take')."
-                className="w-full border-2 border-red-200 rounded-lg p-3 text-gray-900 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 min-h-[100px]"
-                disabled={isProcessing}
-              />
-              <div className="flex gap-3">
+      {/* ACTION AREA */}
+      <div className="mt-8 border-t pt-6">
+        
+        {/* If Pending: Show Approve/Reject */}
+        {submission?.status === 'pending' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 animate-in fade-in duration-300">
+            {!showRejectForm ? (
+              <div className="flex flex-col sm:flex-row gap-4">
                 <button 
-                  onClick={() => handleAction('reject')}
-                  disabled={isProcessing || !feedback.trim()}
-                  className="bg-red-600 text-white py-2 px-6 rounded-lg font-bold hover:bg-red-700 transition-colors disabled:bg-red-400 disabled:cursor-not-allowed"
+                  onClick={() => handleAction('approve')}
+                  disabled={isProcessing || selectedImageIds.length === 0}
+                  className="flex-1 bg-emerald-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:bg-emerald-400 disabled:cursor-not-allowed"
                 >
-                  {isProcessing ? 'Sending...' : 'Confirm Rejection'}
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                  {isProcessing ? 'Processing...' : 'Approve Selected Images'}
                 </button>
                 <button 
-                  onClick={() => { setShowRejectForm(false); setFeedback(''); }}
+                  onClick={() => setShowRejectForm(true)}
                   disabled={isProcessing}
-                  className="text-gray-500 font-bold hover:text-gray-800 px-4"
+                  className="flex-1 bg-white text-red-600 border-2 border-red-200 py-3 px-4 rounded-lg font-bold hover:bg-red-50 hover:border-red-300 transition-colors flex items-center justify-center gap-2"
                 >
-                  Cancel
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  Reject & Request Changes
                 </button>
               </div>
+            ) : (
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
+                <h3 className="text-red-700 font-bold">Request Changes</h3>
+                <textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  placeholder="Explain what the painter needs to fix (e.g., 'Lighting is too dark on the final photo, please re-take')."
+                  className="w-full border-2 border-red-200 rounded-lg p-3 text-gray-900 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 min-h-[100px]"
+                  disabled={isProcessing}
+                />
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => handleAction('reject')}
+                    disabled={isProcessing || !feedback.trim()}
+                    className="bg-red-600 text-white py-2 px-6 rounded-lg font-bold hover:bg-red-700 transition-colors disabled:bg-red-400 disabled:cursor-not-allowed"
+                  >
+                    {isProcessing ? 'Sending...' : 'Confirm Rejection'}
+                  </button>
+                  <button 
+                    onClick={() => { setShowRejectForm(false); setFeedback(''); }}
+                    disabled={isProcessing}
+                    className="text-gray-500 font-bold hover:text-gray-800 px-4"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* If Approved: Show Revoke */}
+        {submission?.status === 'approved' && (
+          <div className="flex flex-col items-center gap-3 bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+            <div className="flex items-center gap-2 text-emerald-800 font-bold text-lg">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              Submission Approved
             </div>
-          )}
-        </div>
-      )}
+            <p className="text-sm text-emerald-700 text-center mb-2">This submission has been finalized.</p>
+            
+            <button 
+              onClick={handleRevoke}
+              disabled={isRevoking}
+              className="text-sm font-bold text-gray-500 hover:text-red-600 underline underline-offset-4 transition-colors disabled:opacity-50"
+            >
+              {isRevoking ? 'Revoking...' : 'Revoke approval and change to pending'}
+            </button>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }

@@ -14,14 +14,20 @@ cloudinary.config({
 });
 
 export async function GET(request: Request, { params }: { params: Promise<{ jobId: string, submissionId: string }> }) {
+  
+  const auth = await requireAuth(request);
+  const { jobId, submissionId } = await params;
+
   try {
     await connectDB();
-    const { jobId, submissionId } = await params;
-    const auth = await requireAuth(request);
-
-    const submission = await Submission.findOne({ _id: submissionId, jobId }).populate('images');
+    
+    // 2. Laser Focus: Fetch only needed image fields
+    const submission = await Submission.findOne({ _id: submissionId, jobId })
+      .populate('images', 'cloudinaryUrl previewCloudinaryUrl previewCloudinaryId generatedNumber');
+      
     if (!submission) return notFound('Submission not found');
 
+    // 3. The Bouncer
     if (auth.role === 'painter' && submission.painterId.toString() !== auth.userId) {
       return forbidden();
     }
@@ -34,41 +40,28 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ jobId: string, submissionId: string }> }) {
-  await connectDB();
+  // 1. Fail Fast: Auth and Validation first
+  const auth = await requireAuth(request);
+  
+  const body = await request.json().catch(() => ({}));
+  const parsed = UpdateSubmissionSchema.safeParse(body);
+  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
+
   const { jobId, submissionId } = await params;
+  await connectDB();
   
   const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
-    const auth = await requireAuth(request);
-    
+    session.startTransaction();
+
     const submission = await Submission.findOne({ _id: submissionId, jobId }).session(session);
-    if (!submission) {
-      await session.abortTransaction();
-      session.endSession();
-      return notFound('Submission not found');
-    }
+    if (!submission) throw new Response(JSON.stringify({ error: 'Submission not found' }), { status: 404 });
 
+    // 2. The Bouncer
     if (auth.role === 'painter') {
-      if (submission.painterId.toString() !== auth.userId) {
-        await session.abortTransaction();
-        session.endSession();
-        return forbidden();
-      }
-      if (submission.status === 'approved') {
-        await session.abortTransaction();
-        session.endSession();
-        return badRequest('Cannot edit an approved submission');
-      }
-    }
-
-    const body = await request.json().catch(() => ({}));
-    const parsed = UpdateSubmissionSchema.safeParse(body);
-    if (!parsed.success) {
-      await session.abortTransaction();
-      session.endSession();
-      return badRequest(parsed.error.issues[0].message);
+      if (submission.painterId.toString() !== auth.userId) throw new Response(null, { status: 403 });
+      if (submission.status === 'approved') throw new Response(JSON.stringify({ error: 'Cannot edit an approved submission' }), { status: 400 });
     }
 
     const { location, sizes, uploadedImages } = parsed.data;
@@ -77,23 +70,20 @@ export async function PUT(request: Request, { params }: { params: Promise<{ jobI
     if (sizes) submission.sizes = sizes;
 
     if (uploadedImages && uploadedImages.length > 0) {
+      // 3. Heavy Backpack: Prepare docs and insertMany (including preview fields)
+      const photoDocs = uploadedImages.map((img: any) => ({
+        jobId: new mongoose.Types.ObjectId(jobId),
+        cloudinaryId: img.cloudinaryId,
+        cloudinaryUrl: img.cloudinaryUrl,
+        previewCloudinaryId: img.previewCloudinaryId, // Added missing field
+        previewCloudinaryUrl: img.previewCloudinaryUrl, // Added missing field
+        watermarkedUrl: null,
+        generatedNumber: `IMG-${jobId.slice(-6)}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`.toUpperCase(),
+      }));
 
-      const createdPhotoIds: mongoose.Types.ObjectId[] = [];
+      const savedPhotos = await Photo.insertMany(photoDocs, { session });
+      const createdPhotoIds = savedPhotos.map(p => p._id);
       
-      for (const img of uploadedImages) {
-        const uniqueNum = `IMG-${jobId.slice(-6)}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`.toUpperCase();
-        
-        const [newPhoto] = await Photo.create([{
-          jobId: new mongoose.Types.ObjectId(jobId),
-          cloudinaryId: img.cloudinaryId,
-          cloudinaryUrl: img.cloudinaryUrl,
-          watermarkedUrl: null,
-          generatedNumber: uniqueNum,
-        }], { session });
-
-        createdPhotoIds.push(newPhoto._id as mongoose.Types.ObjectId);
-      }
-
       submission.images.push(...createdPhotoIds);
     }
 
@@ -102,61 +92,59 @@ export async function PUT(request: Request, { params }: { params: Promise<{ jobI
     }
 
     await submission.save({ session });
-    
     await session.commitTransaction();
-    session.endSession();
-
     return ok({ message: 'Submission updated successfully' });
+
   } catch (e) {
     await session.abortTransaction();
-    session.endSession();
     if (e instanceof Response) return e;
+    console.error('[PUT Submission]', e);
     return err('Failed to update submission', 500);
+  } finally {
+    session.endSession();
   }
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ jobId: string, submissionId: string }> }) {
-  await connectDB();
+  // 1. Fail Fast
+  const auth = await requireAuth(request);
+  if (auth.role === 'painter') return forbidden();
+
   const { jobId, submissionId } = await params;
+  await connectDB();
 
   const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
-    const auth = await requireAuth(request);
+    session.startTransaction();
 
     const submission = await Submission.findOne({ _id: submissionId, jobId }).session(session);
-    if (!submission) {
-      await session.abortTransaction();
-      session.endSession();
-      return notFound('Submission not found');
-    }
-
-    if (auth.role === 'painter') {
-        await session.abortTransaction();
-        session.endSession();
-        return forbidden();
-    }
+    if (!submission) throw new Response(null, { status: 404 });
 
     const photosToDelete = await Photo.find({ _id: { $in: submission.images } }).session(session);
 
+    // 2. Storage Leak Fix: Destroy BOTH high-res and preview images concurrently
+    const destroyPromises = [];
     for (const photo of photosToDelete) {
-      if (photo.cloudinaryId) {
-        await cloudinary.uploader.destroy(photo.cloudinaryId);
-      }
+      if (photo.cloudinaryId) destroyPromises.push(cloudinary.uploader.destroy(photo.cloudinaryId));
+      if (photo.previewCloudinaryId) destroyPromises.push(cloudinary.uploader.destroy(photo.previewCloudinaryId));
     }
+    
+    // Process all deletions in parallel
+    await Promise.all(destroyPromises);
 
     await Photo.deleteMany({ _id: { $in: submission.images } }, { session });
     await submission.deleteOne({ session });
 
     await session.commitTransaction();
-    session.endSession();
-
     return ok({ message: 'Submission deleted successfully' });
+
   } catch (e) {
     await session.abortTransaction();
-    session.endSession();
     if (e instanceof Response) return e;
+    console.error('[DELETE Submission]', e);
     return err('Failed to delete submission', 500);
+  } finally {
+    session.endSession();
   }
 }

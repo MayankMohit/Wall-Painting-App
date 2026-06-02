@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -9,12 +9,12 @@ interface Painter {
   _id: string;
   name: string;
   email: string;
+  phone?: string;
 }
 
 export default function CreateJobPage() {
   const router = useRouter();
 
-  // Cleaned up default values to match exactly what your schema wants
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
     defaultValues: {
       companyName: '',
@@ -27,10 +27,7 @@ export default function CreateJobPage() {
   const [isLoadingPainters, setIsLoadingPainters] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const selectedPainterIds = watch('painterIds') || [];
 
@@ -41,20 +38,17 @@ export default function CreateJobPage() {
         const token = localStorage.getItem('wallpainter_token');
         if (!token) return;
 
-        // 1. Hit the new dedicated, secure painters route
-        const res = await fetch('/api/painters', {
+        // Using our single, optimized User endpoint
+        const res = await fetch('/api/users', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
         if (!res.ok) throw new Error('Failed to fetch painters');
 
         const json = await res.json();
-
-        // 2. Safely extract the array (handles { data: [...] } or just [...])
-        const fetchedPainters = json?.data || json?.painters || json || [];
+        const fetchedPainters = json?.data?.users || json?.users || [];
 
         if (isMounted) {
-          // 3. No need to filter! The backend already guarantees these are active painters.
           setPainters(fetchedPainters);
           setIsLoadingPainters(false);
         }
@@ -68,19 +62,9 @@ export default function CreateJobPage() {
     return () => { isMounted = false; };
   }, []);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const filteredPainters = painters.filter(painter =>
     painter.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    painter.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (painter.phone && painter.phone.includes(searchTerm))
   );
 
   const togglePainter = (painterId: string) => {
@@ -100,7 +84,6 @@ export default function CreateJobPage() {
       const token = localStorage.getItem('wallpainter_token');
       if (!token) throw new Error('You must be logged in to create a job.');
 
-      // Perfectly matches CreateJobSchema and JobSchema
       const payload = {
         companyName: data.companyName,
         description: data.description,
@@ -121,7 +104,7 @@ export default function CreateJobPage() {
         throw new Error(errData.error || errData.message || 'Failed to create job');
       }
 
-      router.push('/owner/dashboard');
+      router.push('/owner/jobs');
     } catch (error: any) {
       setSubmitError(error.message);
       setIsSubmitting(false);
@@ -129,139 +112,141 @@ export default function CreateJobPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-
-      <div className="flex justify-between items-center border-b border-gray-200 pb-4 mt-4">
+    <div className="max-w-7xl mx-auto space-y-6 mt-4 pb-12">
+      
+      {/* 1. Sticky-ish Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 pb-6 sticky top-16 bg-gray-50 z-10 pt-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Create New Job</h1>
-          <p className="text-gray-500 mt-1">Set up a new job and assign your team.</p>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Create new job</h1>
+          <p className="text-gray-500 mt-1 text-sm font-medium">Fill in the company, scope and assign painters.</p>
         </div>
-        <Link
-          href="/owner/dashboard"
-          className="text-gray-500 hover:text-gray-800 text-sm font-medium"
-        >
-          Cancel
-        </Link>
+        
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <Link
+            href="/owner/jobs"
+            className="flex-1 sm:flex-none px-6 py-2.5 rounded-full border-2 border-gray-200 text-gray-700 font-bold hover:bg-gray-100 transition-colors text-center"
+          >
+            Cancel
+          </Link>
+          {/* HTML5 trick: The 'form' attribute connects this button to the form below */}
+          <button
+            type="submit"
+            form="create-job-form"
+            disabled={isSubmitting}
+            className="flex-1 sm:flex-none px-6 py-2.5 rounded-full bg-gray-900 text-white font-bold hover:bg-black transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? (
+              'Creating...'
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                Create job
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {submitError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative shadow-sm">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl shadow-sm font-medium text-sm">
           {submitError}
         </div>
       )}
 
-      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* 2. Main 2-Column Form */}
+      <form id="create-job-form" onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-5 gap-12 pt-4">
+        
+        {/* LEFT COLUMN: Job Details */}
+        <div className="lg:col-span-2 space-y-6">
+          <h2 className="text-lg font-bold text-gray-900 border-b border-gray-200 pb-2">Job details</h2>
 
-          {/* Company Name (Required) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Company / Project Name *</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Company name</label>
             <input
               {...register('companyName', { required: true })}
               type="text"
-              placeholder="e.g. Ultratech Cement or Tech Park Exterior"
+              placeholder="e.g. Brightline Properties"
               disabled={isSubmitting}
-              className="block w-full rounded-md border border-gray-300 p-3 text-gray-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none disabled:bg-gray-50"
+              className="block w-full rounded-xl border border-gray-300 p-3.5 text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none transition-colors shadow-sm text-base"
             />
-            {errors.companyName && <span className="text-xs text-red-500 mt-1">Company Name is required</span>}
+            {errors.companyName && <span className="text-xs font-bold text-red-500 mt-2 block">Company name is required</span>}
           </div>
 
-          {/* Description (Optional) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Description</label>
             <textarea
               {...register('description')}
-              rows={3}
-              placeholder="Add location details, instructions, or scope of work..."
+              rows={4}
+              placeholder="Floors 8-12 hallways, suites and stairwells..."
               disabled={isSubmitting}
-              className="block w-full rounded-md border border-gray-300 p-3 text-gray-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none disabled:bg-gray-50 resize-none"
+              className="block w-full rounded-xl border border-gray-300 p-3.5 text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none transition-colors shadow-sm text-base resize-none"
+            />
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Assign Painters */}
+        <div className="lg:col-span-3 space-y-4">
+          <h2 className="text-lg font-bold text-gray-900 border-b border-gray-200 pb-2">
+            Assign painters <span className="text-gray-400 font-medium ml-1">· {selectedPainterIds.length} selected</span>
+          </h2>
+
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Search by name or phone"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="block w-full rounded-xl border border-gray-300 pl-11 pr-4 py-3.5 text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none transition-colors shadow-sm text-sm font-medium"
             />
           </div>
 
-          {/* Assign Painters (Multi-Select) */}
-          <div className="pt-4 border-t border-gray-100" ref={dropdownRef}>
-            <label className="block text-sm font-bold text-gray-900 mb-3">Assign Painters</label>
-
-            {selectedPainterIds.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-3">
-                {selectedPainterIds.map(id => {
-                  const painter = painters.find(p => p._id === id);
-                  if (!painter) return null;
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            {isLoadingPainters ? (
+              <div className="p-12 flex justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              </div>
+            ) : filteredPainters.length === 0 ? (
+              <div className="p-8 text-center text-gray-500 font-medium text-sm">No painters found.</div>
+            ) : (
+              <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
+                {filteredPainters.map((painter) => {
+                  const isSelected = selectedPainterIds.includes(painter._id);
                   return (
-                    <div key={id} className="flex items-center gap-1 bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-full text-sm font-medium">
-                      {painter.name}
-                      <button
-                        type="button"
-                        onClick={() => togglePainter(id)}
-                        className="ml-1 text-indigo-400 hover:text-indigo-800 focus:outline-none"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                      </button>
+                    <div
+                      key={painter._id}
+                      onClick={() => togglePainter(painter._id)}
+                      className={`flex items-center gap-4 p-4 cursor-pointer transition-colors hover:bg-gray-50 ${isSelected ? 'bg-[#fcfcfb]' : 'bg-white'}`}
+                    >
+                      {/* Custom Checkbox */}
+                      <div className={`w-6 h-6 rounded-md border flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-gray-900 border-gray-900' : 'border-gray-300 bg-white'}`}>
+                        {isSelected && (
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                        )}
+                      </div>
+
+                      {/* Avatar */}
+                      <div className="w-10 h-10 rounded-full bg-[#9CA3AF] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                        {painter.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                      </div>
+
+                      {/* Info */}
+                      <div className="min-w-0">
+                        <div className="font-bold text-gray-900 text-sm truncate">{painter.name}</div>
+                        <div className="text-xs text-gray-400 font-mono mt-0.5">{painter.phone || 'No phone'}</div>
+                      </div>
                     </div>
-                  )
+                  );
                 })}
               </div>
             )}
-
-            <div className="relative">
-              <input
-                type="text"
-                placeholder={isLoadingPainters ? "Loading painters..." : "Search painters by name or email..."}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onFocus={() => setIsDropdownOpen(true)}
-                disabled={isLoadingPainters}
-                className="block w-full rounded-md border border-gray-300 p-3 text-gray-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none disabled:bg-gray-50"
-              />
-
-              {isDropdownOpen && !isLoadingPainters && (
-                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
-                  {filteredPainters.length === 0 ? (
-                    <div className="p-4 text-sm text-gray-500 text-center">No painters found matching "{searchTerm}"</div>
-                  ) : (
-                    <div className="p-2 space-y-1">
-                      {filteredPainters.map((painter) => {
-                        const isSelected = selectedPainterIds.includes(painter._id);
-                        return (
-                          <div
-                            key={painter._id}
-                            onClick={() => togglePainter(painter._id)}
-                            className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}
-                          >
-                            <div className="flex flex-col">
-                              <span className={`text-sm font-bold ${isSelected ? 'text-indigo-900' : 'text-gray-900'}`}>
-                                {painter.name}
-                              </span>
-                              <span className="text-xs text-gray-500">{painter.email}</span>
-                            </div>
-
-                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'}`}>
-                              {isSelected && (
-                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
+          <p className="text-xs text-gray-400 font-medium">Painters can be added or removed at any time from the job page.</p>
+        </div>
 
-          <div className="pt-6">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className={`w-full text-white rounded-lg py-3.5 px-4 font-bold transition-colors shadow-sm ${isSubmitting ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
-                }`}
-            >
-              {isSubmitting ? 'Creating Job...' : 'Create Job'}
-            </button>
-          </div>
-        </form>
-      </div>
+      </form>
     </div>
   );
 }

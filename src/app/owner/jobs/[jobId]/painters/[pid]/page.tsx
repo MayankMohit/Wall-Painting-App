@@ -3,73 +3,71 @@
 import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 
-interface PainterSubmission {
+interface Submission {
   _id: string;
-  photoNo: number;
   location: string;
+  photoNo: number;
+  sizes: [number, number][];
   status: 'pending' | 'approved' | 'rejected';
   submittedAt: string;
 }
 
-interface PainterJobDetails {
-  _id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  submissions: PainterSubmission[];
+interface PainterData {
+  job: { companyName: string };
+  painter: { name: string };
+  stats: {
+    pending: number;
+    approved: number;
+    rejected: number;
+  };
+  submissions: Submission[];
 }
 
-export default function SpecificPainterJobPage({ params }: { params: Promise<{ jobId: string, pid: string }> }) {
+// Helper: Calculate total area from sizes array [[w,h], [w,h]]
+const calculateArea = (sizes: [number, number][]) => {
+  return sizes.reduce((total, [w, h]) => total + (w * h), 0).toFixed(1);
+};
+
+// Helper: Format relative time
+const getRelativeTime = (dateString: string) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
+  if (diffInSeconds < 86400) {
+    const hrs = Math.floor(diffInSeconds / 3600);
+    return hrs === 1 ? '1 hr ago' : `${hrs} hrs ago`;
+  }
+  if (diffInSeconds < 172800) return 'Yesterday';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+export default function PainterReviewQueuePage({ params }: { params: Promise<{ jobId: string, pid: string }> }) {
   const resolvedParams = use(params);
-  // Using pid from your folder structure, which maps to painterId in the API
   const { jobId, pid } = resolvedParams;
 
-  const [details, setDetails] = useState<PainterJobDetails | null>(null);
+  const [data, setData] = useState<PainterData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
-
-    const fetchPainterAndSubmissions = async () => {
-      setIsLoading(true);
-      setError('');
-
+    const fetchPainterData = async () => {
       try {
         const token = localStorage.getItem('wallpainter_token');
         if (!token) throw new Error('Authentication token missing.');
 
-        // 1. We fetch BOTH the submissions and the job's painter list at the same time
-        const headers = { 'Authorization': `Bearer ${token}` };
+        const res = await fetch(`/api/jobs/${jobId}/painters/${pid}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!res.ok) throw new Error('Failed to load painter data');
+        const json = await res.json();
         
-        const [subsRes, paintersRes] = await Promise.all([
-          fetch(`/api/jobs/${jobId}/painters/${pid}/submissions`, { headers }), // Your new API route
-          fetch(`/api/jobs/${jobId}/painters`, { headers })                     // Getting painter details
-        ]);
-
-        if (!subsRes.ok || !paintersRes.ok) {
-          throw new Error('Failed to load painter history');
-        }
-
-        const subsJson = await subsRes.json();
-        const paintersJson = await paintersRes.json();
-
-        // 2. Find this specific painter from the job's roster to get their Name/Email
-        const roster = paintersJson?.data || paintersJson || [];
-        const currentPainter = roster.find((p: any) => p._id === pid);
-
         if (isMounted) {
-          if (!currentPainter) {
-            setError('This painter is not assigned to this job.');
-          } else {
-            setDetails({
-              _id: currentPainter._id,
-              name: currentPainter.name,
-              email: currentPainter.email,
-              phone: currentPainter.phone,
-              submissions: subsJson?.data || subsJson || [] // The submissions from your API
-            });
-          }
+          setData(json.data);
           setIsLoading(false);
         }
       } catch (err: any) {
@@ -80,91 +78,128 @@ export default function SpecificPainterJobPage({ params }: { params: Promise<{ j
       }
     };
 
-    fetchPainterAndSubmissions();
+    fetchPainterData();
     return () => { isMounted = false; };
   }, [jobId, pid]);
 
-  if (isLoading) {
-    return (
-      <div className="py-20 flex flex-col items-center justify-center gap-3">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-        <div className="text-gray-500 font-medium">Loading painter records...</div>
-      </div>
-    );
-  }
-
-  if (error || !details) {
-    return (
-      <div className="mt-6 bg-red-50 border border-red-200 text-red-700 p-6 rounded-xl shadow-sm text-center">
-        <p className="font-bold text-lg mb-1">Error</p>
-        <p>{error}</p>
-        <Link href={`/owner/jobs/${jobId}/painters`} className="text-indigo-600 font-bold hover:underline mt-4 inline-block">
-          ← Back to Team Roster
-        </Link>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="py-20 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>;
+  if (error || !data) return <div className="text-red-500 p-6 text-center">{error || 'Data not found'}</div>;
 
   return (
-    <div className="space-y-6 mt-6">
+    <div className="max-w-6xl mx-auto space-y-8 mt-4 pb-12">
       
-      {/* Navigation & Header */}
-      <div>
-        <Link href={`/owner/jobs/${jobId}/painters`} className="text-indigo-600 hover:underline text-sm font-medium">
-          ← Back to Team Roster
+      {/* Back Button */}
+      <div className="mb-2">
+        <Link href={`/owner/jobs/${jobId}`} className="text-gray-500 hover:text-gray-900 text-sm font-bold transition-colors">
+          ← Back to Command Center
         </Link>
-        <div className="mt-4 bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-2xl border-2 border-white shadow-sm shrink-0">
-              {details.name.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">{details.name}</h2>
-              <p className="text-gray-500 text-sm mt-1">
-                {details.email} {details.phone && `• ${details.phone}`}
-              </p>
-            </div>
+      </div>
+
+      {/* Header */}
+      <div>
+        <h1 className="text-4xl font-black text-gray-900 tracking-tight">{data.painter.name}</h1>
+        <p className="text-gray-500 mt-1 text-sm font-medium">
+          {data.job.companyName} · review queue
+        </p>
+      </div>
+
+      {/* Stat Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* PENDING */}
+        <div className="bg-white p-5 rounded-2xl border-y border-r border-gray-200 border-l-4 border-l-[#EA580C] shadow-sm flex flex-col justify-between h-32">
+          <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">PENDING</div>
+          <div className="text-5xl font-black text-[#EA580C]">{data.stats.pending}</div>
+          <div className="text-xs font-bold text-gray-400 mt-2 hover:text-[#EA580C] cursor-pointer flex items-center gap-1 transition-colors w-max">
+            Open <span className="text-[10px]">❯</span>
           </div>
-          <div className="text-left md:text-right w-full md:w-auto border-t md:border-t-0 border-gray-100 pt-4 md:pt-0">
-            <div className="text-sm font-bold text-gray-500 uppercase tracking-wider">Total Submissions</div>
-            <div className="text-3xl font-black text-gray-900">{details.submissions.length}</div>
+        </div>
+
+        {/* APPROVED */}
+        <div className="bg-white p-5 rounded-2xl border-y border-r border-gray-200 border-l-4 border-l-emerald-600 shadow-sm flex flex-col justify-between h-32">
+          <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">APPROVED</div>
+          <div className="text-5xl font-black text-emerald-600">{data.stats.approved}</div>
+          <div className="text-xs font-bold text-gray-400 mt-2 hover:text-emerald-600 cursor-pointer flex items-center gap-1 transition-colors w-max">
+            Open <span className="text-[10px]">❯</span>
+          </div>
+        </div>
+
+        {/* REJECTED */}
+        <div className="bg-white p-5 rounded-2xl border-y border-r border-gray-200 border-l-4 border-l-red-600 shadow-sm flex flex-col justify-between h-32">
+          <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">REJECTED</div>
+          <div className="text-5xl font-black text-red-600">{data.stats.rejected}</div>
+          <div className="text-xs font-bold text-gray-400 mt-2 hover:text-red-600 cursor-pointer flex items-center gap-1 transition-colors w-max">
+            Open <span className="text-[10px]">❯</span>
           </div>
         </div>
       </div>
 
-      {/* Submissions List */}
-      <div>
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Upload History for this Job</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {details.submissions.map((sub) => (
-            <div key={sub._id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center hover:shadow-md transition-shadow">
-              <div>
-                <h4 className="font-bold text-gray-900">Photo #{sub.photoNo} - {sub.location}</h4>
-                <p className="text-sm text-gray-500 mt-1">
-                  Submitted: {new Date(sub.submittedAt).toLocaleDateString()}
-                </p>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                {sub.status === 'pending' && <span className="bg-yellow-100 text-yellow-800 text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">Pending</span>}
-                {sub.status === 'approved' && <span className="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">Approved</span>}
-                {sub.status === 'rejected' && <span className="bg-red-100 text-red-800 text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">Rejected</span>}
+      {/* Submissions Table */}
+      <div className="space-y-4">
+        <h2 className="text-lg font-bold text-gray-900">All submissions</h2>
+        
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* Table Header */}
+          <div className="grid grid-cols-12 gap-4 p-4 border-b border-gray-200 text-xs font-bold text-gray-400 uppercase tracking-widest bg-[#f9f9f8]">
+            <div className="col-span-2">ID</div>
+            <div className="col-span-4">LOCATION</div>
+            <div className="col-span-2">PHOTO NO.</div>
+            <div className="col-span-2">AREA</div>
+            <div className="col-span-2">STATUS</div>
+          </div>
 
-                <Link 
-                  href={`/owner/jobs/${jobId}/submissions/${sub._id}`}
-                  className="text-sm font-bold text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded transition-colors whitespace-nowrap border border-transparent hover:border-indigo-100"
-                >
-                  View File →
-                </Link>
-              </div>
-            </div>
-          ))}
-          
-          {details.submissions.length === 0 && (
-            <div className="col-span-full py-12 text-center bg-gray-50 rounded-xl border border-dashed border-gray-300">
-              <p className="text-gray-500 font-medium">This painter has not submitted any photos for this job yet.</p>
-            </div>
-          )}
+          {/* Table Body */}
+          <div className="divide-y divide-gray-100">
+            {data.submissions.map((sub) => (
+              <Link 
+                href={`/owner/jobs/${jobId}/submissions/${sub._id}`} 
+                key={sub._id} 
+                className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-50 transition-colors group cursor-pointer"
+              >
+                {/* ID with Image Placeholder */}
+                <div className="col-span-2 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center shrink-0 border border-gray-300">
+                    <span className="text-[10px] font-bold text-gray-400">JPG</span>
+                  </div>
+                  <span className="text-sm font-mono text-gray-500">
+                    #{sub._id.slice(-4)}-{sub.photoNo.toString().padStart(3, '0')}
+                  </span>
+                </div>
+
+                {/* Location */}
+                <div className="col-span-4 font-bold text-gray-900 text-sm group-hover:text-indigo-600 transition-colors">
+                  {sub.location}
+                </div>
+
+                {/* Photo No */}
+                <div className="col-span-2 font-black text-gray-900 text-sm">
+                  {sub.photoNo.toString().padStart(2, '0')}
+                </div>
+
+                {/* Area */}
+                <div className="col-span-2 font-mono text-gray-500 text-sm">
+                  {calculateArea(sub.sizes)} ft²
+                </div>
+
+                {/* Status & Time */}
+                <div className="col-span-2 flex items-center justify-between pr-2">
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                    sub.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                    sub.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                    'bg-[#F3E8E3] text-[#A68A7E]' // Exact beige/brown from your mockup
+                  }`}>
+                    • {sub.status}
+                  </span>
+                  <span className="text-xs text-gray-400 font-medium">
+                    {getRelativeTime(sub.submittedAt)}
+                  </span>
+                </div>
+              </Link>
+            ))}
+
+            {data.submissions.length === 0 && (
+              <div className="p-10 text-center text-gray-500 font-medium">No submissions yet from this painter.</div>
+            )}
+          </div>
         </div>
       </div>
     </div>

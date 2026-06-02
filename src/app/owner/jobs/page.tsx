@@ -3,27 +3,36 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-// Data structure perfectly matching your Mongoose JobSchema
 interface Job {
   _id: string;
   companyName: string;
-  description?: string;
   status: 'active' | 'completed' | 'invoiced';
-  painters: string[];
-  submissions: string[];
-  createdAt: string;
+  // We expect the backend to send these new stats
+  stats: {
+    submitted: number;
+    approved: number;
+    pending: number;
+  };
+}
+
+interface JobStats {
+  all: number;
+  active: number;
+  completed: number;
+  invoiced: number;
 }
 
 export default function OwnerJobsListPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [stats, setStats] = useState<JobStats>({ all: 0, active: 0, completed: 0, invoiced: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'invoiced'>('all');
+  const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'invoiced'>('active'); // Default to active
 
   useEffect(() => {
     let isMounted = true;
 
-    const fetchJobs = async () => {
+    const fetchJobsAndStats = async () => {
       setIsLoading(true);
       setError('');
 
@@ -31,22 +40,22 @@ export default function OwnerJobsListPage() {
         const token = localStorage.getItem('wallpainter_token');
         if (!token) throw new Error('Authentication token missing. Please log in.');
 
-        const res = await fetch('/api/jobs', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const headers = { 'Authorization': `Bearer ${token}` };
+        const queryParam = filter !== 'all' ? `?status=${filter}` : '';
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || errData.message || 'Failed to fetch jobs');
-        }
+        const [jobsRes, statsRes] = await Promise.all([
+          fetch(`/api/jobs${queryParam}`, { headers }),
+          fetch(`/api/jobs/stats`, { headers })
+        ]);
 
-        const json = await res.json();
+        if (!jobsRes.ok) throw new Error('Failed to fetch jobs');
+
+        const jobsJson = await jobsRes.json();
+        const statsJson = statsRes.ok ? await statsRes.json() : null;
         
-        // Extract the jobs array from your backend's pagination object
-        const fetchedJobs: Job[] = json?.data?.jobs || json?.jobs || [];
-
         if (isMounted) {
-          setJobs(fetchedJobs);
+          setJobs(jobsJson?.data?.jobs || jobsJson?.jobs || []);
+          if (statsJson?.data) setStats(statsJson.data);
           setIsLoading(false);
         }
       } catch (err: any) {
@@ -57,16 +66,9 @@ export default function OwnerJobsListPage() {
       }
     };
 
-    fetchJobs();
-
+    fetchJobsAndStats();
     return () => { isMounted = false; };
-  }, []);
-
-  // Filter logic
-  const filteredJobs = jobs.filter(job => {
-    if (filter === 'all') return true;
-    return job.status === filter;
-  });
+  }, [filter]);
 
   return (
     <div className="space-y-6">
@@ -75,7 +77,6 @@ export default function OwnerJobsListPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 pb-6 mt-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">All Jobs</h1>
-          <p className="text-gray-500 mt-1">Manage projects, painters, and review photo submissions.</p>
         </div>
         <Link 
           href="/owner/jobs/new"
@@ -91,19 +92,19 @@ export default function OwnerJobsListPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2">
-        {['all', 'active', 'completed', 'invoiced'].map((f) => (
+      {/* Sub-Navbar / Filters matching Mockup Style */}
+      <div className="flex flex-wrap gap-3">
+        {(['all', 'active', 'completed', 'invoiced'] as const).map((f) => (
           <button
             key={f}
-            onClick={() => setFilter(f as any)}
-            className={`px-4 py-2 rounded-full text-sm font-bold capitalize transition-colors ${
+            onClick={() => setFilter(f)}
+            className={`px-5 py-2 rounded-full text-sm font-bold capitalize transition-colors border ${
               filter === f 
-                ? 'bg-gray-900 text-white' 
-                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                ? 'bg-gray-900 text-white border-gray-900' 
+                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
             }`}
           >
-            {f}
+            {f === 'all' ? `All - ${stats.all}` : `${f} - ${stats[f]}`}
           </button>
         ))}
       </div>
@@ -114,57 +115,53 @@ export default function OwnerJobsListPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
         </div>
       ) : (
-        /* Jobs Grid */
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredJobs.map((job) => (
-            <div key={job._id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
-              
-              {/* Card Header */}
-              <div className="p-6 border-b border-gray-100 flex justify-between items-start gap-4">
-                <div className="min-w-0">
-                  <h3 className="font-bold text-xl text-gray-900 truncate">{job.companyName}</h3>
-                  <p className="text-gray-500 text-sm mt-1 line-clamp-2">
-                    {job.description || 'No description provided.'}
-                  </p>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shrink-0 ${
-                  job.status === 'active' ? 'bg-indigo-100 text-indigo-800' : 
-                  job.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
-                  'bg-amber-100 text-amber-800'
-                }`}>
-                  {job.status}
-                </span>
-              </div>
+        /* Jobs Data Table List */
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          
+          {/* Table Header */}
+          <div className="grid grid-cols-5 p-4 border-b border-gray-200 bg-[#f9f9f8] text-xs font-bold text-gray-500 uppercase tracking-wider">
+            <div className="col-span-2">JOB</div>
+            <div className="text-center">SUBMITTED</div>
+            <div className="text-center">APPROVED</div>
+            <div className="text-center">PENDING</div>
+          </div>
 
-              {/* Stats Row */}
-              <div className="bg-gray-50 p-4 grid grid-cols-2 divide-x divide-gray-200 border-b border-gray-100">
-                <div className="text-center px-2">
-                  <div className="text-lg font-black text-gray-900">{job.painters?.length || 0}</div>
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mt-1">Assigned Painters</div>
+          {/* Table Body */}
+          <div className="divide-y divide-gray-100">
+            {jobs.map((job) => (
+              <Link 
+                href={`/owner/jobs/${job._id}`} 
+                key={job._id} 
+                className="grid grid-cols-5 p-4 items-center hover:bg-gray-50 transition-colors group cursor-pointer"
+              >
+                {/* Job Name */}
+                <div className="col-span-2 font-bold text-gray-900 text-base group-hover:text-indigo-600 transition-colors">
+                  {job.companyName}
                 </div>
-                <div className="text-center px-2">
-                  <div className="text-lg font-black text-gray-900">{job.submissions?.length || 0}</div>
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mt-1">Total Submissions</div>
+                
+                {/* Submitted */}
+                <div className="text-center font-bold text-gray-900 text-lg">
+                  {job.stats?.submitted || 0}
                 </div>
-              </div>
+                
+                {/* Approved (Green) */}
+                <div className="text-center font-bold text-emerald-600 text-lg">
+                  {job.stats?.approved || 0}
+                </div>
+                
+                {/* Pending (Orange/Red) */}
+                <div className="text-center font-bold text-orange-600 text-lg">
+                  {job.stats?.pending || 0}
+                </div>
+              </Link>
+            ))}
 
-              {/* Footer Action */}
-              <div className="p-4 bg-white mt-auto">
-                <Link 
-                  href={`/owner/jobs/${job._id}`}
-                  className="block w-full text-center bg-indigo-50 text-indigo-700 py-2.5 rounded-lg font-bold hover:bg-indigo-100 transition-colors"
-                >
-                  Manage Job Details →
-                </Link>
+            {jobs.length === 0 && (
+              <div className="p-12 text-center text-gray-500 font-medium">
+                No {filter !== 'all' ? filter : ''} jobs found.
               </div>
-            </div>
-          ))}
-
-          {filteredJobs.length === 0 && (
-            <div className="col-span-full py-12 text-center bg-white rounded-xl border border-dashed border-gray-300">
-              <p className="text-gray-500 font-medium">No jobs found matching this filter.</p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>

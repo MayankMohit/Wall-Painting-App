@@ -8,20 +8,19 @@ import { CreateSubmissionSchema } from '@/lib/validators';
 import { connectDB } from '@/lib/db';
 
 export async function GET(request: Request, { params }: { params: Promise<{ jobId: string }> }) {
+  // Fail Fast: Auth first
+  const auth = await requireAuth(request);
+  const { jobId } = await params;
+
   try {
     await connectDB();
 
-    const { jobId } = await params;
-    
-    const auth = await requireAuth(request);
-
     const query: any = { jobId };
-    if (auth.role === 'painter') {
-      query.painterId = auth.userId;
-    }
+    if (auth.role === 'painter') query.painterId = auth.userId;
 
+    // Laser Focus: Only populate preview fields for the list view
     const submissions = await Submission.find(query)
-      .populate('images') 
+      .populate('images', 'previewCloudinaryUrl status generatedNumber') 
       .sort({ submittedAt: -1 });
 
     return ok(submissions);
@@ -32,61 +31,43 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ jobId: string }> }) {
+  // Fail Fast: Auth & Validation
+  const auth = await requireAuth(request);
+  if (auth.role !== 'painter') return forbidden();
+
+  const body = await request.json().catch(() => ({}));
+  const parsed = CreateSubmissionSchema.safeParse(body);
+  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
 
   await connectDB();
-
   const { jobId } = await params;
-
   const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
-    const auth = await requireAuth(request);
-    if (auth.role !== 'painter') {
-      await session.abortTransaction();
-      session.endSession();
-      return forbidden();
-    }
+    session.startTransaction();
 
-    const body = await request.json().catch(() => ({}));
-    const parsed = CreateSubmissionSchema.safeParse(body);
+    // The Bouncer: Assignment check
+    const targetJob = await Job.findById(jobId).select('painters').session(session);
+    if (!targetJob) throw new Response(JSON.stringify({ error: 'Job not found' }), { status: 404 });
     
-    if (!parsed.success) {
-      await session.abortTransaction();
-      session.endSession();
-      return badRequest(parsed.error.issues[0].message);
-    }
-
-    const targetJob = await Job.findById(jobId).session(session);
-    if (!targetJob) {
-      await session.abortTransaction();
-      session.endSession();
-      return notFound('Job not found');
-    }
-
-    const isAssigned = targetJob.painters?.some((id: mongoose.Types.ObjectId) => id.toString() === auth.userId);
-    if (!isAssigned) {
-      await session.abortTransaction();
-      session.endSession();
-      return forbidden();
-    }
+    const isAssigned = targetJob.painters?.some((id: any) => id.toString() === auth.userId);
+    if (!isAssigned) throw new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 403 });
 
     const { photoNo, location, sizes, uploadedImages } = parsed.data;
-    const createdPhotoIds: mongoose.Types.ObjectId[] = [];
 
-    for (const img of uploadedImages) {
-      const uniqueNum = `IMG-${jobId.slice(-6)}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`.toUpperCase();
-      
-      const [newPhoto] = await Photo.create([{
-        jobId: new mongoose.Types.ObjectId(jobId),
-        cloudinaryId: img.cloudinaryId,
-        cloudinaryUrl: img.cloudinaryUrl,
-        watermarkedUrl: null,
-        generatedNumber: uniqueNum,
-      }], { session });
+    // Heavy Backpack: Batch photo creation
+    const photoDocs = uploadedImages.map((img: any) => ({
+      jobId: new mongoose.Types.ObjectId(jobId),
+      cloudinaryId: img.cloudinaryId,
+      cloudinaryUrl: img.cloudinaryUrl,
+      previewCloudinaryId: img.previewCloudinaryId,
+      previewCloudinaryUrl: img.previewCloudinaryUrl,
+      watermarkedUrl: null,
+      generatedNumber: `IMG-${jobId.slice(-6)}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`.toUpperCase(),
+    }));
 
-      createdPhotoIds.push(newPhoto._id as mongoose.Types.ObjectId);
-    }
+    const savedPhotos = await Photo.insertMany(photoDocs, { session });
+    const createdPhotoIds = savedPhotos.map(p => p._id);
 
     const [newSubmission] = await Submission.create([{
       painterId: new mongoose.Types.ObjectId(auth.userId),
@@ -100,13 +81,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
     }], { session });
 
     await session.commitTransaction();
-    session.endSession();
-
     return created({ submissionId: newSubmission._id });
   } catch (e) {
     await session.abortTransaction();
-    session.endSession();
     if (e instanceof Response) return e;
+    console.error('[POST Submissions]', e);
     return err('Failed to create submission', 500);
+  } finally {
+    session.endSession();
   }
 }

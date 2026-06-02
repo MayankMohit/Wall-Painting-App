@@ -1,70 +1,104 @@
 import { connectDB } from '@/lib/db';
 import { Job, User, Submission } from '@/lib/models';
 import { requireAuth } from '@/lib/rbac';
-import { ok, notFound, forbidden, badRequest } from '@/lib/api-response';
+import { ok, notFound, forbidden, badRequest, err } from '@/lib/api-response';
 import { AddPainterSchema } from '@/lib/validators';
-import { Types } from 'mongoose';
+import mongoose from 'mongoose';
 
-export async function GET(request: Request, context: RouteContext<'/api/jobs/[jobId]/painters'>) {
-  let payload;
-  try {
-    payload = await requireAuth(request);
-  } catch (e) {
-    if (e instanceof Response) return e;
-    throw e;
-  }
-
-  if (payload.role !== 'owner' && payload.role !== 'admin') return forbidden();
+export async function GET(request: Request, context: { params: Promise<{ jobId: string }> }) {
+  // 1. FAIL FAST: Validate authorization immediately
+  const auth = await requireAuth(request);
+  if (auth.role !== 'owner' && auth.role !== 'admin') return forbidden();
 
   const { jobId } = await context.params;
   await connectDB();
 
+  // 2. THE BOUNCER: Check job existence and ownership with minimum data transfer
   const job = await Job.findById(jobId).select('ownerId painters').lean();
   if (!job) return notFound('Job not found');
-  if (payload.role === 'owner' && job.ownerId.toString() !== payload.userId) return forbidden();
+  if (auth.role === 'owner' && job.ownerId.toString() !== auth.userId) return forbidden();
 
-  const [painters, submissionCounts] = await Promise.all([
-    User.find({ _id: { $in: job.painters } })
-      .select('-password -resetPasswordToken -resetPasswordExpires -letterhead -createdAt -updatedAt -role -fcmTokens')
-      .lean(),
-    Submission.aggregate([
-      { $match: { jobId: new Types.ObjectId(jobId), painterId: { $in: job.painters } } },
-      { $group: { _id: '$painterId', count: { $sum: 1 } } },
-    ]),
-  ]);
+  try {
+    // 3. HEAVY BACKPACK & LASER FOCUS: Offload join and count calculations directly to MongoDB
+    const paintersWithCounts = await User.aggregate([
+      { 
+        $match: { _id: { $in: job.painters } } 
+      },
+      // Select ONLY what the UI needs
+      { 
+        $project: { name: 1, email: 1, phone: 1, status: 1 } 
+      },
+      // Correlate submission metrics atomically
+      {
+        $lookup: {
+          from: 'submissions',
+          let: { painterId: '$_id' },
+          pipeline: [
+            { 
+              $match: { 
+                $expr: { 
+                  $and: [
+                    { $eq: ['$jobId', new mongoose.Types.ObjectId(jobId)] },
+                    { $eq: ['$painterId', '$$painterId'] }
+                  ]
+                } 
+              } 
+            },
+            { $count: 'count' }
+          ],
+          as: 'submissionCountData'
+        }
+      },
+      // Flatten count fields safely
+      {
+        $addFields: {
+          submissionCount: { 
+            $ifNull: [{ $arrayElemAt: ['$submissionCountData.count', 0] }, 0] 
+          }
+        }
+      },
+      { $project: { submissionCountData: 0 } }
+    ]);
 
-  const countMap = Object.fromEntries(submissionCounts.map((r) => [r._id.toString(), r.count]));
-  const result = painters.map((p) => ({ ...p, submissionCount: countMap[p._id.toString()] ?? 0 }));
-
-  return ok(result);
+    return ok(paintersWithCounts);
+  } catch (e) {
+    console.error('[GET Job Painters]', e);
+    return err('Failed to fetch assigned painters', 500);
+  }
 }
 
-export async function POST(request: Request, context: RouteContext<'/api/jobs/[jobId]/painters'>) {
-  let payload;
-  try {
-    payload = await requireAuth(request);
-  } catch (e) {
-    if (e instanceof Response) return e;
-    throw e;
-  }
+export async function POST(request: Request, context: { params: Promise<{ jobId: string }> }) {
+  // 1. FAIL FAST: Validate authentication and roles
+  const auth = await requireAuth(request);
+  if (auth.role !== 'owner' && auth.role !== 'admin') return forbidden();
 
-  if (payload.role !== 'owner' && payload.role !== 'admin') return forbidden();
-
-  const { jobId } = await context.params;
-  const body = await request.json();
+  // 2. FAIL FAST: Parse body safely without risking json payload exceptions
+  const body = await request.json().catch(() => ({}));
   const parsed = AddPainterSchema.safeParse(body);
   if (!parsed.success) return badRequest(parsed.error.issues[0].message);
 
+  const { jobId } = await context.params;
   await connectDB();
 
-  const job = await Job.findById(jobId);
-  if (!job) return notFound('Job not found');
-  if (payload.role === 'owner' && job.ownerId.toString() !== payload.userId) return forbidden();
+  try {
+    // 3. THE BOUNCER: Verify Job Ownership
+    const job = await Job.findById(jobId).select('ownerId').lean();
+    if (!job) return notFound('Job not found');
+    if (auth.role === 'owner' && job.ownerId.toString() !== auth.userId) return forbidden();
 
-  const painter = await User.findOne({ _id: parsed.data.painterId, role: 'painter' }).select('_id').lean();
-  if (!painter) return badRequest('Painter not found');
+    // Verify target painter exists and has correct role
+    const painterExists = await User.exists({ _id: parsed.data.painterId, role: 'painter' });
+    if (!painterExists) return badRequest('Valid painter not found');
 
-  await Job.findByIdAndUpdate(jobId, { $addToSet: { painters: painter._id } });
+    // 4. ATOMIC UPDATE: Append using Mongo sets to avoid overlapping race conditions
+    await Job.updateOne(
+      { _id: jobId },
+      { $addToSet: { painters: new mongoose.Types.ObjectId(parsed.data.painterId) } }
+    );
 
-  return ok({ message: 'Painter added' });
+    return ok({ message: 'Painter added successfully' });
+  } catch (e) {
+    console.error('[POST Add Painter]', e);
+    return err('Failed to assign painter', 500);
+  }
 }

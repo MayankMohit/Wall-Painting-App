@@ -85,7 +85,9 @@ export const CreateSubmissionSchema = z.object({
   uploadedImages: z.array(
     z.object({
       cloudinaryId: z.string().min(1),
-      cloudinaryUrl: z.string().url()
+      cloudinaryUrl: z.string().url(),
+      previewCloudinaryId: z.string(),
+      previewCloudinaryUrl: z.string().url(),
     })
   ).min(1, { error: 'At least one image is required' }),
 });
@@ -96,7 +98,9 @@ export const UpdateSubmissionSchema = z.object({
   uploadedImages: z.array(
     z.object({
       cloudinaryId: z.string().min(1),
-      cloudinaryUrl: z.url()
+      cloudinaryUrl: z.string().url(),
+      previewCloudinaryId: z.string(), 
+      previewCloudinaryUrl: z.string().url(),
     })
   ).optional(),
 });

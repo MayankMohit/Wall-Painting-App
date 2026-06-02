@@ -41,16 +41,6 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
               
               <div className="hidden sm:flex space-x-2">
                 <Link 
-                  href="/owner/dashboard" 
-                  className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${
-                    pathname === '/owner/dashboard'
-                      ? 'bg-indigo-50 text-indigo-700' 
-                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                >
-                  Dashboard
-                </Link>
-                <Link 
                   href="/owner/jobs" 
                   className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${
                     pathname.includes('/owner/jobs') 
@@ -60,19 +50,37 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                 >
                   All Jobs
                 </Link>
+                <Link 
+                  href="/owner/painters" 
+                  className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${
+                    pathname.includes('/owner/painters') 
+                      ? 'bg-indigo-50 text-indigo-700' 
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  Painters
+                </Link>
               </div>
             </div>
 
             {/* Right Side: Bell + Profile & Logout */}
             <div className="flex items-center gap-4">
               <NotificationBell />
+              
+              {/* Profile / Me Link */}
               <Link
                 href="/owner/profile"
-                className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors"
+                className={`text-sm font-bold transition-colors px-3 py-2 rounded-md ${
+                  pathname.includes('/owner/profile')
+                    ? 'text-indigo-700 bg-indigo-50'
+                    : 'text-gray-700 hover:text-indigo-600 hover:bg-gray-50'
+                }`}
               >
-                {user?.name || 'Owner Profile'}
+                {user?.name || 'Profile'}
               </Link>
+              
               <div className="h-6 w-px bg-gray-300"></div>
+              
               <button 
                 onClick={handleLogout}
                 className="text-sm font-bold text-gray-500 hover:text-red-600 transition-colors px-4 py-2 rounded-md hover:bg-red-50 border border-transparent hover:border-red-100"
