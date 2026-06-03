@@ -152,6 +152,11 @@ export const SignUploadSchema = z.object({
   folder: z.string().trim().optional(),
 });
 
+export const QueueActionSchema = z.object({
+  action: z.enum(['pause', 'resume', 'status']).default('status'),
+  queue:  z.enum(['fileGen', 'notify', 'assetCleanup']).default('notify'),
+});
+
 export const NotificationPreferenceSchema = z.object({
   push:  z.record(z.string(), z.boolean()).optional(),
   email: z.record(z.string(), z.boolean()).optional(),

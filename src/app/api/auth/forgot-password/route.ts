@@ -23,9 +23,7 @@ export const POST = withMiddleware({ rateLimit: 'standard', schema: ForgotPasswo
     // Neutral response — prevent email enumeration
     if (!user) return Response.json({ data: { message: NEUTRAL_MSG } });
 
-    if (!user.emailVerified) {
-      return Response.json({ data: { message: 'Use "Login with OTP" to access your account, then change your password from your profile.' } });
-    }
+    if (!user.emailVerified) return Response.json({ data: { message: NEUTRAL_MSG } });
 
     const rawToken = crypto.randomBytes(32).toString('hex');
     const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');

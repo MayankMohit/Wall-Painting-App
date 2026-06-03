@@ -165,6 +165,7 @@ export const templates: Record<string, EventTemplate> = {
   },
 
   'owner.registered': {
+    push:   (d) => ({ title: 'New owner pending', body: `${d.name} (${d.email}) is awaiting approval` }),
     inApp:  (d) => ({ title: 'New owner pending', body: `${d.name} (${d.email}) is awaiting approval` }),
     email:  (d) => renderOwnerRegisteredEmail({
       ownerName:  String(d.name ?? ''),

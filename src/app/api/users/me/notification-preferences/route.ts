@@ -1,9 +1,12 @@
 import { connectDB } from '@/lib/db';
 import { NotificationPreference } from '@/lib/models';
-import { requireAuth } from '@/lib/rbac';
-import { ok, badRequest } from '@/lib/api-response';
-import { getPreference, encodeMapKey, type PrefLike } from '@/lib/notify/preferences';
+import { ok } from '@/lib/api-response';
 import { NotificationPreferenceSchema } from '@/lib/validators';
+import { getPreference, encodeMapKey, type PrefLike } from '@/lib/notify/preferences';
+import { withAuth } from '@/lib/middleware';
+import type { z } from 'zod';
+
+type NotificationPreferenceBody = z.infer<typeof NotificationPreferenceSchema>;
 
 function serializePref(pref: PrefLike) {
   return {
@@ -18,50 +21,33 @@ function encodeKeys(obj: Record<string, boolean>): Record<string, boolean> {
   return Object.fromEntries(Object.entries(obj).map(([k, v]) => [encodeMapKey(k), v]));
 }
 
-export async function GET(request: Request) {
-  let payload;
-  try {
-    payload = await requireAuth(request);
-  } catch (e) {
-    return e as Response;
+export const GET = withAuth()(
+  async (req, ctx) => {
+    const pref = await getPreference(ctx.user!.userId);
+    return ok(serializePref(pref));
   }
+);
 
-  const pref = await getPreference(payload.userId);
-  return ok(serializePref(pref));
-}
+export const PUT = withAuth({ schema: NotificationPreferenceSchema, audit: 'USER_UPDATE_NOTIFICATION_PREFS' })(
+  async (req, ctx) => {
+    const { push, email, quietHours, digest } = ctx.body as NotificationPreferenceBody;
 
-export async function PUT(request: Request) {
-  let payload;
-  try {
-    payload = await requireAuth(request);
-  } catch (e) {
-    return e as Response;
+    const rawUpdate: Record<string, unknown> = {};
+    if (push       !== undefined) rawUpdate['push']       = encodeKeys(push);
+    if (email      !== undefined) rawUpdate['email']      = encodeKeys(email);
+    if (quietHours !== undefined) rawUpdate['quietHours'] = quietHours ?? null;
+    if (digest     !== undefined) rawUpdate['digest']     = digest;
+
+    if (Object.keys(rawUpdate).length > 0) {
+      await connectDB();
+      await NotificationPreference.findOneAndUpdate(
+        { userId: ctx.user!.userId },
+        { $set: rawUpdate },
+        { upsert: true }
+      );
+    }
+
+    const pref = await getPreference(ctx.user!.userId);
+    return ok(serializePref(pref));
   }
-
-  const body = await request.json().catch(() => null);
-  const parsed = NotificationPreferenceSchema.safeParse(body);
-  if (!parsed.success) return badRequest(parsed.error.issues[0]?.message ?? 'Invalid body');
-
-  await connectDB();
-
-  const { push, email, quietHours, digest } = parsed.data;
-
-  // Encode dots in map keys — BSON field names cannot contain '.'.
-  // decodeMapKey() in getPreference()/toMap() reverses this on read.
-  const rawUpdate: Record<string, unknown> = {};
-  if (push       !== undefined) rawUpdate['push']       = encodeKeys(push);
-  if (email      !== undefined) rawUpdate['email']      = encodeKeys(email);
-  if (quietHours !== undefined) rawUpdate['quietHours'] = quietHours ?? null;
-  if (digest     !== undefined) rawUpdate['digest']     = digest;
-
-  if (Object.keys(rawUpdate).length > 0) {
-    await NotificationPreference.findOneAndUpdate(
-      { userId: payload.userId },
-      { $set: rawUpdate },
-      { upsert: true }
-    );
-  }
-
-  const pref = await getPreference(payload.userId);
-  return ok(serializePref(pref));
-}
+);

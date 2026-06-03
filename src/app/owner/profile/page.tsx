@@ -185,7 +185,7 @@ export default function OwnerProfilePage() {
                   <input 
                     value={editForm.name}
                     onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                    className="border-b-2 border-gray-900 outline-none bg-gray-50 px-2 py-0.5 rounded-md text-gray-900 font-bold max-w-[200px]"
+                    className="border-b-2 border-gray-900 outline-none bg-gray-50 px-2 py-0.5 rounded-md text-gray-900 font-bold max-w-50"
                     placeholder="Your Name"
                     disabled={isSaving}
                   />
@@ -214,7 +214,7 @@ export default function OwnerProfilePage() {
                      <input 
                        value={editForm.phone}
                        onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
-                       className="border-b-2 border-gray-900 outline-none bg-gray-50 px-2 py-1 rounded-md w-full max-w-[200px] font-medium text-gray-900"
+                       className="border-b-2 border-gray-900 outline-none bg-gray-50 px-2 py-1 rounded-md w-full max-w-50 font-medium text-gray-900"
                        placeholder="+1 (555) 000-0000"
                        disabled={isSaving}
                      />

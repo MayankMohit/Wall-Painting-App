@@ -1,33 +1,36 @@
-import { requireRole } from '@/lib/rbac';
+import { fileGenQueue, notifyQueue, assetCleanupQueue } from '@/lib/queues';
 import { ok } from '@/lib/api-response';
-import { notifyQueue } from '@/lib/queues';
+import { QueueActionSchema } from '@/lib/validators';
+import { withRole } from '@/lib/middleware';
+import type { z } from 'zod';
+import type { Queue } from 'bullmq';
 
-export async function GET(request: Request) {
-  try {
-    await requireRole(request, 'admin');
-  } catch (e) {
-    return e as Response;
-  }
+type QueueActionBody = z.infer<typeof QueueActionSchema>;
 
-  const counts = await notifyQueue.getJobCounts('waiting', 'paused', 'active', 'completed', 'failed', 'delayed');
-  return ok(counts);
-}
+const QUEUES: Record<string, Queue> = {
+  fileGen:      fileGenQueue,
+  notify:       notifyQueue,
+  assetCleanup: assetCleanupQueue,
+};
 
-export async function POST(request: Request) {
-  try {
-    await requireRole(request, 'admin');
-  } catch (e) {
-    return e as Response;
+export const GET = withRole(['admin'], { audit: 'ADMIN_QUEUE_STATS_VIEW' })(
+  async (req, ctx) => {
+    const [fileGen, notify, assetCleanup] = await Promise.all([
+      fileGenQueue.getJobCounts('waiting', 'paused', 'active', 'completed', 'failed', 'delayed'),
+      notifyQueue.getJobCounts('waiting', 'paused', 'active', 'completed', 'failed', 'delayed'),
+      assetCleanupQueue.getJobCounts('waiting', 'paused', 'active', 'completed', 'failed', 'delayed'),
+    ]);
+    return ok({ fileGen, notify, assetCleanup });
   }
+);
 
-  const body = await request.json().catch(() => ({}));
-  if (body.action === 'pause') {
-    await notifyQueue.pause();
-    return ok({ paused: true });
+export const POST = withRole(['admin'], { schema: QueueActionSchema, audit: 'ADMIN_QUEUE_ACTION' })(
+  async (req, ctx) => {
+    const { action, queue: queueName } = ctx.body as QueueActionBody;
+    const queue = QUEUES[queueName];
+
+    if (action === 'pause')  { await queue.pause();  return ok({ queue: queueName, paused: true }); }
+    if (action === 'resume') { await queue.resume(); return ok({ queue: queueName, paused: false }); }
+    return ok({ queue: queueName, paused: await queue.isPaused() });
   }
-  if (body.action === 'resume') {
-    await notifyQueue.resume();
-    return ok({ paused: false });
-  }
-  return ok({ paused: await notifyQueue.isPaused() });
-}
+);

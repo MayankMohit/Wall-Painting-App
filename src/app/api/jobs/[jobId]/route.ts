@@ -108,7 +108,7 @@ export async function PUT(request: Request, context: any) {
     if (painterIds !== undefined) update.painters = painterIds.map((id) => new Types.ObjectId(id));
     if (rest.status === 'invoiced' && !job.endDate) update.endDate = new Date();
 
-    const updated = await Job.findByIdAndUpdate(jobId, { $set: update }, { new: true }).lean();
+    const updated = await Job.findByIdAndUpdate(jobId, { $set: update }, { returnDocument: 'after' }).lean();
     return ok(updated);
   } catch (e) {
     if (e instanceof Response) return e;

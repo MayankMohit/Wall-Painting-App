@@ -1,11 +1,15 @@
 import { connectDB } from '@/lib/db';
-import { ok, err } from '@/lib/api-response';
+import { ok } from '@/lib/api-response';
+import { withMiddleware } from '@/lib/middleware';
+import { ErrorCodes } from '@/lib/errors';
 
-export async function GET() {
-  try {
-    await connectDB();
+export const GET = withMiddleware()(
+  async (req, ctx) => {
+    try {
+      await connectDB();
+    } catch (e) {
+      ctx.fail(503, ErrorCodes.INTERNAL, `DB unavailable: ${(e as Error).message}`);
+    }
     return ok({ status: 'ok', db: 'connected', timestamp: new Date().toISOString() });
-  } catch (error) {
-    return err(`DB unavailable: ${(error as Error).message}`, 503);
   }
-}
+);

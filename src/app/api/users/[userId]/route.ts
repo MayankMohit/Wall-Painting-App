@@ -1,78 +1,62 @@
 import { connectDB } from '@/lib/db';
 import { User, Job } from '@/lib/models';
-import { requireAuth } from '@/lib/rbac';
-import { ok, notFound, forbidden, badRequest } from '@/lib/api-response';
+import { ok } from '@/lib/api-response';
 import { UpdateAdminUserSchema } from '@/lib/validators';
+import { withAuth, withRole } from '@/lib/middleware';
+import { ErrorCodes } from '@/lib/errors';
+import type { z } from 'zod';
+
+type UpdateAdminUserBody = z.infer<typeof UpdateAdminUserSchema>;
 
 const EXCLUDED = '-password -resetPasswordToken -resetPasswordExpires';
 
-export async function GET(request: Request, context: RouteContext<'/api/users/[userId]'>) {
-  let payload;
-  try {
-    payload = await requireAuth(request);
-  } catch (e) {
-    if (e instanceof Response) return e;
-    throw e;
+export const GET = withRole(['admin', 'owner'])(
+  async (req, ctx) => {
+    const { userId: requesterId, role } = ctx.user!;
+    const { userId } = ctx.params;
+
+    await connectDB();
+
+    if (role === 'owner') {
+      const assigned = await Job.exists({ ownerId: requesterId, painters: userId });
+      if (!assigned) return ctx.fail(403, ErrorCodes.NOT_AUTHORIZED, 'This painter is not in any of your jobs');
+    }
+
+    const user = await User.findById(userId).select(EXCLUDED);
+    if (!user) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'User not found');
+
+    return ok(user);
   }
+);
 
-  if (payload.role !== 'admin' && payload.role !== 'owner') return forbidden();
+export const PUT = withRole(['admin'], { schema: UpdateAdminUserSchema, audit: 'ADMIN_UPDATE_USER' })(
+  async (req, ctx) => {
+    const { userId } = ctx.params;
 
-  const { userId } = await context.params;
+    await connectDB();
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: ctx.body as UpdateAdminUserBody },
+      { returnDocument: 'after' }
+    ).select(EXCLUDED);
+    if (!user) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'User not found');
 
-  await connectDB();
-
-  if (payload.role === 'owner') {
-    const assigned = await Job.exists({ ownerId: payload.userId, painters: userId });
-    if (!assigned) return forbidden();
+    return ok(user);
   }
+);
 
-  const user = await User.findById(userId).select(EXCLUDED);
-  if (!user) return notFound('User not found');
+export const DELETE = withRole(['admin'], { audit: 'ADMIN_DEACTIVATE_USER' })(
+  async (req, ctx) => {
+    const { userId } = ctx.params;
 
-  return ok(user);
-}
+    await connectDB();
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: { status: 'inactive' } },
+      { returnDocument: 'after' }
+    ).select(EXCLUDED);
+    if (!user) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'User not found');
 
-export async function PUT(request: Request, context: RouteContext<'/api/users/[userId]'>) {
-  let payload;
-  try {
-    payload = await requireAuth(request);
-  } catch (e) {
-    if (e instanceof Response) return e;
-    throw e;
+    return ok({ message: 'User deactivated' });
   }
-
-  if (payload.role !== 'admin') return forbidden();
-
-  const { userId } = await context.params;
-  const body = await request.json();
-  const parsed = UpdateAdminUserSchema.safeParse(body);
-  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
-
-  await connectDB();
-  const user = await User.findByIdAndUpdate(userId, { $set: parsed.data }, { new: true }).select(EXCLUDED);
-  if (!user) return notFound('User not found');
-
-  return ok(user);
-}
-
-export async function DELETE(request: Request, context: RouteContext<'/api/users/[userId]'>) {
-  let payload;
-  try {
-    payload = await requireAuth(request);
-  } catch (e) {
-    if (e instanceof Response) return e;
-    throw e;
-  }
-
-  if (payload.role !== 'admin') return forbidden();
-
-  const { userId } = await context.params;
-
-  await connectDB();
-  const user = await User.findByIdAndUpdate(userId, { $set: { status: 'inactive' } }, { new: true }).select(
-    EXCLUDED
-  );
-  if (!user) return notFound('User not found');
-
-  return ok({ message: 'User deactivated' });
-}
+);

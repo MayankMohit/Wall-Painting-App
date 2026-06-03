@@ -27,7 +27,7 @@ export const POST = withMiddleware({ rateLimit: 'strict', schema: RegisterSchema
     if (emailConflict) ctx.fail(409, ErrorCodes.EMAIL_TAKEN, 'Email already registered');
 
     const phoneConflict = await User.findOne({ phone });
-    if (phoneConflict) ctx.fail(409, ErrorCodes.EMAIL_TAKEN, 'Phone number already registered');
+    if (phoneConflict) ctx.fail(409, ErrorCodes.PHONE_TAKEN, 'Phone number already registered');
 
     let status: 'active' | 'inactive' = 'active';
     let emailVerified = false;
@@ -41,6 +41,7 @@ export const POST = withMiddleware({ rateLimit: 'strict', schema: RegisterSchema
 
     const hashed = await hashPassword(password);
     const user = await User.create({ name, email: email.toLowerCase(), phone, password: hashed, role, status, emailVerified });
+    ctx.setAudit('AUTH_REGISTER', undefined, { userId: user._id.toString(), role: user.role });
 
     if (role === 'owner') {
       const admins = await User.find({ role: 'admin' }, 'email').lean();

@@ -1,31 +1,24 @@
 import { Types } from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { Notification } from '@/lib/models';
-import { requireAuth } from '@/lib/rbac';
-import { ok, notFound } from '@/lib/api-response';
+import { ok } from '@/lib/api-response';
+import { withAuth } from '@/lib/middleware';
+import { ErrorCodes } from '@/lib/errors';
 
-export async function PUT(
-  request: Request,
-  context: RouteContext<'/api/notifications/[id]/read'>
-) {
-  let payload;
-  try {
-    payload = await requireAuth(request);
-  } catch (e) {
-    return e as Response;
+export const PUT = withAuth()(
+  async (req, ctx) => {
+    const { id } = ctx.params;
+    if (!Types.ObjectId.isValid(id)) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'Notification not found');
+
+    await connectDB();
+
+    const notif = await Notification.findOneAndUpdate(
+      { _id: id, userId: ctx.user!.userId },
+      { readAt: new Date() },
+      { returnDocument: 'after' }
+    ).lean();
+
+    if (!notif) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'Notification not found');
+    return ok(notif);
   }
-
-  const { id } = await context.params;
-  if (!Types.ObjectId.isValid(id)) return notFound();
-
-  await connectDB();
-
-  const notif = await Notification.findOneAndUpdate(
-    { _id: id, userId: payload.userId },
-    { readAt: new Date() },
-    { returnDocument: 'after' }
-  ).lean();
-
-  if (!notif) return notFound();
-  return ok(notif);
-}
+);

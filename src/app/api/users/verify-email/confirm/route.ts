@@ -1,30 +1,25 @@
 import { connectDB } from '@/lib/db';
 import { User } from '@/lib/models';
-import { requireAuth } from '@/lib/rbac';
+import { ok } from '@/lib/api-response';
 import { verifyEmailOtp } from '@/lib/otp';
 import { VerifyEmailConfirmSchema } from '@/lib/validators';
-import { ok, badRequest, err } from '@/lib/api-response';
+import { withAuth } from '@/lib/middleware';
+import { ErrorCodes } from '@/lib/errors';
+import type { z } from 'zod';
 
-export async function POST(request: Request) {
-  let payload;
-  try {
-    payload = await requireAuth(request);
-  } catch (e) {
-    if (e instanceof Response) return e;
-    throw e;
+type VerifyEmailConfirmBody = z.infer<typeof VerifyEmailConfirmSchema>;
+
+export const POST = withAuth({ schema: VerifyEmailConfirmSchema, audit: 'USER_VERIFY_EMAIL' })(
+  async (req, ctx) => {
+    const { sessionId, otp } = ctx.body as VerifyEmailConfirmBody;
+
+    const valid = await verifyEmailOtp(sessionId, otp);
+    if (!valid) return ctx.fail(401, ErrorCodes.INVALID_CREDENTIALS, 'Invalid or expired OTP');
+
+    await connectDB();
+    const user = await User.findByIdAndUpdate(ctx.user!.userId, { emailVerified: true });
+    if (!user) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'User not found');
+
+    return ok({ message: 'Email verified successfully' });
   }
-
-  const body = await request.json();
-  const parsed = VerifyEmailConfirmSchema.safeParse(body);
-  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
-
-  const { sessionId, otp } = parsed.data;
-
-  const valid = await verifyEmailOtp(sessionId, otp);
-  if (!valid) return err('Invalid or expired OTP', 401);
-
-  await connectDB();
-  await User.findByIdAndUpdate(payload.userId, { emailVerified: true });
-
-  return ok({ message: 'Email verified successfully' });
-}
+);

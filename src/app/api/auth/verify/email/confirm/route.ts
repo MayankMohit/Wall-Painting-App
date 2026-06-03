@@ -7,7 +7,7 @@ import type { z } from 'zod';
 
 type ConfirmBody = z.infer<typeof VerifyEmailConfirmSchema>;
 
-export const POST = withMiddleware({ schema: VerifyEmailConfirmSchema })(
+export const POST = withMiddleware({ rateLimit: 'strict', schema: VerifyEmailConfirmSchema })(
   async (req, ctx) => {
     const { sessionId, otp } = ctx.body as ConfirmBody;
 

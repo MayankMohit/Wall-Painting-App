@@ -1,3 +1,4 @@
+import { after }                           from 'next/server';
 import { generateRequestId }              from './requestId';
 import { createRequestLogger }             from './logger';
 import { handlePreflight, applyCorsHeaders } from './cors';
@@ -140,22 +141,24 @@ async function runPipeline(
 
     // Step 10: route handler
     const response = await handler(req, ctx);
+    const duration = Date.now() - startedAt;
 
-    // Step 11: audit — fire-and-forget, only on successful state-changing requests
+    // Step 11: audit — runs after response is sent via after() so Next.js won't drop it
     const auditAction = ctx._audit?.action ?? config.audit;
     if (auditAction && req.method !== 'GET') {
-      writeAuditLog({
+      const auditOpts = {
         action    : auditAction,
         requestId,
-        userId    : ctx.user?.userId,
-        userRole  : ctx.user?.role as 'painter' | 'owner' | 'admin' | undefined,
+        userId    : ctx.user?.userId ?? (ctx._audit?.metadata?.userId as string | undefined),
+        userRole  : (ctx.user?.role ?? ctx._audit?.metadata?.role) as 'painter' | 'owner' | 'admin' | undefined,
         ip,
         userAgent : req.headers.get('user-agent') ?? undefined,
         statusCode: response.status,
-        duration  : Date.now() - startedAt,
+        duration,
         resource  : ctx._audit?.resource,
         metadata  : ctx._audit?.metadata,
-      }, logger);
+      };
+      after(() => writeAuditLog(auditOpts, logger));
     }
 
     // Step 04: apply security + CORS headers
@@ -164,18 +167,38 @@ async function runPipeline(
     response.headers.set('x-request-id', requestId);
 
     // Step 02: structured request log — level by outcome
-    logRequest(logger, req, response.status, Date.now() - startedAt, ctx.user?.userId, ip);
+    logRequest(logger, req, response.status, duration, ctx.user?.userId, ip);
 
     return response;
 
   } catch (err) {
     // Step 12: catch everything thrown above → serialize to error envelope
     const response = handleError(err, requestId, logger);
+    const duration = Date.now() - startedAt;
+
+    // Also audit failed state-changing requests (failed logins, 403s, etc.)
+    const auditAction = ctx._audit?.action ?? config.audit;
+    if (auditAction && req.method !== 'GET') {
+      const auditOpts = {
+        action    : auditAction,
+        requestId,
+        userId    : ctx.user?.userId ?? (ctx._audit?.metadata?.userId as string | undefined),
+        userRole  : (ctx.user?.role ?? ctx._audit?.metadata?.role) as 'painter' | 'owner' | 'admin' | undefined,
+        ip,
+        userAgent : req.headers.get('user-agent') ?? undefined,
+        statusCode: response.status,
+        duration,
+        resource  : ctx._audit?.resource,
+        metadata  : ctx._audit?.metadata,
+      };
+      after(() => writeAuditLog(auditOpts, logger));
+    }
+
     applyHelmetHeaders(response.headers);
     applyCorsHeaders(response.headers, origin);
     response.headers.set('x-request-id', requestId);
 
-    logRequest(logger, req, response.status, Date.now() - startedAt, ctx.user?.userId, ip);
+    logRequest(logger, req, response.status, duration, ctx.user?.userId, ip);
 
     return response;
   }

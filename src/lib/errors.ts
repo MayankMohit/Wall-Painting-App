@@ -13,6 +13,7 @@ export class HttpError extends Error {
 export const ErrorCodes = {
   // Auth
   EMAIL_TAKEN            : 'EMAIL_TAKEN',
+  PHONE_TAKEN            : 'PHONE_TAKEN',
   INVALID_CREDENTIALS    : 'INVALID_CREDENTIALS',
   ACCOUNT_DISABLED       : 'ACCOUNT_DISABLED',
   // Access

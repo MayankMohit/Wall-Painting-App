@@ -1,47 +1,36 @@
 import { connectDB } from '@/lib/db';
 import { User } from '@/lib/models';
-import { requireAuth } from '@/lib/rbac';
-import { ok, notFound, badRequest } from '@/lib/api-response';
+import { ok } from '@/lib/api-response';
 import { UpdateProfileSchema } from '@/lib/validators';
+import { withAuth } from '@/lib/middleware';
+import { ErrorCodes } from '@/lib/errors';
+import type { z } from 'zod';
+
+type UpdateProfileBody = z.infer<typeof UpdateProfileSchema>;
 
 const EXCLUDED = '-password -resetPasswordToken -resetPasswordExpires';
 
-export async function GET(request: Request) {
-  let payload;
-  try {
-    payload = await requireAuth(request);
-  } catch (e) {
-    if (e instanceof Response) return e;
-    throw e;
+export const GET = withAuth()(
+  async (req, ctx) => {
+    await connectDB();
+    const user = await User.findById(ctx.user!.userId).select(EXCLUDED);
+    if (!user) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'User not found');
+    return ok(user);
   }
+);
 
-  await connectDB();
-  const user = await User.findById(payload.userId).select(EXCLUDED);
-  if (!user) return notFound('User not found');
+export const PUT = withAuth({ schema: UpdateProfileSchema, audit: 'USER_UPDATE_PROFILE' })(
+  async (req, ctx) => {
+    const { name } = ctx.body as UpdateProfileBody;
 
-  return ok(user);
-}
+    await connectDB();
+    const user = await User.findByIdAndUpdate(
+      ctx.user!.userId,
+      { $set: { name } },
+      { returnDocument: 'after' }
+    ).select(EXCLUDED);
+    if (!user) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'User not found');
 
-export async function PUT(request: Request) {
-  let payload;
-  try {
-    payload = await requireAuth(request);
-  } catch (e) {
-    if (e instanceof Response) return e;
-    throw e;
+    return ok(user);
   }
-
-  const body = await request.json();
-  const parsed = UpdateProfileSchema.safeParse(body);
-  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
-
-  await connectDB();
-  const user = await User.findByIdAndUpdate(
-    payload.userId,
-    { $set: parsed.data },
-    { new: true }
-  ).select(EXCLUDED);
-  if (!user) return notFound('User not found');
-
-  return ok(user);
-}
+);

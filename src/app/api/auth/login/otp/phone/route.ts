@@ -32,6 +32,7 @@ export const POST = withMiddleware({ rateLimit: 'standard', schema: LoginOtpPhon
     }
 
     const token = signToken({ userId: user._id.toString(), role: user.role });
+    ctx.setAudit('AUTH_LOGIN_PHONE', undefined, { userId: user._id.toString(), role: user.role });
 
     return Response.json({
       data: {

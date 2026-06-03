@@ -1,31 +1,14 @@
-import { requireAuth } from '@/lib/rbac';
-import { ok, badRequest, err } from '@/lib/api-response';
+import { ok } from '@/lib/api-response';
 import { signUpload } from '@/lib/cloudinary';
 import { SignUploadSchema } from '@/lib/validators';
+import { withAuth } from '@/lib/middleware';
+import { ErrorCodes } from '@/lib/errors';
 
-export async function POST(request: Request) {
-  try {
-    await requireAuth(request);
-  } catch (e) {
-    if (e instanceof Response) return e;
-    throw e;
+export const POST = withAuth()(
+  async (req, ctx) => {
+    const raw = await req.json().catch(() => ({}));
+    const parsed = SignUploadSchema.safeParse(raw);
+    if (!parsed.success) return ctx.fail(400, ErrorCodes.VALIDATION_ERROR, parsed.error.issues[0].message);
+    return ok(signUpload({ folder: parsed.data.folder }));
   }
-
-  let body: unknown = {};
-  try {
-    body = await request.json();
-  } catch {
-    // body is optional — treat missing/invalid JSON as empty object
-  }
-
-  const parsed = SignUploadSchema.safeParse(body);
-  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
-
-  try {
-    const payload = signUpload({ folder: parsed.data.folder });
-    return ok(payload);
-  } catch (e) {
-    console.error('[POST /api/uploads/sign]', e);
-    return err('Failed to generate upload signature', 500);
-  }
-}
+);
