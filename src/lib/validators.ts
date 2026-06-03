@@ -64,7 +64,7 @@ export const ChangePasswordSchema = z.object({
 });
 
 export const CreateJobSchema = z.object({
-  companyName: z.string().min(1, { error: 'Company name is required' }).trim(),
+  companyName: z.string().trim().min(1, { error: 'Company name is required' }),
   description: z.string().trim().optional(),
   painterIds: z.array(z.string()).default([]),
 });

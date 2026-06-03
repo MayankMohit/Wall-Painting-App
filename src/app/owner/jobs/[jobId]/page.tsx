@@ -100,7 +100,7 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
       };
 
       const res = await fetch(`/api/jobs/${jobId}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(payload)
       });
