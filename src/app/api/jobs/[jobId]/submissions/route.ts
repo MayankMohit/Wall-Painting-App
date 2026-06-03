@@ -63,7 +63,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
       previewCloudinaryId: img.previewCloudinaryId,
       previewCloudinaryUrl: img.previewCloudinaryUrl,
       watermarkedUrl: null,
-      generatedNumber: `IMG-${jobId.slice(-6)}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`.toUpperCase(),
+      generatedNumber: null,
     }));
 
     const savedPhotos = await Photo.insertMany(photoDocs, { session });

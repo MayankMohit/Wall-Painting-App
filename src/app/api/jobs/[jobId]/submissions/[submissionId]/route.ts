@@ -75,10 +75,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ jobI
         jobId: new mongoose.Types.ObjectId(jobId),
         cloudinaryId: img.cloudinaryId,
         cloudinaryUrl: img.cloudinaryUrl,
-        previewCloudinaryId: img.previewCloudinaryId, // Added missing field
-        previewCloudinaryUrl: img.previewCloudinaryUrl, // Added missing field
+        previewCloudinaryId: img.previewCloudinaryId,
+        previewCloudinaryUrl: img.previewCloudinaryUrl,
         watermarkedUrl: null,
-        generatedNumber: `IMG-${jobId.slice(-6)}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`.toUpperCase(),
+        generatedNumber: null,
       }));
 
       const savedPhotos = await Photo.insertMany(photoDocs, { session });

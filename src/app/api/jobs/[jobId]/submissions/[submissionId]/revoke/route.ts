@@ -1,6 +1,7 @@
 import { connectDB } from '@/lib/db';
 import { requireAuth } from '@/lib/rbac';
 import { ok, err, forbidden, notFound, badRequest } from '@/lib/api-response';
+import { Photo } from '@/lib/models/Photo';
 import { Submission } from '@/lib/models/Submission';
 import { RevokeSubmissionSchema } from '@/lib/validators';
 
@@ -26,11 +27,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ jobI
       return badRequest('Only approved submissions can be revoked back to pending.');
     }
 
-    submission.status = 'pending';
-    
-    // If you added 'revokeNote' to your Mongoose Schema, you can save it here:
-    // if (parsed.data.revokeNote) submission.revokeNote = parsed.data.revokeNote;
+    await Photo.updateMany(
+      { _id: { $in: submission.images } },
+      { 
+        $set: { 
+          generatedNumber: null, 
+          watermarkedUrl: null 
+        } 
+      }
+    );
 
+    submission.status = 'pending';
     await submission.save();
 
     return ok({ message: 'Approval revoked. Submission is now pending.' });

@@ -5,12 +5,12 @@ export interface IPhoto extends Document {
   cloudinaryId: string;
   cloudinaryUrl: string; // High quality (Print)
   
-  // New Preview fields
+  // Preview fields
   previewCloudinaryId: string;
   previewCloudinaryUrl: string; // Highly compressed (Web)
   
   watermarkedUrl: string | null;
-  generatedNumber: string;
+  generatedNumber: string | null; // Must allow null until approval
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,11 +23,22 @@ const PhotoSchema = new Schema<IPhoto>(
     previewCloudinaryId: { type: String, required: true },
     previewCloudinaryUrl: { type: String, required: true },
     watermarkedUrl: { type: String, default: null },
-    generatedNumber: { type: String, required: true, unique: true },
+    generatedNumber: { type: String, default: null }, // Removed 'required' and global 'unique'
   },
   { timestamps: true }
 );
 
 PhotoSchema.index({ jobId: 1 });
 
-export const Photo = mongoose.models.Photo || mongoose.model<IPhoto>('Photo', PhotoSchema);
+// THE MAGIC INDEX: Enforces that generatedNumbers are unique WITHIN a specific job, 
+// but ignores photos that have a 'null' generatedNumber (pending/rejected photos).
+PhotoSchema.index(
+  { jobId: 1, generatedNumber: 1 },
+  { unique: true, partialFilterExpression: { generatedNumber: { $type: 'string' } } }
+);
+
+if (process.env.NODE_ENV === 'development') {
+  delete mongoose.models['Photo'];
+}
+
+export const Photo = (mongoose.models.Photo as mongoose.Model<IPhoto>) || mongoose.model<IPhoto>('Photo', PhotoSchema);
