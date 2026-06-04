@@ -1,11 +1,12 @@
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
-import { Photo } from '@/lib/models';
+import { Photo, User } from '@/lib/models';
 import { ok } from '@/lib/api-response';
 import { RevokeSubmissionSchema } from '@/lib/validators';
 import { withRole } from '@/lib/middleware';
 import { requireSubmissionAccess } from '@/lib/middleware/requireSubmissionAccess';
 import type { z } from 'zod';
+import { notify } from '@/lib/notify/emit';
 
 // PUT — Revoke an approved submission back to pending. Clears watermark data from all linked
 //       photos. Sequential numbers already minted are not reclaimed. Owner/admin only.
@@ -47,6 +48,18 @@ export const PUT = withRole(['owner', 'admin'], {
   } finally {
     if (session) await session.endSession();
   }
+
+  User.findById(submission.painterId, 'name').lean().then((painterDoc) => {
+    notify.emit('submission.revoke', {
+      actorId: ctx.user!.userId,
+      recipientId: submission.painterId.toString(),
+      data: {
+        code: submission.photoNo,
+        note: revokeNote,
+        painterName: (painterDoc as { name?: string } | null)?.name,
+      },
+    }).catch(() => {});
+  }).catch(() => {});
 
   return ok({ message: 'Approval revoked. Submission is now pending' });
 });

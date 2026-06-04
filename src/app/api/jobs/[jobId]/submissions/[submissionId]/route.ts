@@ -1,12 +1,13 @@
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
-import { Photo, Submission } from '@/lib/models';
+import { Photo, Submission, Job, User } from '@/lib/models';
 import { ok } from '@/lib/api-response';
 import { UpdateSubmissionSchema } from '@/lib/validators';
 import { withAuth, withRole } from '@/lib/middleware';
 import { requireSubmissionAccess } from '@/lib/middleware/requireSubmissionAccess';
 import { cloudinary } from '@/lib/cloudinary';
 import type { z } from 'zod';
+import { notify } from '@/lib/notify/emit';
 
 // GET — Fetch a single submission with full image data. Painters can only access their own.
 export const GET = withAuth({ access: requireSubmissionAccess })(
@@ -16,7 +17,7 @@ export const GET = withAuth({ access: requireSubmissionAccess })(
   }
 );
 
-// PUT — Update location, sizes, or append images. No role can edit an approved submission.
+// PUT — Update location, sizes, or append images. Owner can edit a submission anytime he want.
 //       Editing a rejected submission re-opens it to pending. Cleans up Cloudinary on any failure.
 export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSubmissionAccess, audit: 'SUBMISSION_UPDATE' })(
   async (req, ctx) => {
@@ -30,14 +31,37 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
       }
 
       await connectDB();
+      const wasRejected = submission.status === 'rejected';
       if (location) submission.location = location;
       if (sizes)    submission.sizes    = sizes;
-      if (submission.status === 'rejected') submission.status = 'pending';
+      if (wasRejected) submission.status = 'pending';
       await submission.save();
+
+      if (ctx.user!.role === 'painter' && wasRejected) {
+        Promise.all([
+          User.findById(ctx.user!.userId, 'name').lean(),
+          Job.findById(submission.jobId, 'ownerId').lean(),
+        ]).then(([painterDoc, jobDoc]) => {
+          notify.emit('submission.resubmit', {
+            actorId: ctx.user!.userId,
+            recipientId: (jobDoc as { ownerId?: { toString(): string } } | null)?.ownerId?.toString(),
+            data: { painter: (painterDoc as { name?: string } | null)?.name ?? 'A painter', code: submission.photoNo },
+          }).catch(() => {});
+        }).catch(() => {});
+      } else if (ctx.user!.role === 'owner') {
+        const fields = [location && 'location', sizes && 'sizes'].filter(Boolean).join(', ');
+        notify.emit('submission.edited_by_owner', {
+          actorId: ctx.user!.userId,
+          recipientId: submission.painterId.toString(),
+          data: { code: submission.photoNo, ...(fields && { fields }) },
+        }).catch(() => {});
+      }
+
       return ok({ message: 'Submission updated successfully' });
     }
 
     // Slow path: images are already in Cloudinary — every failure must clean them up.
+    let wasRejected = false;
     let session: mongoose.ClientSession | null = null;
     try {
       if (submission.status === 'approved') {
@@ -54,9 +78,10 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
 
       await connectDB();
 
+      wasRejected = submission.status === 'rejected';
       if (location) submission.location = location;
       if (sizes)    submission.sizes    = sizes;
-      if (submission.status === 'rejected') submission.status = 'pending';
+      if (wasRejected) submission.status = 'pending';
 
       session = await mongoose.startSession();
       session.startTransaction();
@@ -73,6 +98,27 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
       submission.images.push(...savedPhotos.map(p => p._id));
       await submission.save({ session });
       await session.commitTransaction();
+
+      if (ctx.user!.role === 'painter' && wasRejected) {
+        Promise.all([
+          User.findById(ctx.user!.userId, 'name').lean(),
+          Job.findById(submission.jobId, 'ownerId').lean(),
+        ]).then(([painterDoc, jobDoc]) => {
+          notify.emit('submission.resubmit', {
+            actorId: ctx.user!.userId,
+            recipientId: (jobDoc as { ownerId?: { toString(): string } } | null)?.ownerId?.toString(),
+            data: { painter: (painterDoc as { name?: string } | null)?.name ?? 'A painter', code: submission.photoNo },
+          }).catch(() => {});
+        }).catch(() => {});
+      } else if (ctx.user!.role === 'owner') {
+        const fields = [location && 'location', sizes && 'sizes', 'photos'].filter(Boolean).join(', ');
+        notify.emit('submission.edited_by_owner', {
+          actorId: ctx.user!.userId,
+          recipientId: submission.painterId.toString(),
+          data: { code: submission.photoNo, fields },
+        }).catch(() => {});
+      }
+
       return ok({ message: 'Submission updated successfully' });
 
     } catch (e) {

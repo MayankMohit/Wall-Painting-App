@@ -4,6 +4,7 @@ import { ok } from '@/lib/api-response';
 import { withRole } from '@/lib/middleware';
 import { requireJobOwner } from '@/lib/middleware/requireJobOwner';
 import { Types } from 'mongoose';
+import { notify } from '@/lib/notify/emit';
 
 // GET — Fetch a painter's detail view for a job: company name, painter name, all their
 //       submissions, and a pending/approved/rejected stats breakdown. Owner/admin only.
@@ -58,6 +59,12 @@ export const DELETE = withRole(['owner', 'admin'], { access: requireJobOwner, au
       { _id: ctx.job!._id },
       { $pull: { painters: new Types.ObjectId(painterId) } }
     );
+
+    notify.emit('job.painter_removed', {
+      actorId: ctx.user!.userId,
+      recipientId: painterId,
+      data: { jobId: ctx.job!._id.toString(), company: ctx.job!.companyName },
+    }).catch(() => {});
 
     return ok({ message: 'Painter removed' });
   }

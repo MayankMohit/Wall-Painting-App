@@ -6,6 +6,7 @@ import { withRole } from '@/lib/middleware';
 import { requireJobOwner } from '@/lib/middleware/requireJobOwner';
 import { Types } from 'mongoose';
 import type { z } from 'zod';
+import { notify } from '@/lib/notify/emit';
 
 // GET — List painters assigned to a job, each with their total submission count for that job. Owner/admin only.
 export const GET = withRole(['owner', 'admin'], { access: requireJobOwner })(
@@ -63,6 +64,12 @@ export const POST = withRole(['owner', 'admin'], { schema: AddPainterSchema, acc
       { _id: ctx.job!._id },
       { $addToSet: { painters: new Types.ObjectId(painterId) } }
     );
+
+    notify.emit('job.painter_added', {
+      actorId: ctx.user!.userId,
+      recipientId: painterId,
+      data: { jobId: ctx.job!._id.toString(), company: ctx.job!.companyName },
+    }).catch(() => {});
 
     return ok({ message: 'Painter added successfully' });
   }

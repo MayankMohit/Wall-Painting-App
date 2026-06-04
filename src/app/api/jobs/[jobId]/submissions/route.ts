@@ -1,12 +1,13 @@
 import mongoose, { Types } from 'mongoose';
 import { connectDB } from '@/lib/db';
-import { Photo, Submission } from '@/lib/models';
+import { Photo, Submission, User } from '@/lib/models';
 import { ok, created } from '@/lib/api-response';
 import { CreateSubmissionSchema } from '@/lib/validators';
 import { withAuth, withRole } from '@/lib/middleware';
 import { requireJobAccess } from '@/lib/middleware/requireJobAccess';
 import { cloudinary } from '@/lib/cloudinary';
 import type { z } from 'zod';
+import { notify } from '@/lib/notify/emit';
 
 // GET — List submissions for a job. Painters only see their own. Populates preview image fields for the list view.
 export const GET = withAuth({ access: requireJobAccess })(
@@ -76,6 +77,19 @@ export const POST = withRole(['painter'], { schema: CreateSubmissionSchema, acce
       }], { session });
 
       await session.commitTransaction();
+
+      User.findById(ctx.user!.userId, 'name').lean().then((painterDoc) => {
+        notify.emit('submission.create', {
+          actorId: ctx.user!.userId,
+          recipientId: ctx.job!.ownerId.toString(),
+          data: {
+            painter: (painterDoc as { name?: string } | null)?.name ?? 'A painter',
+            code: photoNo,
+            location,
+          },
+        }).catch(() => {});
+      }).catch(() => {});
+
       return created({ submissionId: newSubmission._id });
 
     } catch (e) {

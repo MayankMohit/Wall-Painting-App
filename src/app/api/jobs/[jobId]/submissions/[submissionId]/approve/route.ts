@@ -7,6 +7,7 @@ import { withRole } from '@/lib/middleware';
 import { requireSubmissionAccess } from '@/lib/middleware/requireSubmissionAccess';
 import { cloudinary } from '@/lib/cloudinary';
 import type { z } from 'zod';
+import { notify } from '@/lib/notify/emit';
 
 // PUT — Approve a submission: drop unselected images from DB, mint sequential watermark numbers
 //       on kept images, and mark the submission approved. Owner/admin only.
@@ -94,6 +95,12 @@ export const PUT = withRole(['owner', 'admin'], {
   } finally {
     if (session) await session.endSession();
   }
+
+  notify.emit('submission.approve', {
+    actorId: ctx.user!.userId,
+    recipientId: submission.painterId.toString(),
+    data: { code: submission.photoNo, count: keptPhotos.length },
+  }).catch(() => {});
 
   // Cloudinary cleanup runs after the DB commit so a Cloudinary failure never rolls back
   // an already-approved submission. allSettled ensures all assets are attempted.

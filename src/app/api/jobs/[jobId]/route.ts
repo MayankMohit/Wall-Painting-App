@@ -8,6 +8,7 @@ import { requireJobAccess } from '@/lib/middleware/requireJobAccess';
 import { requireJobOwner } from '@/lib/middleware/requireJobOwner';
 import { cloudinary } from '@/lib/cloudinary';
 import type { z } from 'zod';
+import { notify } from '@/lib/notify/emit';
 
 // GET — Fetch full job detail with per-painter submission stats. Accessible to assigned painters, the owning owner, and admins.
 export const GET = withAuth({ access: requireJobAccess })(
@@ -89,6 +90,13 @@ export const PATCH = withRole(['owner'], { schema: UpdateJobSchema, access: requ
       { $set: update },
       { returnDocument: 'after' }
     ).lean();
+
+    if (rest.status === 'completed') {
+      notify.emit('job.completed', {
+        actorId: ctx.user!.userId,
+        data: { jobId: ctx.params.jobId, company: ctx.job!.companyName },
+      }).catch(() => {});
+    }
 
     return ok(updated);
   }

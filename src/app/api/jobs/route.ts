@@ -5,6 +5,7 @@ import { CreateJobSchema } from '@/lib/validators';
 import { withAuth, withRole } from '@/lib/middleware';
 import type { z } from 'zod';
 import { Types } from 'mongoose';
+import { notify } from '@/lib/notify/emit';
 
 const PAGE_SIZE = 20;
 
@@ -118,6 +119,13 @@ export const POST = withRole(['owner'], { schema: CreateJobSchema, audit: 'JOB_C
       painters,
       status : 'active',
     });
+
+    if (painters.length > 0) {
+      notify.emit('job.created', {
+        actorId: ctx.user!.userId,
+        data: { jobId: job._id.toString(), company: job.companyName },
+      }).catch(() => {});
+    }
 
     return ok(job, 201);
   }
