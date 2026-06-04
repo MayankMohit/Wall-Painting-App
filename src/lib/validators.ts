@@ -84,12 +84,13 @@ export const CreateSubmissionSchema = z.object({
     .min(1, { error: 'At least one size is required' }),
   uploadedImages: z.array(
     z.object({
-      cloudinaryId: z.string().min(1),
-      cloudinaryUrl: z.string().url(),
-      previewCloudinaryId: z.string(),
+      cloudinaryId        : z.string().min(1),
+      cloudinaryUrl       : z.string().url(),
+      previewCloudinaryId : z.string().min(1),
       previewCloudinaryUrl: z.string().url(),
     })
-  ).min(1, { error: 'At least one image is required' }),
+  ).min(1, { error: 'At least one image is required' })
+   .max(20, { error: 'A submission cannot have more than 20 images' }),
 });
 
 export const UpdateSubmissionSchema = z.object({
@@ -97,12 +98,12 @@ export const UpdateSubmissionSchema = z.object({
   sizes: z.array(z.tuple([z.number().positive(), z.number().positive()])).optional(),
   uploadedImages: z.array(
     z.object({
-      cloudinaryId: z.string().min(1),
-      cloudinaryUrl: z.string().url(),
-      previewCloudinaryId: z.string(), 
+      cloudinaryId        : z.string().min(1),
+      cloudinaryUrl       : z.string().url(),
+      previewCloudinaryId : z.string().min(1),
       previewCloudinaryUrl: z.string().url(),
     })
-  ).optional(),
+  ).max(20, { error: 'Cannot add more than 20 images at once' }).optional(),
 });
 
 export const ApproveSubmissionSchema = z.object({

@@ -40,6 +40,7 @@ const SubmissionSchema = new Schema<ISubmission>(
 
 SubmissionSchema.index({ jobId: 1, status: 1 });
 SubmissionSchema.index({ painterId: 1, jobId: 1 });
+SubmissionSchema.index({ jobId: 1, painterId: 1, photoNo: 1 }, { unique: true });
 
 if (process.env.NODE_ENV === 'development') {
   delete mongoose.models['Submission'];

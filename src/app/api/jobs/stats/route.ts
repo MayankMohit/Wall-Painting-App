@@ -4,6 +4,7 @@ import { Job } from '@/lib/models';
 import { ok } from '@/lib/api-response';
 import { withRole } from '@/lib/middleware';
 
+// GET — Return job counts grouped by status (active, completed, invoiced, all). Admins see all jobs; owners see only their own.
 export const GET = withRole(['owner', 'admin'])(
   async (req, ctx) => {
     await connectDB();

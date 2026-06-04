@@ -1,44 +1,30 @@
 import { connectDB } from '@/lib/db';
-import { requireAuth } from '@/lib/rbac';
-import { ok, err, forbidden, notFound, badRequest } from '@/lib/api-response';
-import { Submission } from '@/lib/models/Submission';
+import { ok } from '@/lib/api-response';
 import { RejectSubmissionSchema } from '@/lib/validators';
+import { withRole } from '@/lib/middleware';
+import { requireSubmissionAccess } from '@/lib/middleware/requireSubmissionAccess';
+import type { z } from 'zod';
 
-export async function PUT(request: Request, { params }: { params: Promise<{ jobId: string, submissionId: string }> }) {
-  // 1. FAIL FAST: Guard security boundary instantly
-  const auth = await requireAuth(request);
-  if (auth.role === 'painter') return forbidden();
+// PUT — Reject a pending submission with a required reason. Cannot reject an already-approved
+//       submission. Owner/admin only.
+export const PUT = withRole(['owner', 'admin'], {
+  schema: RejectSubmissionSchema,
+  access: requireSubmissionAccess,
+  audit : 'SUBMISSION_REJECT',
+})(async (req, ctx) => {
+  const { rejectionReason } = ctx.body as z.infer<typeof RejectSubmissionSchema>;
+  const submission = ctx.submission!;
 
-  // 2. FAIL FAST: Validate request body via Zod before DB connection
-  const body = await request.json().catch(() => ({}));
-  const parsed = RejectSubmissionSchema.safeParse(body);
-  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
-
-  const { jobId, submissionId } = await params;
-
-  try {
-    await connectDB();
-
-    const submission = await Submission.findOne({ _id: submissionId, jobId });
-    if (!submission) return notFound('Submission not found');
-
-    // 3. THE BOUNCER: Prevent rejecting an already approved submission
-    if (submission.status === 'approved') {
-      return badRequest('Cannot reject a submission that has already been approved.');
-    }
-
-    // Update status, reason, and timestamp
-    submission.status = 'rejected';
-    submission.rejectionReason = parsed.data.rejectionReason;
-    submission.rejectedAt = new Date(); 
-
-    await submission.save();
-
-    return ok({ message: 'Submission rejected successfully.' });
-  } catch (e) {
-    console.error('[Reject Submission Error]:', e);
-    // 4. PREVENT 500 MASKS: Ensure thrown Responses (like Auth failures) escape the catch block
-    if (e instanceof Response) return e;
-    return err('Failed to reject submission', 500);
+  if (submission.status === 'approved') {
+    ctx.fail(400, 'ALREADY_APPROVED', 'Cannot reject a submission that has already been approved');
   }
-}
+
+  submission.status          = 'rejected';
+  submission.rejectionReason = rejectionReason;
+  submission.rejectedAt      = new Date();
+
+  await connectDB();
+  await submission.save();
+
+  return ok({ message: 'Submission rejected successfully' });
+});

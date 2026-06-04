@@ -1,125 +1,119 @@
 import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
-import { requireAuth } from '@/lib/rbac';
-import { ok, err, forbidden, notFound, badRequest } from '@/lib/api-response';
-import { Submission } from '@/lib/models/Submission';
-import { Photo } from '@/lib/models/Photo';
-import { Job } from '@/lib/models/Job';
+import { Photo, Job } from '@/lib/models';
+import { ok } from '@/lib/api-response';
 import { ApproveSubmissionSchema } from '@/lib/validators';
-import { v2 as cloudinary } from 'cloudinary';
+import { withRole } from '@/lib/middleware';
+import { requireSubmissionAccess } from '@/lib/middleware/requireSubmissionAccess';
+import { cloudinary } from '@/lib/cloudinary';
+import type { z } from 'zod';
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+// PUT — Approve a submission: drop unselected images from DB, mint sequential watermark numbers
+//       on kept images, and mark the submission approved. Owner/admin only.
+export const PUT = withRole(['owner', 'admin'], {
+  schema: ApproveSubmissionSchema,
+  access: requireSubmissionAccess,
+  audit : 'SUBMISSION_APPROVE',
+})(async (req, ctx) => {
+  const { selectedImageIds } = ctx.body as z.infer<typeof ApproveSubmissionSchema>;
+  const submission = ctx.submission!;
 
-export async function PUT(request: Request, { params }: { params: Promise<{ jobId: string, submissionId: string }> }) {
-  // 1. FAIL FAST: Guard security boundary instantly
-  const auth = await requireAuth(request);
-  if (auth.role === 'painter') return forbidden();
+  if (submission.status === 'approved') {
+    ctx.fail(400, 'ALREADY_APPROVED', 'Submission is already approved');
+  }
 
-  // 2. FAIL FAST: Validate request body before DB connection
-  const body = await request.json().catch(() => ({}));
-  const parsed = ApproveSubmissionSchema.safeParse(body);
-  if (!parsed.success) return badRequest(parsed.error.issues[0].message);
-
-  const { jobId, submissionId } = await params;
   await connectDB();
 
-  const session = await mongoose.startSession();
+  const currentPhotos = await Photo.find({ _id: { $in: submission.images } }).lean();
 
+  const keptPhotos     = currentPhotos.filter(p =>  selectedImageIds.includes(p._id.toString()));
+  const rejectedPhotos = currentPhotos.filter(p => !selectedImageIds.includes(p._id.toString()));
+  const keptPhotoIds   = keptPhotos.map(p => p._id);
+  const rejectedPhotoIds = rejectedPhotos.map(p => p._id);
+  if (keptPhotos.length === 0) {
+    ctx.fail(400, 'NO_VALID_IMAGES', 'None of the selected image IDs match photos in this submission');
+  }
+
+  const photosToMint   = keptPhotos.filter(p => !p.generatedNumber);
+
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+
+  // Populated inside the transaction; used after commit for eager cache warming.
+  let mintingData: Array<{ cloudinaryId: string; transform: string }> = [];
+
+  let session: mongoose.ClientSession | null = null;
   try {
+    session = await mongoose.startSession();
     session.startTransaction();
 
-    const submission = await Submission.findOne({ _id: submissionId, jobId }).session(session);
-    if (!submission) throw new Response(JSON.stringify({ error: 'Submission not found' }), { status: 404 });
-    if (submission.status === 'approved') throw new Response(JSON.stringify({ error: 'Submission is already approved' }), { status: 400 });
-
-    const { selectedImageIds } = parsed.data;
-
-    // 3. LASER FOCUS: Fetch all current photo documents linked to this submission
-    const currentPhotos = await Photo.find({ _id: { $in: submission.images } }).session(session);
-
-    // 4. Filter into Keep vs Delete buckets
-    const keptPhotos = currentPhotos.filter(p => selectedImageIds.includes(p._id.toString()));
-    const keptPhotoIds = keptPhotos.map(p => p._id);
-    const rejectedPhotos = currentPhotos.filter(p => !selectedImageIds.includes(p._id.toString()));
-
-    // 5. STORAGE LEAK FIX: Concurrently destroy rejected photos from Cloudinary (Both sizes)
-    if (rejectedPhotos.length > 0) {
-      const destroyPromises = [];
-      for (const photo of rejectedPhotos) {
-        if (photo.cloudinaryId) destroyPromises.push(cloudinary.uploader.destroy(photo.cloudinaryId));
-        if (photo.previewCloudinaryId) destroyPromises.push(cloudinary.uploader.destroy(photo.previewCloudinaryId));
-      }
-      
-      // Execute all deletions to Cloudinary in parallel
-      await Promise.all(destroyPromises);
-
-      // Delete the orphaned Photo documents from MongoDB
-      const rejectedPhotoIds = rejectedPhotos.map(p => p._id);
+    if (rejectedPhotoIds.length > 0) {
       await Photo.deleteMany({ _id: { $in: rejectedPhotoIds } }, { session });
     }
 
-    // 6. THE MINTING ENGINE: Assign unique numbers and generate watermarks
-    const photosToMint = keptPhotos.filter(p => !p.generatedNumber);
-
     if (photosToMint.length > 0) {
-      // Atomic Bulk Increment: Safely grab the required number of slots from the Job document
-      const jobUpdate = await Job.findByIdAndUpdate(
-        jobId,
+      // One atomic increment reserves exactly the right number of slots.
+      const updatedJob = await Job.findByIdAndUpdate(
+        submission.jobId,
         { $inc: { nextGeneratedNumber: photosToMint.length } },
         { new: true, session }
       );
+      if (!updatedJob) ctx.fail(404, 'NOT_FOUND', 'Job not found during number allocation');
 
-      if (!jobUpdate) throw new Error("Job missing during counter increment");
+      const startNumber = updatedJob!.nextGeneratedNumber - photosToMint.length + 1;
 
-      // Back-calculate the starting number for this batch
-      let currentNumber = jobUpdate.nextGeneratedNumber - photosToMint.length + 1;
-      const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-
-      for (const photo of photosToMint) {
-        const rawCode = String(currentNumber).padStart(4, '0');
-        const displayCode = `#${rawCode}`;
-        const urlCode = `%23${rawCode}`; // URL Encoded '#'
-
-        // Cloudinary Inline Watermark Transformation
-        const transform = `l_text:Arial_60_bold:${urlCode},co_white,bo_3px_solid_rgb:00000099,g_south_east,x_24,y_24`;
+      const bulkOps = photosToMint.map((photo, i) => {
+        const rawCode      = String(startNumber + i).padStart(4, '0');
+        const displayCode  = `#${rawCode}`;
+        const urlCode      = `%23${rawCode}`;
+        const transform    = `l_text:Arial_60_bold:${urlCode},co_white,bo_3px_solid_rgb:00000099,g_south_east,x_24,y_24`;
         const watermarkedUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${transform}/${photo.cloudinaryId}`;
 
-        photo.generatedNumber = displayCode;
-        photo.watermarkedUrl = watermarkedUrl;
-        // Notice: watermarkedAt has been intentionally omitted
-        
-        await photo.save({ session });
+        mintingData.push({ cloudinaryId: photo.cloudinaryId, transform });
 
-        // Fire-and-forget eager caching to warm Cloudinary's CDN instantly
-        cloudinary.uploader.explicit(photo.cloudinaryId, {
-          type: 'upload',
-          eager: [{ raw_transformation: transform }],
-          eager_async: true
-        }).catch(err => console.error('[Cloudinary Eager Cache Error]', err));
+        return {
+          updateOne: {
+            filter: { _id: photo._id },
+            update: { $set: { generatedNumber: displayCode, watermarkedUrl } },
+          },
+        };
+      });
 
-        currentNumber++;
-      }
+      await Photo.bulkWrite(bulkOps, { session });
     }
 
-    // 7. Finalize Submission State
-    submission.status = 'approved';
+    submission.status    = 'approved';
     submission.approvedAt = new Date();
-    submission.images = keptPhotoIds; // Save only the kept ObjectIds
-
+    submission.images    = keptPhotoIds;
     await submission.save({ session });
+
     await session.commitTransaction();
 
-    return ok({ message: 'Submission approved and watermarks generated successfully!' });
   } catch (e) {
-    await session.abortTransaction();
-    console.error('[Approve Submission Error]:', e);
-    if (e instanceof Response) return e;
-    return err('Failed to approve submission', 500);
+    if (session) await session.abortTransaction().catch(() => {});
+    throw e;
   } finally {
-    session.endSession();
+    if (session) await session.endSession();
   }
-}
+
+  // Cloudinary cleanup runs after the DB commit so a Cloudinary failure never rolls back
+  // an already-approved submission. allSettled ensures all assets are attempted.
+  if (rejectedPhotos.length > 0) {
+    const destroys = rejectedPhotos.flatMap(p => {
+      const ops: Promise<unknown>[] = [cloudinary.uploader.destroy(p.cloudinaryId)];
+      if (p.previewCloudinaryId) ops.push(cloudinary.uploader.destroy(p.previewCloudinaryId));
+      return ops;
+    });
+    await Promise.allSettled(destroys);
+  }
+
+  // Fire-and-forget: warm Cloudinary's CDN for each newly watermarked image.
+  for (const { cloudinaryId, transform } of mintingData) {
+    cloudinary.uploader.explicit(cloudinaryId, {
+      type       : 'upload',
+      eager      : [{ raw_transformation: transform }],
+      eager_async: true,
+    }).catch(() => {});
+  }
+
+  return ok({ message: 'Submission approved and watermarks generated successfully' });
+});

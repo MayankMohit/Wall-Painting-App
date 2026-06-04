@@ -7,7 +7,6 @@ export interface IJob extends Document {
   description?: string;
   status: 'active' | 'completed' | 'invoiced';
   painters: Types.ObjectId[];
-  submissions: Types.ObjectId[];
   generatedExcel: Types.ObjectId | null;
   generatedPDFFile: Types.ObjectId | null;
   generatedPDFPhotos: Types.ObjectId | null;
@@ -25,7 +24,6 @@ const JobSchema = new Schema<IJob>(
     description: { type: String, trim: true },
     status: { type: String, enum: ['active', 'completed', 'invoiced'], default: 'active' },
     painters: [{ type: Schema.Types.ObjectId, ref: 'User' }],
-    submissions: { type: [{ type: Schema.Types.ObjectId, ref: 'Submission' }], default: [] },
     generatedExcel: { type: Schema.Types.ObjectId, ref: 'GeneratedFile', default: null },
     generatedPDFFile: { type: Schema.Types.ObjectId, ref: 'GeneratedFile', default: null },
     generatedPDFPhotos: { type: Schema.Types.ObjectId, ref: 'GeneratedFile', default: null },
@@ -36,8 +34,9 @@ const JobSchema = new Schema<IJob>(
   { timestamps: true }
 );
 
-JobSchema.index({ ownerId: 1, status: 1 });
-JobSchema.index({ painters: 1 });
+JobSchema.index({ ownerId: 1, status: 1, createdAt: -1 });
+JobSchema.index({ painters: 1, status: 1, createdAt: -1 });
+JobSchema.index({ companyName: 'text' });
 
 if (process.env.NODE_ENV === 'development') {
   delete mongoose.models['Job'];
