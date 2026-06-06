@@ -85,7 +85,7 @@ export default function LoginPage() {
 
   async function handlePasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const success = await login(identifier, password);
+    const success = await login(identifier.trim(), password.trim());
     if (success) {
       const { user } = useAuthStore.getState();
       redirectAfterLogin(user!.role, user!.status, router);

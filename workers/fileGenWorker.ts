@@ -103,7 +103,7 @@ async function main() {
       await GeneratedFile.updateOne({ _id: job.data.fileId }, { status: 'failed' });
     }
   });
-  console.log('👷 [fileGenWorker] started, listening on fileGenQueue');
+  console.log('[fileGenWorker] started, listening on fileGenQueue');
 
   process.on('SIGTERM', async () => {
     await worker.close();
