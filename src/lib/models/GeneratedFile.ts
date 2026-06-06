@@ -5,13 +5,13 @@ export interface IGeneratedFile extends Document {
   jobId: Types.ObjectId;
   fileType: 'excel' | 'pdf_file' | 'pdf_photos';
   fileName: string;
-  r2Path: string;
-  r2Url: string;
-  fileSize: number;
-  status: 'generating' | 'ready';
+  r2Path?: string;        // Made optional
+  r2Url?: string;         // Made optional
+  fileSize?: number;      // Made optional
+  status: 'generating' | 'ready' | 'failed';
   generatedBy: Types.ObjectId;
-  generatedAt: Date;
-  expiresAt: Date;
+  generatedAt?: Date;     // Made optional
+  expiresAt?: Date;       // Made optional
   downloadCount: number;
   createdAt: Date;
   updatedAt: Date;
@@ -22,13 +22,16 @@ const GeneratedFileSchema = new Schema<IGeneratedFile>(
     jobId: { type: Schema.Types.ObjectId, ref: 'Job', required: true },
     fileType: { type: String, enum: ['excel', 'pdf_file', 'pdf_photos'], required: true },
     fileName: { type: String, required: true },
-    r2Path: { type: String, required: true },
-    r2Url: { type: String, required: true },
-    fileSize: { type: Number, required: true },
-    status: { type: String, enum: ['generating', 'ready'], default: 'generating' },
+    
+    // These are populated by the worker AFTER generation is complete
+    r2Path: { type: String },
+    r2Url: { type: String },
+    fileSize: { type: Number },
+    generatedAt: { type: Date },
+    expiresAt: { type: Date },
+    
+    status: { type: String, enum: ['generating', 'ready', 'failed'], default: 'generating' },
     generatedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    generatedAt: { type: Date, required: true },
-    expiresAt: { type: Date, required: true },
     downloadCount: { type: Number, default: 0 },
   },
   { timestamps: true }

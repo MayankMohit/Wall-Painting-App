@@ -38,11 +38,16 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isAddPainterModalOpen, setIsAddPainterModalOpen] = useState(false);
-  
+
   // Add Painter States
   const [availablePainters, setAvailablePainters] = useState<any[]>([]);
   const [searchPainter, setSearchPainter] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+
+  // For Generate Files Modal
+  const [isGenModalOpen, setIsGenModalOpen] = useState(false);
+  const [selectedTypes, setSelectedTypes] = useState<('excel' | 'pdf_photos' | 'pdf_file')[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -63,11 +68,11 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
 
       if (!res.ok) throw new Error('Failed to load job details');
       const json = await res.json();
-      
+
       setJobData(json?.data || json);
-      reset({ 
-        companyName: (json?.data || json).companyName, 
-        description: (json?.data || json).description || '' 
+      reset({
+        companyName: (json?.data || json).companyName,
+        description: (json?.data || json).description || ''
       });
       setError('');
     } catch (err: any) {
@@ -93,7 +98,7 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
     try {
       const token = localStorage.getItem('wallpainter_token');
       const currentPainterIds = jobData?.painters.map(p => p._id) || [];
-      
+
       const payload = {
         ...(data && { companyName: data.companyName, description: data.description }),
         painterIds: newPainterIds || currentPainterIds
@@ -106,7 +111,7 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
       });
 
       if (!res.ok) throw new Error('Failed to update job');
-      
+
       setIsEditModalOpen(false);
       setIsAddPainterModalOpen(false);
       fetchJobOverview(); // Refresh data to get updated stats and lists
@@ -158,7 +163,7 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
 
   // Filter out painters that are already on the job for the Add Painter modal
   const currentPainterIds = jobData.painters.map(p => p._id);
-  const unassignedPainters = availablePainters.filter(p => !currentPainterIds.includes(p._id) && 
+  const unassignedPainters = availablePainters.filter(p => !currentPainterIds.includes(p._id) &&
     (p.name.toLowerCase().includes(searchPainter.toLowerCase()) || (p.phone && p.phone.includes(searchPainter)))
   );
 
@@ -178,27 +183,30 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
             {jobData.description || 'No job description provided.'}
           </p>
         </div>
-        
+
         <div className="flex items-center gap-3 w-full md:w-auto">
           <Link href={`/owner/jobs/${jobId}/files`} className="flex-1 md:flex-none px-5 py-2.5 rounded-full border-2 border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors text-center shadow-sm">
             📄 Files
           </Link>
-          <button className="flex-1 md:flex-none px-5 py-2.5 rounded-full bg-[#EA580C] text-white font-bold hover:bg-[#C2410C] transition-colors shadow-sm">
+          <button
+            onClick={() => setIsGenModalOpen(true)} // Opens the modal
+            className="flex-1 md:flex-none px-5 py-2.5 rounded-full bg-[#EA580C] text-white font-bold hover:bg-[#C2410C] transition-colors shadow-sm"
+          >
             ✨ Generate files
           </button>
-          
+
           {/* 3-Dot Menu */}
           <div className="relative" ref={menuRef}>
-            <button 
+            <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full transition-colors border-2 border-transparent"
             >
               <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"></path></svg>
             </button>
-            
+
             {isMenuOpen && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50 overflow-hidden">
-                <button 
+                <button
                   onClick={() => { setIsMenuOpen(false); setIsEditModalOpen(true); }}
                   className="w-full text-left px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                 >
@@ -206,7 +214,7 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
                   Edit job
                 </button>
                 <div className="h-px bg-gray-100 my-1"></div>
-                <button 
+                <button
                   onClick={() => { setIsMenuOpen(false); setIsDeleteModalOpen(true); }}
                   className="w-full text-left px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-2"
                 >
@@ -221,12 +229,12 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* LEFT COLUMN: Painters List */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex justify-between items-center mb-2">
             <h2 className="text-xl font-bold text-gray-900">Painters <span className="text-gray-400 font-medium">· {jobData.painters?.length || 0}</span></h2>
-            <button 
+            <button
               onClick={openAddPainterModal}
               className="px-4 py-2 rounded-full border-2 border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
             >
@@ -309,7 +317,7 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
               <h2 className="text-xl font-black text-gray-900">Edit Job Settings</h2>
               <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-700">✕</button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto">
               <form id="edit-job-form" onSubmit={handleSubmit((data) => handleUpdateJob(data))} className="space-y-5">
                 <div>
@@ -341,11 +349,11 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
               <h2 className="text-xl font-black text-gray-900">Add Painter</h2>
               <button onClick={() => setIsAddPainterModalOpen(false)} className="text-gray-400 hover:text-gray-700">✕</button>
             </div>
-            
+
             <div className="p-4 border-b border-gray-100 relative">
-              <input 
-                type="text" 
-                placeholder="Search painters by name or phone..." 
+              <input
+                type="text"
+                placeholder="Search painters by name or phone..."
                 value={searchPainter}
                 onChange={(e) => setSearchPainter(e.target.value)}
                 className="w-full rounded-xl border border-gray-300 p-3 text-sm font-medium focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none"
@@ -364,8 +372,8 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
                       <p className="font-bold text-sm text-gray-900">{p.name}</p>
                       <p className="text-xs text-gray-500 font-mono">{p.phone}</p>
                     </div>
-                    <button 
-                      onClick={() => handleAddPainter(p._id)} 
+                    <button
+                      onClick={() => handleAddPainter(p._id)}
                       className="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-full transition-colors"
                     >
                       + Add
@@ -387,10 +395,82 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
             </div>
             <h2 className="text-xl font-black text-gray-900 mb-2">Delete Job?</h2>
             <p className="text-sm text-gray-500 mb-8 font-medium">This action cannot be undone. All submissions, files, and photos associated with this job will be permanently destroyed.</p>
-            
+
             <div className="flex gap-3">
               <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors">Cancel</button>
               <button onClick={handleDeleteJob} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors">Delete Job</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generate Files Modal */}
+      {isGenModalOpen && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 space-y-6">
+            <h2 className="text-xl font-black text-gray-900">Select files to generate</h2>
+
+            <div className="space-y-3">
+              {(['excel', 'pdf_photos', 'pdf_file'] as const).map((type) => (
+                <label key={type} className="flex items-center text-gray-700 gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4"
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedTypes([...selectedTypes, type]);
+                      else setSelectedTypes(selectedTypes.filter(t => t !== type));
+                    }}
+                  />
+                  <span className="text-sm font-bold capitalize">{type.replace('_', ' ')}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setIsGenModalOpen(false)} className="flex-1 py-3 text-sm font-bold text-gray-600">Cancel</button>
+              <button
+                onClick={async () => {
+                  setIsGenerating(true);
+                  try {
+                    const token = localStorage.getItem('wallpainter_token');
+                    const res = await fetch(`/api/jobs/${jobId}/files/generate`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                      },
+                      body: JSON.stringify({
+                        types: selectedTypes,
+                        ownerInput: { companyName: jobData?.companyName }
+                      })
+                    });
+
+                    if (!res.ok) {
+                      const errorData = await res.json().catch(() => ({}));
+                      throw new Error(errorData.message || 'Failed to start generation');
+                    }
+
+                    // Success! Close modal, clear selection, and alert (NO REDIRECT)
+                    setIsGenModalOpen(false);
+                    setSelectedTypes([]);
+                    alert("Files generation started! Head over to the 'Files' tab to download them.");
+
+                  } catch (err: any) {
+                    alert(err.message);
+                    console.error(err);
+                  } finally {
+                    setIsGenerating(false);
+                  }
+                }}
+                className="flex-1 flex justify-center items-center py-3 bg-[#EA580C] text-white font-bold rounded-xl transition disabled:opacity-50"
+                disabled={selectedTypes.length === 0 || isGenerating}
+              >
+                {isGenerating ? (
+                  <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                ) : (
+                  'Start Generation'
+                )}
+              </button>
             </div>
           </div>
         </div>

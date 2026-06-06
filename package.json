@@ -14,8 +14,8 @@
     "worker": "tsx workers/notifyWorker.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1049.0",
-    "@aws-sdk/s3-request-presigner": "^3.1049.0",
+    "@aws-sdk/client-s3": "^3.1062.0",
+    "@aws-sdk/s3-request-presigner": "^3.1062.0",
     "@reduxjs/toolkit": "^2.12.0",
     "axios": "^1.16.1",
     "bcryptjs": "^3.0.3",
@@ -27,6 +27,7 @@
     "firebase": "^12.13.0",
     "firebase-admin": "^13.10.0",
     "helmet": "^8.1.0",
+    "ioredis": "^5.11.1",
     "jimp": "^1.6.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.6.2",
@@ -41,6 +42,7 @@
     "react-redux": "^9.3.0",
     "redis": "^5.12.1",
     "resend": "^6.12.3",
+    "sharp": "^0.34.5",
     "zod": "^4.4.3",
     "zustand": "^5.0.13"
   },
@@ -53,6 +55,7 @@
     "@types/pdfkit": "^0.17.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sharp": "^0.31.1",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
