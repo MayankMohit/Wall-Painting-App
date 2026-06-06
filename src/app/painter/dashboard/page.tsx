@@ -1,181 +1,147 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useAuthStore } from '@/store/authStore';
-
-interface Submission {
-  _id: string;
-  status: 'pending' | 'approved' | 'rejected';
-}
-
-interface Job {
-  _id: string;
-  companyName: string;
-  status: 'active' | 'completed' | 'invoiced';
-  updatedAt: string;
-  painters: any[]; 
-  submissions: Submission[]; 
-}
-
-// Helper to format "Last edited" time
-const getRelativeTime = (dateString: string) => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-  
-  if (diffInSeconds < 60) return 'Just now';
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
-  if (diffInSeconds < 86400) {
-    const hrs = Math.floor(diffInSeconds / 3600);
-    return hrs === 1 ? '1 hr ago' : `${hrs} hrs ago`;
-  }
-  if (diffInSeconds < 172800) return 'Yesterday';
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-};
+import { useState } from "react";
+import { useAuthStore } from "@/store/authStore";
+import { useGetJobsQuery } from "@/store/api/endpoints/jobs";
+import { Search, X } from "@/components/dashboards/icons";
+import { JobCard } from "@/components/dashboards/JobCard";
+import { EmptyState } from "@/components/dashboards/EmptyState";
 
 export default function PainterDashboard() {
-  const { user } = useAuthStore();
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { user, isAuthenticated } = useAuthStore();
+  const [query, setQuery]         = useState("");
+  const [showSearch, setSearch]   = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
+  const { data: jobs = [], isLoading, isError } = useGetJobsQuery(undefined, {
+    skip: !isAuthenticated,
+    pollingInterval: 30_000,
+  });
 
-    const fetchJobs = async () => {
-      setIsLoading(true);
-      setError('');
+  const firstName = user?.name?.split(" ")[0] ?? "there";
+  const filtered  = query
+    ? jobs.filter((j) => j.companyName.toLowerCase().includes(query.toLowerCase()))
+    : jobs;
 
-      try {
-        const token = localStorage.getItem('wallpainter_token');
-        if (!token) throw new Error('Authentication token missing. Please log in.');
+  const Spinner = () => (
+    <div className="flex justify-center py-18">
+      <div className="landing-spinner" />
+    </div>
+  );
 
-        const res = await fetch('/api/jobs', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || errData.message || 'Failed to fetch jobs');
-        }
-
-        const json = await res.json();
-        const fetchedJobs: Job[] = json?.data?.jobs || json?.jobs || [];
-
-        if (isMounted) {
-          setJobs(fetchedJobs);
-          setIsLoading(false);
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setError(err.message);
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetchJobs();
-    return () => { isMounted = false; };
-  }, []);
+  const ErrorBanner = () => (
+    <div className="p-4 rounded-(--r) text-[13px] font-medium bg-(--rejected-soft) text-(--rejected) border border-[oklch(0.55_0.17_25/0.2)]">
+      Failed to load jobs. Please refresh.
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      
-      {/* Header Section */}
-      <header className="border-b border-gray-200 pb-6 mt-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">My Jobs</h1>
-          <p className="text-gray-500 mt-1 font-medium">Welcome back, {user?.name?.split(' ')[0] || 'Painter'}. Here are your active assignments.</p>
-        </div>
-      </header>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl shadow-sm text-sm font-medium">
-          {error}
-        </div>
-      )}
-
-      {/* Loading State */}
-      {isLoading ? (
-        <div className="flex flex-col justify-center items-center py-20 gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          <span className="text-gray-500 font-medium">Loading your assignments...</span>
-        </div>
-      ) : (
-        
-        /* Jobs Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {jobs.map((job) => {
-            // Calculate pending submissions for this specific job
-            // Note: If your API doesn't populate submissions yet, this will default to 0.
-            const pendingCount = job.submissions?.filter(s => s.status === 'pending').length || 0;
-            const paintersCount = job.painters?.length || 1;
-
-            return (
-              <Link 
-                href={`/painter/jobs/${job._id}`}
-                key={job._id} 
-                className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-200 transition-all group flex flex-col justify-between h-full cursor-pointer"
-              >
-                <div>
-                  <div className="flex justify-between items-start mb-2 gap-4">
-                    <h3 className="font-black text-xl text-gray-900 truncate group-hover:text-indigo-600 transition-colors">
-                      {job.companyName}
-                    </h3>
-                    {job.status !== 'active' && (
-                      <span className="text-[10px] px-2.5 py-1 rounded-full font-black uppercase tracking-widest bg-gray-100 text-gray-600 shrink-0">
-                        {job.status}
-                      </span>
-                    )}
-                  </div>
-                  
-                  <p className="text-xs text-gray-400 font-medium mb-6">
-                    Last edited {getRelativeTime(job.updatedAt)}
-                  </p>
-                  
-                  <div className="space-y-3">
-                    {/* Team Size */}
-                    <div className="flex items-center gap-3 text-sm font-medium text-gray-600">
-                      <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center border border-gray-200 shrink-0 text-gray-400">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                      </div>
-                      {paintersCount} {paintersCount === 1 ? 'Painter' : 'Painters'} assigned
-                    </div>
-
-                    {/* Pending Status */}
-                    <div className="flex items-center gap-3 text-sm font-medium">
-                      {pendingCount > 0 ? (
-                        <>
-                          <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center border border-orange-100 shrink-0 text-orange-500">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                          </div>
-                          <span className="text-[#EA580C]">{pendingCount} pending submissions</span>
-                        </>
-                      ) : (
-                        <>
-                          <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center border border-emerald-100 shrink-0 text-emerald-500">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
-                          </div>
-                          <span className="text-emerald-600 font-bold">All clear</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
+    <>
+      {/* ── MOBILE ──────────────────────────────────────────────────── */}
+      <div className="lg:hidden">
+        <div className="sticky top-0 z-10 bg-(--paper) border-b border-(--border)">
+          {!showSearch ? (
+            <div className="flex items-center gap-2.5 px-5 pt-3.5 pb-2.5">
+              <div className="flex-1 min-w-0">
+                <div className="text-[22px] font-semibold tracking-[-0.02em] leading-[1.1] text-(--ink)">
+                  My jobs
                 </div>
-              </Link>
-            );
-          })}
-
-          {jobs.length === 0 && !error && (
-            <div className="col-span-full bg-white p-16 text-center rounded-2xl border border-gray-200 shadow-sm">
-              <div className="text-5xl mb-4">🙌</div>
-              <p className="text-gray-900 font-black text-xl tracking-tight">No active assignments</p>
-              <p className="text-gray-500 mt-2 font-medium">You don't have any jobs assigned right now. Enjoy the break!</p>
+                <div className="text-[12px] text-(--ink-3) mt-0.5">
+                  {jobs.length} assigned · Hey {firstName}
+                </div>
+              </div>
+              <button
+                onClick={() => setSearch(true)}
+                className="w-9 h-9 rounded-full border-0 bg-transparent text-(--ink) cursor-pointer flex items-center justify-center"
+              >
+                <Search size={20} weight={1.8} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-4 py-2.5">
+              <div className="flex-1 h-10 flex items-center gap-2 bg-(--paper-2) border border-(--border-2) rounded-full px-3.5">
+                <Search size={16} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search jobs…"
+                  className="flex-1 border-0 bg-transparent outline-none text-[14px] text-(--ink) font-(--font)"
+                />
+              </div>
+              <button
+                onClick={() => { setSearch(false); setQuery(""); }}
+                className="w-9 h-9 rounded-full border-0 bg-transparent text-(--ink) cursor-pointer flex items-center justify-center shrink-0"
+              >
+                <X size={18} weight={2} />
+              </button>
             </div>
           )}
         </div>
-      )}
-    </div>
+
+        <div className="p-3 px-4 flex flex-col gap-2.5">
+          {isLoading && <Spinner />}
+          {!isLoading && isError && <ErrorBanner />}
+          {!isLoading && !isError && filtered.map((job) => (
+            <JobCard key={job._id} job={job} />
+          ))}
+          {!isLoading && !isError && filtered.length === 0 && (
+            <EmptyState query={query} />
+          )}
+        </div>
+      </div>
+
+      {/* ── DESKTOP ─────────────────────────────────────────────────── */}
+      <div className="hidden lg:block px-13 py-11">
+        <div className="flex items-end justify-between mb-8">
+          <div>
+            <div className="text-[28px] font-bold tracking-[-0.03em] leading-[1.1] text-(--ink)">
+              My jobs
+            </div>
+            <div className="text-[14px] text-(--ink-3) mt-1.5">
+              {jobs.length} {jobs.length === 1 ? "job" : "jobs"} assigned · Hey,{" "}
+              {firstName}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 h-10 px-3.5 bg-(--surface) border border-(--border-2) rounded-full min-w-55">
+            <Search size={15} style={{ color: "var(--ink-3)", flexShrink: 0 }} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search jobs…"
+              className="flex-1 border-0 bg-transparent outline-none text-[13px] text-(--ink) font-(--font)"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                className="w-5 h-5 border-0 rounded-full bg-(--border-2) text-(--ink-2) flex items-center justify-center cursor-pointer shrink-0 p-0"
+              >
+                <X size={11} weight={2.4} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {isLoading ? (
+          <Spinner />
+        ) : isError ? (
+          <ErrorBanner />
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+              gap: 14,
+            }}
+          >
+            {filtered.map((job) => <JobCard key={job._id} job={job} />)}
+            {filtered.length === 0 && (
+              <div className="col-span-full">
+                <EmptyState query={query} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

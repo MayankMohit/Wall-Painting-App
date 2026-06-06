@@ -1,168 +1,223 @@
-'use client';
+"use client";
 
-import { useState, use } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import imageCompression from 'browser-image-compression';
+import { useState, use, useEffect, useRef } from "react";
+import { useForm, useFieldArray } from "react-hook-form";
+import { useRouter } from "next/navigation";
+import imageCompression from "browser-image-compression";
+import { useCreateSubmissionMutation } from "@/store/api/endpoints/submissions";
+import { X } from "@/components/jobs/shared/icons";
+import { SizesField } from "@/components/jobs/submission/SizesField";
+import { PhotoPicker } from "@/components/jobs/submission/PhotoPicker";
+import { SubmitButton } from "@/components/jobs/submission/SubmitButton";
+import { inputBox, innerInput, Suffix } from "@/components/jobs/submission/formStyles";
+import { uploadToCloudinary } from "@/components/jobs/submission/uploadHelpers";
+import type { FV } from "@/components/jobs/submission/submissionTypes";
 
-export default function SubmitPhotosPage({ params }: { params: Promise<{ jobId: string }> }) {
-  const resolvedParams = use(params);
-  const jobId = resolvedParams.jobId;
+export default function NewSubmissionPage({
+  params,
+}: {
+  params: Promise<{ jobId: string }>;
+}) {
+  const { jobId } = use(params);
   const router = useRouter();
+  const [createSubmission] = useCreateSubmissionMutation();
 
-  const { register, handleSubmit, control, formState: { errors } } = useForm({
-    defaultValues: {
-      location: '',
-      photoNo: '',
-      sizes: [{ width: '', height: '' }]
-    }
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    formState: { errors },
+  } = useForm<FV>({
+    defaultValues: { location: "", photoNo: "", sizes: [{ width: "", height: "" }] },
   });
-
   const { fields, append, remove } = useFieldArray({ control, name: "sizes" });
-  
-  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState('');
+  const ws = watch("sizes");
+  const area = ws
+    .reduce((s, sz) => s + (Number(sz.width) || 0) * (Number(sz.height) || 0), 0)
+    .toFixed(1);
 
-  const uploadToCloudinary = async (file: File, signature: any, apiKey: string, folder: string) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('signature', signature.signature);
-    formData.append('timestamp', signature.timestamp.toString());
-    formData.append('api_key', apiKey);
-    formData.append('folder', folder);
+  const [files, setFiles]       = useState<File[]>([]);
+  const [prevs, setPrevs]       = useState<string[]>([]);
+  const [photoErr, setPhotoErr] = useState(false);
+  const [busy, setBusy]         = useState(false);
+  const [step, setStep]         = useState("");
+  const urlsRef                 = useRef<string[]>([]);
 
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!res.ok) throw new Error('Cloudinary upload failed');
-    return res.json();
+  useEffect(() => () => { urlsRef.current.forEach(URL.revokeObjectURL); }, []);
+
+  const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    urlsRef.current.forEach(URL.revokeObjectURL);
+    const arr  = Array.from(e.target.files);
+    const urls = arr.map((f) => URL.createObjectURL(f));
+    urlsRef.current = urls;
+    setFiles(arr);
+    setPrevs(urls);
+    setPhotoErr(false);
   };
 
-  const onSubmit = async (data: any) => {
-    if (!selectedFiles || selectedFiles.length === 0) {
-      alert("Please select at least one photo to upload.");
-      return;
-    }
+  const drop = (i: number) => {
+    URL.revokeObjectURL(prevs[i]);
+    setFiles((p) => p.filter((_, j) => j !== i));
+    setPrevs((p) => {
+      const n = p.filter((_, j) => j !== i);
+      urlsRef.current = n;
+      return n;
+    });
+  };
 
-    setIsUploading(true);
-    setUploadStatus('Step 1/3: Getting secure signature...');
-
+  const onSubmit = async (d: FV) => {
+    if (!files.length) { setPhotoErr(true); return; }
+    setBusy(true);
     try {
-      const token = localStorage.getItem('wallpainter_token');
-      if (!token) throw new Error('Authentication token missing.');
+      const tok   = localStorage.getItem("wallpainter_token")!;
+      const cloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME!;
+      const key   = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY!;
 
-      const signRes = await fetch('/api/uploads/sign', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder: `jobs/${jobId}` }) 
+      setStep("Getting signature…");
+      const sr = await fetch("/api/uploads/sign", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ folder: `jobs/${jobId}` }),
       });
-      
-      if (!signRes.ok) throw new Error('Failed to get upload signature');
-      const signData = await signRes.json();
-      const payload = signData.data || signData; 
-      
-      const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
-      if (!apiKey) throw new Error("Cloudinary API Key missing.");
+      if (!sr.ok) throw new Error("Signature failed");
+      const sig = (await sr.json()).data;
 
-      setUploadStatus('Step 2/3: Compressing & Uploading photos...');
-      
-      const uploadedImagesData = await Promise.all(Array.from(selectedFiles).map(async (originalFile) => {
-        // 1. Print-Ready (Max 2MB, high detail for physical prints)
-        const printFile = await imageCompression(originalFile, {
-          maxSizeMB: 2,
-          maxWidthOrHeight: 2000,
-          initialQuality: 0.85
-        });
+      setStep(`Uploading ${files.length} photo${files.length > 1 ? "s" : ""}…`);
+      const uploadedImages = await Promise.all(
+        files.map(async (f) => {
+          const [full, preview] = await Promise.all([
+            uploadToCloudinary(
+              await imageCompression(f, { maxSizeMB: 2, maxWidthOrHeight: 2000, initialQuality: 0.85 }),
+              sig, key, cloud,
+            ),
+            uploadToCloudinary(
+              await imageCompression(f, { maxSizeMB: 0.3, maxWidthOrHeight: 800, initialQuality: 0.6 }),
+              sig, key, cloud,
+            ),
+          ]);
+          return {
+            cloudinaryId:         full.public_id,
+            cloudinaryUrl:        full.secure_url,
+            previewCloudinaryId:  preview.public_id,
+            previewCloudinaryUrl: preview.secure_url,
+          };
+        }),
+      );
 
-        // 2. Web-Preview (High compression, low bandwidth, instant loading)
-        const previewFile = await imageCompression(originalFile, {
-          maxSizeMB: 0.3,
-          maxWidthOrHeight: 800,
-          initialQuality: 0.6
-        });
-
-        const [printRes, previewRes] = await Promise.all([
-          uploadToCloudinary(printFile, payload, apiKey, payload.folder),
-          uploadToCloudinary(previewFile, payload, apiKey, payload.folder)
-        ]);
-
-        return {
-          cloudinaryId: printRes.public_id,
-          cloudinaryUrl: printRes.secure_url,
-          previewCloudinaryId: previewRes.public_id,
-          previewCloudinaryUrl: previewRes.secure_url
-        };
-      }));
-
-      setUploadStatus('Step 3/3: Saving submission to database...');
-      
-      const dbPayload = {
-        photoNo: Number(data.photoNo),
-        location: data.location,
-        sizes: data.sizes.map((s: any) => [Number(s.width), Number(s.height)]),
-        uploadedImages: uploadedImagesData 
-      };
-
-      const dbRes = await fetch(`/api/jobs/${jobId}/submissions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+      setStep("Saving…");
+      await createSubmission({
+        jobId,
+        body: {
+          photoNo: Number(d.photoNo),
+          location: d.location,
+          sizes: d.sizes.map((s) => [Number(s.width), Number(s.height)]),
+          uploadedImages,
         },
-        body: JSON.stringify(dbPayload)
-      });
+      }).unwrap();
 
-      if (!dbRes.ok) throw new Error('Failed to save to database');
-
-      alert('Success! Photos submitted.');
       router.push(`/painter/jobs/${jobId}`);
-
-    } catch (error: any) {
-      console.error(error);
-      alert(error.message || "Upload failed.");
-      setIsUploading(false);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Upload failed");
+      setBusy(false);
     }
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-8 bg-white rounded-2xl shadow-sm border border-gray-200 mt-8">
-      <div className="mb-8 flex justify-between items-center border-b pb-6">
-        <div>
-          <h2 className="text-3xl font-black text-gray-900 tracking-tight">New Submission</h2>
+    <div className="bg-(--paper) min-h-svh">
+      {/* ── MOBILE TopBar ────────────────────────────────────────────────── */}
+      <div className="lg:hidden sticky top-0 z-10 bg-(--paper) border-b border-(--border) px-4 py-2.5 flex items-center gap-2.5">
+        <button
+          onClick={() => router.back()}
+          className="w-9 h-9 border-0 rounded-full bg-transparent text-(--ink) cursor-pointer flex items-center justify-center shrink-0"
+        >
+          <X size={22} weight={1.8} />
+        </button>
+        <div className="text-[17px] font-semibold tracking-[-0.015em] text-(--ink)">
+          New submission
         </div>
-        <Link href={`/painter/jobs/${jobId}`} className="text-gray-400 hover:text-gray-900 font-bold text-sm">Cancel</Link>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <input {...register('location', { required: true })} placeholder="Location (e.g. Lobby Wall)" className="w-full text-gray-700 rounded-xl border-2 border-gray-200 p-4 font-bold" disabled={isUploading} />
-          <input {...register('photoNo', { required: true, valueAsNumber: true })} type="number" placeholder="Photo No." className="w-full rounded-xl border-2 border-gray-200 text-gray-700 p-4 font-bold" disabled={isUploading} />
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <label className="font-bold text-gray-900">Wall Dimensions (ft)</label>
-            <button type="button" onClick={() => append({ width: '', height: '' })} className="text-xs font-black text-indigo-600 uppercase bg-indigo-50 px-4 py-2 rounded-full"> + Add Size </button>
-          </div>
-          {fields.map((field, index) => (
-            <div key={field.id} className="flex gap-4">
-              <input {...register(`sizes.${index}.width` as const, { required: true, valueAsNumber: true })} type="number" step="any" placeholder="Width" className="flex-1 rounded-xl text-gray-700 border border-gray-300 p-3" disabled={isUploading} />
-              <input {...register(`sizes.${index}.height` as const, { required: true, valueAsNumber: true })} type="number" step="any" placeholder="Height" className="flex-1 rounded-xl text-gray-700 border border-gray-300 p-3" disabled={isUploading} />
-              {fields.length > 1 && <button type="button" onClick={() => remove(index)} className="text-red-400">✕</button>}
-            </div>
-          ))}
-        </div>
-
-        <div className="border-2 border-dashed border-gray-300 text-gray-700 rounded-2xl p-8 flex flex-col items-center text-center">
-           <input type="file" multiple accept="image/*" onChange={(e) => setSelectedFiles(e.target.files)} disabled={isUploading} className="block w-full text-sm file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:font-black file:bg-indigo-600 file:text-white" />
-        </div>
-
-        <button type="submit" disabled={isUploading} className="w-full bg-gray-900 text-white py-4 rounded-xl font-black text-lg hover:bg-black transition-all">
-          {isUploading ? uploadStatus : 'Submit Photos'}
+      {/* ── DESKTOP Header ───────────────────────────────────────────────── */}
+      <div className="hidden lg:flex items-center gap-3 max-w-[720px] mx-auto px-8 pt-11 pb-7">
+        <button
+          onClick={() => router.back()}
+          className="w-9 h-9 border border-(--border-2) rounded-full bg-transparent text-(--ink) cursor-pointer flex items-center justify-center shrink-0"
+        >
+          <X size={18} weight={1.8} />
         </button>
+        <div className="text-[22px] font-bold tracking-[-0.02em] text-(--ink)">
+          New submission
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <div className="px-4 pt-1 pb-[104px] lg:px-8 lg:pt-0 lg:pb-11 flex flex-col gap-[14px] lg:gap-5 lg:max-w-[720px] lg:mx-auto">
+          {/* Location */}
+          <div>
+            <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Wall location</div>
+            <div className={[inputBox, errors.location ? "border-(--rejected)" : ""].join(" ")}>
+              <input
+                {...register("location", { required: true })}
+                placeholder="Hallway 8A — north wall"
+                disabled={busy}
+                className={innerInput}
+              />
+            </div>
+            <div className={["text-[11px] mt-1.5", errors.location ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
+              {errors.location ? "Location is required." : "Where is this wall on the job site? Be specific."}
+            </div>
+          </div>
+
+          {/* Sizes */}
+          <div>
+            <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
+              Wall sizes <span className="text-(--ink-4) font-medium">· at least one</span>
+            </div>
+            <SizesField fields={fields} register={register} remove={remove} append={append} busy={busy} area={area} />
+          </div>
+
+          {/* Photo number */}
+          <div>
+            <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Photo number</div>
+            <div className={[inputBox, "max-w-[220px] lg:max-w-none lg:w-[240px]", errors.photoNo ? "border-(--rejected)" : ""].join(" ")}>
+              <input
+                {...register("photoNo", { required: true })}
+                type="number"
+                min="1"
+                placeholder="07"
+                disabled={busy}
+                className={[innerInput, "font-(--mono)"].join(" ")}
+              />
+              <Suffix text="of submission" />
+            </div>
+            <div className={["text-[11px] mt-1.5", errors.photoNo ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
+              {errors.photoNo ? "Required." : "Sequence number for this submission's photos."}
+            </div>
+          </div>
+
+          {/* Photos */}
+          <div>
+            <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
+              Photos <span className="text-(--ink-4) font-medium">· {files.length} of 20</span>
+            </div>
+            <PhotoPicker files={files} prevs={prevs} photoErr={photoErr} busy={busy} onPick={pick} onDrop={drop} />
+            <div className={["text-[11px] mt-1.5", photoErr ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
+              {photoErr ? "Pick at least one photo." : "Pick photos from your gallery · max 20 per submission."}
+            </div>
+          </div>
+
+          {/* Desktop submit */}
+          <div className="hidden lg:block">
+            <SubmitButton busy={busy} step={step} />
+          </div>
+        </div>
+
+        {/* Mobile fixed submit */}
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[51] px-4 pt-3 pb-7 bg-(--paper) border-t border-(--border)">
+          <SubmitButton busy={busy} step={step} />
+        </div>
       </form>
     </div>
   );

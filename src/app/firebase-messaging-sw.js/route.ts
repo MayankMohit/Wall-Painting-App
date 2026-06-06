@@ -27,8 +27,8 @@ messaging.onBackgroundMessage(function(payload) {
   var body  = n.body  || '';
   self.registration.showNotification(title, {
     body:     body,
-    icon:     '/icon-512.png',
-    badge:    '/icon-192.png',
+    icon:     '/app-icon.png',
+    badge:    '/app-icon.png',
     tag:      'wallo-notif',
     renotify: true,
     data:     { url: self.location.origin },

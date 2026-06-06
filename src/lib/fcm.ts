@@ -20,8 +20,8 @@ export async function sendFcmToUser(
         ...(payload.data ? { data: payload.data } : {}),
         webpush: {
           notification: {
-            icon:     '/icon-512.png',
-            badge:    '/icon-192.png',
+            icon:     '/app-icon.png',
+            badge:    '/app-icon.png',
             tag:      'wallo-notif',
             renotify: true,
           },

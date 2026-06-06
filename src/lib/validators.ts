@@ -59,7 +59,6 @@ export const UpdateProfileSchema = z.object({
 });
 
 export const ChangePasswordSchema = z.object({
-  currentPassword: z.string().min(1, { error: 'Current password is required' }),
   newPassword: z.string().min(8, { error: 'New password must be at least 8 characters' }),
 });
 

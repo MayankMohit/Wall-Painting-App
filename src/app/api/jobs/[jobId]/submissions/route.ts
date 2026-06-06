@@ -19,11 +19,29 @@ export const GET = withAuth({ access: requireJobAccess })(
       query.painterId = new Types.ObjectId(ctx.user!.userId);
     }
 
-    const submissions = await Submission.find(query)
-      .select('_id photoNo location status submittedAt painterId images')
-      .populate('images', 'previewCloudinaryUrl generatedNumber')
-      .sort({ submittedAt: -1 })
-      .lean();
+    const submissions = await Submission.aggregate([
+      { $match: query },
+      { $sort: { submittedAt: -1 } },
+      { $addFields: { imageCount: { $size: '$images' } } },
+      {
+        $lookup: {
+          from: 'photos',
+          let: { firstId: { $arrayElemAt: ['$images', 0] } },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$_id', '$$firstId'] } } },
+            { $project: { _id: 0, previewCloudinaryUrl: 1 } },
+          ],
+          as: 'firstPhoto',
+        },
+      },
+      {
+        $project: {
+          photoNo: 1, location: 1, status: 1, submittedAt: 1, painterId: 1,
+          imageCount: 1,
+          previewUrl: { $arrayElemAt: ['$firstPhoto.previewCloudinaryUrl', 0] },
+        },
+      },
+    ]);
 
     return ok(submissions);
   }

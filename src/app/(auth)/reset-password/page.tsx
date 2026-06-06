@@ -1,49 +1,91 @@
-'use client';
+"use client";
 
-import { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import AuthShell from "@/components/auth/AuthShell";
+import AuthField from "@/components/auth/AuthField";
+import Button from "@/components/ui/Button";
+import {
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  Shield,
+  Check,
+  ArrowRight,
+} from "@/components/auth/icons";
+
+function PasswordRule({ met, label }: { met: boolean; label: string }) {
+  return (
+    <div
+      className={`flex items-center gap-2 text-[12px] ${met ? "text-(--approved)" : "text-(--ink-3)"}`}
+    >
+      <div
+        className={[
+          "w-4 h-4 rounded-full shrink-0 border-[1.5px] flex items-center justify-center transition-[background,border-color] duration-150",
+          met
+            ? "border-(--approved) bg-(--approved)"
+            : "border-(--border-3) bg-transparent",
+        ].join(" ")}
+      >
+        {met && <Check size={10} weight={2.8} style={{ color: "#fff" }} />}
+      </div>
+      {label}
+    </div>
+  );
+}
 
 function ResetPasswordForm() {
   const router = useRouter();
-  const token = useSearchParams().get('token');
+  const token = useSearchParams().get("token");
 
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  const rules = [
+    { met: password.length >= 8, label: "At least 8 characters" },
+    { met: /[A-Z]/.test(password), label: "One uppercase letter" },
+    { met: /[0-9]/.test(password), label: "One number" },
+  ];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
     if (!token) {
-      setError('Invalid or missing reset token. Please request a new link.');
+      setError("Invalid or missing reset token. Please request a new link.");
       return;
     }
     if (password !== confirm) {
-      setError('Passwords do not match.');
+      setError("Passwords do not match.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const res = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, newPassword: password }),
       });
       const json = await res.json();
       if (!res.ok) {
         const e = (json.data ?? json).error;
-        setError((typeof e === 'string' ? e : e?.message) ?? 'Failed to reset password. The link may have expired.');
+        setError(
+          (typeof e === "string" ? e : e?.message) ??
+            "Failed to reset password. The link may have expired.",
+        );
         return;
       }
       setSuccess(true);
-      setTimeout(() => router.push('/login'), 2000);
+      setTimeout(() => router.push("/login"), 2000);
     } catch {
-      setError('Network error. Please check your connection and try again.');
+      setError("Network error. Please check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -51,96 +93,139 @@ function ResetPasswordForm() {
 
   if (success) {
     return (
-      <div className="space-y-4 py-2 text-center">
-        <div className="flex justify-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
-            <svg className="h-7 w-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
+      <div className="px-4.5 py-7 rounded-(--r) bg-(--approved-soft) border border-(--approved) flex flex-col items-center gap-3.5 text-center">
+        <div className="w-11 h-11 rounded-full bg-(--approved) flex items-center justify-center text-white">
+          <Check size={20} weight={2.4} />
         </div>
         <div>
-          <p className="font-bold text-gray-900">Password updated!</p>
-          <p className="mt-1 text-sm text-gray-500">Redirecting you to login…</p>
+          <p className="text-[15px] font-semibold text-(--approved) m-0">
+            Password updated!
+          </p>
+          <p className="text-[13px] text-(--approved) mt-1 opacity-70 m-0">
+            Redirecting you to sign in…
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="new-password" className="mb-1 block text-sm font-medium text-gray-700">
-          New Password
-        </label>
-        <input
-          id="new-password"
-          type="password"
-          required
-          minLength={8}
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          disabled={submitting}
-          placeholder="Min. 8 characters"
-          className="w-full rounded-md border-2 border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:border-blue-600 focus:outline-none disabled:bg-gray-100"
-        />
-      </div>
-
-      <div>
-        <label htmlFor="confirm-password" className="mb-1 block text-sm font-medium text-gray-700">
-          Confirm New Password
-        </label>
-        <input
-          id="confirm-password"
-          type="password"
-          required
-          value={confirm}
-          onChange={e => setConfirm(e.target.value)}
-          disabled={submitting}
-          placeholder="••••••••"
-          className="w-full rounded-md border-2 border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:border-blue-600 focus:outline-none disabled:bg-gray-100"
-        />
-      </div>
-
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+        <div className="px-3.5 py-2.5 bg-(--rejected-soft) border border-(--rejected) rounded-(--r) text-[13px] text-(--rejected)">
           {error}
         </div>
       )}
 
-      <button
-        type="submit"
+      <AuthField
+        label="New password"
+        type={showPassword ? "text" : "password"}
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="••••••••"
+        autoComplete="new-password"
+        required
         disabled={submitting}
-        className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-      >
-        {submitting ? 'Updating…' : 'Reset Password'}
-      </button>
+        trailing={
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="text-(--ink-3) bg-none border-none cursor-pointer flex p-0"
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        }
+      />
 
-      <p className="text-center text-sm">
-        <Link href="/login" className="font-medium text-gray-500 hover:text-gray-800 hover:underline">
-          Cancel — back to Login
-        </Link>
-      </p>
+      {password.length > 0 && (
+        <div className="flex flex-col gap-1.75 pl-0.5">
+          {rules.map((r) => (
+            <PasswordRule key={r.label} met={r.met} label={r.label} />
+          ))}
+        </div>
+      )}
+
+      <AuthField
+        label="Confirm password"
+        type={showConfirm ? "text" : "password"}
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
+        placeholder="••••••••"
+        autoComplete="new-password"
+        required
+        disabled={submitting}
+        trailing={
+          <button
+            type="button"
+            onClick={() => setShowConfirm((v) => !v)}
+            className="text-(--ink-3) bg-none border-none cursor-pointer flex p-0"
+          >
+            {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        }
+      />
+
+      <Button
+        type="submit"
+        variant="primary"
+        size="lg"
+        full
+        disabled={submitting || !password || !confirm}
+        trailing={<ArrowRight size={18} weight={2.2} />}
+      >
+        {submitting ? "Updating…" : "Reset password"}
+      </Button>
     </form>
   );
 }
 
 export default function ResetPasswordPage() {
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Create New Password</h1>
-        <p className="mt-1 text-sm text-gray-500">Enter your new password below.</p>
-      </div>
+    <AuthShell
+      tagline={
+        <>
+          One last
+          <br />
+          step.
+        </>
+      }
+    >
+      <div className="px-6 pt-10 pb-12 lg:pt-0 lg:pb-0 lg:px-0">
+        {/* Back */}
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-1.5 text-[13px] text-(--ink-3) no-underline mb-7"
+        >
+          <ArrowLeft size={16} weight={2} />
+          Back to sign in
+        </Link>
 
-      {/* Suspense required by Next.js for useSearchParams in client components */}
-      <Suspense fallback={
-        <div className="flex justify-center py-8">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+        {/* Icon box */}
+        <div className="w-11 h-11 rounded-xl bg-(--accent-soft) flex items-center justify-center mb-5 text-(--accent-deep)">
+          <Shield size={20} weight={2} />
         </div>
-      }>
-        <ResetPasswordForm />
-      </Suspense>
-    </div>
+
+        {/* Heading */}
+        <h1 className="text-[28px] font-bold tracking-tight text-(--ink) leading-[1.15]">
+          Set new password
+        </h1>
+        <p className="text-[14px] text-(--ink-3) mt-1.5">
+          Choose a strong password for your account.
+        </p>
+
+        <div className="mt-5.5">
+          {/* Suspense required by Next.js for useSearchParams in client components */}
+          <Suspense
+            fallback={
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 rounded-full border-2 border-(--border-2) border-t-(--ink) animate-spin" />
+              </div>
+            }
+          >
+            <ResetPasswordForm />
+          </Suspense>
+        </div>
+      </div>
+    </AuthShell>
   );
 }

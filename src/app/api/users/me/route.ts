@@ -1,5 +1,6 @@
+import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
-import { User } from '@/lib/models';
+import { User, Submission } from '@/lib/models';
 import { ok } from '@/lib/api-response';
 import { UpdateProfileSchema } from '@/lib/validators';
 import { withAuth } from '@/lib/middleware';
@@ -13,9 +14,29 @@ const EXCLUDED = '-password -resetPasswordToken -resetPasswordExpires';
 export const GET = withAuth()(
   async (req, ctx) => {
     await connectDB();
-    const user = await User.findById(ctx.user!.userId).select(EXCLUDED);
+    const userId = ctx.user!.userId;
+
+    const [user, submissionStats] = await Promise.all([
+      User.findById(userId).select(EXCLUDED).lean(),
+      Submission.aggregate([
+        { $match: { painterId: new mongoose.Types.ObjectId(userId) } },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+    ]);
+
     if (!user) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'User not found');
-    return ok(user);
+
+    const statsMap = Object.fromEntries(
+      submissionStats.map((s: { _id: string; count: number }) => [s._id, s.count])
+    );
+
+    return ok({
+      ...user,
+      stats: {
+        completedJobs:   statsMap['approved'] ?? 0,
+        pendingApprovals: statsMap['pending']  ?? 0,
+      },
+    });
   }
 );
 

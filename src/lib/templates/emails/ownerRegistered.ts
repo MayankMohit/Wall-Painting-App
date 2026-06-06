@@ -1,4 +1,4 @@
-import { wrapEmail } from '@/lib/templates/emails/_base';
+import { wrapEmail, h2, p, small, btn, badge, dataTable } from './_base';
 
 export function renderOwnerRegisteredEmail(data: {
   ownerName: string;
@@ -7,16 +7,22 @@ export function renderOwnerRegisteredEmail(data: {
   approvalUrl?: string;
 }): { subject: string; html: string } {
   const { ownerName, ownerEmail, ownerPhone, approvalUrl } = data;
+
+  const rows: Array<[string, string]> = [
+    ['Name', ownerName],
+    ['Email', ownerEmail],
+    ...(ownerPhone ? [['Phone', ownerPhone] as [string, string]] : []),
+  ];
+
   const body = `
-    <h2>New owner registration pending approval</h2>
-    <p>A new owner account is awaiting your approval:</p>
-    <ul style="padding-left:20px;margin:12px 0;">
-      <li><strong>Name:</strong> ${ownerName}</li>
-      <li><strong>Email:</strong> ${ownerEmail}</li>
-      ${ownerPhone ? `<li><strong>Phone:</strong> ${ownerPhone}</li>` : ''}
-    </ul>
-    ${approvalUrl ? `<p><a href="${approvalUrl}" class="button">Review in Dashboard</a></p>` : ''}
+    ${badge('Action required', 'orange')}
+    ${h2('New owner registration')}
+    ${p('A new business owner has registered and is awaiting your approval.')}
+    ${dataTable(...rows)}
+    ${approvalUrl ? btn('Review in Dashboard', approvalUrl) : ''}
+    ${small('Log in to the admin dashboard to approve or reject this registration.')}
   `;
+
   return {
     subject: `New owner registration: ${ownerName}`,
     html: wrapEmail(body, `${ownerName} (${ownerEmail}) is awaiting approval`),

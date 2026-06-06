@@ -1,4 +1,4 @@
-import { wrapEmail } from '@/lib/templates/emails/_base';
+import { wrapEmail, h2, p, small, box, boxLabel, boxText, badge, divider } from './_base';
 
 export function renderUserSuspendedEmail(data: {
   name: string;
@@ -7,18 +7,22 @@ export function renderUserSuspendedEmail(data: {
 }): { subject: string; html: string } {
   const { name, reason, adminContact } = data;
   const contact = adminContact ?? process.env.ADMIN_CONTACT_EMAIL ?? 'support';
+
   const body = `
-    <h2>Your account has been suspended</h2>
-    <p>Hi ${name},</p>
-    <p>Your Wall Painter account has been suspended by an administrator.</p>
-    <hr class="divider" />
-    <p class="meta"><strong>Reason:</strong></p>
-    <p>${reason}</p>
-    <hr class="divider" />
-    <p class="meta">If you believe this is a mistake, please contact <a href="mailto:${contact}">${contact}</a>.</p>
+    ${badge('Account suspended', 'red')}
+    ${h2('Your account has been suspended')}
+    ${p(`Hi ${name},`)}
+    ${p('Your Wallo account has been suspended by an administrator.')}
+    ${box(`
+      ${boxLabel('Reason', 'red')}
+      ${boxText(reason, 'red')}
+    `, 'red')}
+    ${divider}
+    ${small(`If you believe this is a mistake, contact <a href="mailto:${contact}" style="color:#5c5040;font-weight:600;">${contact}</a> to appeal.`)}
   `;
+
   return {
-    subject: 'Your Wall Painter account has been suspended',
+    subject: 'Your Wallo account has been suspended',
     html: wrapEmail(body, `Account suspended — ${reason}`),
   };
 }

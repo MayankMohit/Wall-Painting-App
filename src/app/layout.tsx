@@ -16,6 +16,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Wallo",
   description: "Wall Painting Job Management",
+  icons: {
+    icon: '/app-icon.png',
+    apple: '/app-icon.png',
+  },
 };
 
 export default function RootLayout({

@@ -1,10 +1,14 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useState } from "react";
+import Link from "next/link";
+import AuthShell from "@/components/auth/AuthShell";
+import AuthField from "@/components/auth/AuthField";
+import Button from "@/components/ui/Button";
+import { ArrowLeft, Send, Alert, Check } from "@/components/auth/icons";
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -16,80 +20,130 @@ export default function ForgotPasswordPage() {
     setMessage(null);
     setError(null);
     try {
-      const res = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
       const json = await res.json();
       if (!res.ok) {
         const e = (json.data ?? json).error;
-        setError((typeof e === 'string' ? e : e?.message) ?? 'Something went wrong. Please try again.');
+        setError(
+          (typeof e === "string" ? e : e?.message) ??
+            "Something went wrong. Please try again.",
+        );
         return;
       }
-      // Show the server message verbatim — backend returns different copy for
-      // verified vs unverified email accounts
       setMessage((json.data ?? json).message);
       setDone(true);
     } catch {
-      setError('Network error. Please check your connection and try again.');
+      setError("Network error. Please check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Reset Password</h1>
-        <p className="mt-1 text-sm text-gray-500">
+    <AuthShell
+      tagline={
+        <>
+          Forgotten your
+          <br />
+          password?
+        </>
+      }
+    >
+      <div className="px-6 pt-10 pb-12 lg:pt-0 lg:pb-0 lg:px-0">
+        {/* Back */}
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-1.5 text-[13px] text-(--ink-3) no-underline mb-7"
+        >
+          <ArrowLeft size={16} weight={2} />
+          Back to sign in
+        </Link>
+
+        {/* Icon box */}
+        <div className="w-11 h-11 rounded-xl bg-(--accent-soft) flex items-center justify-center mb-5 text-(--accent-deep)">
+          <Send size={20} weight={2} />
+        </div>
+
+        {/* Heading */}
+        <h1 className="text-[28px] font-bold tracking-tight text-(--ink) leading-[1.15]">
+          Forgot password?
+        </h1>
+        <p className="text-[14px] text-(--ink-3) mt-1.5">
           Enter your email and we&apos;ll send you a reset link.
         </p>
-      </div>
 
-      {!done ? (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
-              Email Address
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              disabled={submitting}
-              placeholder="you@example.com"
-              className="w-full rounded-md border-2 border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:border-blue-600 focus:outline-none disabled:bg-gray-100"
-            />
-          </div>
+        <div className="mt-5.5">
+          {!done ? (
+            <>
+              {error && (
+                <div className="mb-3.5 px-3.5 py-2.5 bg-(--rejected-soft) border border-(--rejected) rounded-(--r) text-[13px] text-(--rejected)">
+                  {error}
+                </div>
+              )}
 
-          {error && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-              {error}
+              <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+                <AuthField
+                  label="Email address"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  required
+                  disabled={submitting}
+                />
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  full
+                  disabled={!email || submitting}
+                  leading={<Send size={18} weight={2.2} />}
+                >
+                  {submitting ? "Sending…" : "Send reset email"}
+                </Button>
+              </form>
+
+              {/* Hint */}
+              <div className="mt-4 px-3.5 py-3 rounded-(--r) bg-(--paper-2) border border-(--border) flex gap-2.5 items-start">
+                <Alert
+                  size={15}
+                  style={{ flexShrink: 0, marginTop: 1, color: "var(--ink-3)" }}
+                />
+                <p className="text-[12px] text-(--ink-3) leading-normal m-0">
+                  Check your spam folder if you don&apos;t see the email within
+                  a few minutes.
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="px-4.5 py-6 rounded-(--r) bg-(--approved-soft) border border-(--approved) flex flex-col items-center gap-3.5 text-center">
+              <div className="w-11 h-11 rounded-full bg-(--approved) flex items-center justify-center text-white">
+                <Check size={20} weight={2.4} />
+              </div>
+              <p className="text-[13px] text-(--approved) leading-normal m-0">
+                {message ?? "Check your email for the reset link."}
+              </p>
             </div>
           )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-          >
-            {submitting ? 'Sending…' : 'Send Reset Link'}
-          </button>
-        </form>
-      ) : (
-        <div className="rounded-md border border-green-200 bg-green-50 px-4 py-4 text-sm text-green-800">
-          {message}
         </div>
-      )}
 
-      <p className="text-center text-sm">
-        <Link href="/login" className="font-medium text-blue-600 hover:underline">
-          ← Back to Login
-        </Link>
-      </p>
-    </div>
+        {/* Bottom link */}
+        <p className="mt-7 text-center text-[13px] text-(--ink-3)">
+          Remembered it?{" "}
+          <Link
+            href="/login"
+            className="text-(--ink) font-semibold no-underline"
+          >
+            Back to sign in
+          </Link>
+        </p>
+      </div>
+    </AuthShell>
   );
 }

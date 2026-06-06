@@ -1,21 +1,31 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { signInWithPhoneNumber, RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
-import { firebaseAuth } from '@/lib/firebase-client';
-import { useAuthStore } from '@/store/authStore';
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import {
+  signInWithPhoneNumber,
+  RecaptchaVerifier,
+  ConfirmationResult,
+} from "firebase/auth";
+import { firebaseAuth } from "@/lib/firebase-client";
+import { useAuthStore } from "@/store/authStore";
+import AuthShell from "@/components/auth/AuthShell";
+import AuthField from "@/components/auth/AuthField";
+import Segmented from "@/components/auth/Segmented";
+import Button from "@/components/ui/Button";
+import { ArrowRight, Eye, EyeOff, Send, Check } from "@/components/auth/icons";
 
-type Tab = 'password' | 'otp';
+type Tab = "password" | "otp";
 
-function redirectAfterLogin(role: string, status: string, router: ReturnType<typeof useRouter>) {
-  if (role === 'owner') {
-    if (status !== 'active') {
-      router.push('/pending-approval');
-    } else {
-      router.push('/owner/jobs');
-    }
+function redirectAfterLogin(
+  role: string,
+  status: string,
+  router: ReturnType<typeof useRouter>,
+) {
+  if (role === "owner") {
+    router.push(status !== "active" ? "/pending-approval" : "/owner/jobs");
   } else {
     router.push(`/${role}/dashboard`);
   }
@@ -23,43 +33,47 @@ function redirectAfterLogin(role: string, status: string, router: ReturnType<typ
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, loginWithEmailOtp, loginWithPhoneOtp, isLoading, error, clearError } = useAuthStore();
+  const {
+    login,
+    loginWithEmailOtp,
+    loginWithPhoneOtp,
+    isLoading,
+    error,
+    clearError,
+  } = useAuthStore();
 
-  const [tab, setTab] = useState<Tab>('password');
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
+  const [tab, setTab] = useState<Tab>("password");
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-  // OTP shared state
-  const [otpInput, setOtpInput] = useState('');
+  const [otpInput, setOtpInput] = useState("");
   const [showOtp, setShowOtp] = useState(false);
   const [sending, setSending] = useState(false);
   const [otpConfirming, setOtpConfirming] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-
-  // Email OTP
   const [sessionId, setSessionId] = useState<string | null>(null);
-
-  // Phone OTP
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [confirmationResult, setConfirmationResult] =
+    useState<ConfirmationResult | null>(null);
 
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
 
-  useEffect(() => { clearError(); }, [clearError]);
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  const isEmail = identifier.includes('@');
+  const isEmail = identifier.includes("@");
 
   function resetOtpState() {
-    setOtpInput('');
+    setOtpInput("");
     setShowOtp(false);
     setSendError(null);
     setSessionId(null);
     setConfirmationResult(null);
   }
 
-  function handleTabChange(next: Tab) {
-    setTab(next);
+  function handleTabChange(idx: number) {
+    setTab(idx === 0 ? "password" : "otp");
     resetOtpState();
     clearError();
   }
@@ -68,8 +82,6 @@ export default function LoginPage() {
     setIdentifier(val);
     if (showOtp) resetOtpState();
   }
-
-  // ── Password login ────────────────────────────────────────────────────────
 
   async function handlePasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -80,57 +92,66 @@ export default function LoginPage() {
     }
   }
 
-  // ── OTP: send ─────────────────────────────────────────────────────────────
-
   async function handleSendOtp() {
     setSendError(null);
     setSending(true);
     try {
       if (isEmail) {
-        const res = await fetch('/api/auth/login/otp/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const res = await fetch("/api/auth/login/otp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ identifier }),
         });
         const json = await res.json();
         if (!res.ok) {
           const e = (json.data ?? json).error;
-          setSendError((typeof e === 'string' ? e : e?.message) ?? 'Failed to send OTP');
+          setSendError(
+            (typeof e === "string" ? e : e?.message) ?? "Failed to send OTP",
+          );
           return;
         }
         setSessionId((json.data ?? json).sessionId);
         setShowOtp(true);
       } else {
-        // Phone path — Firebase
         if (!recaptchaRef.current) {
-          const container = document.getElementById('recaptcha-container');
-          if (container) container.innerHTML = '';
-          recaptchaRef.current = new RecaptchaVerifier(firebaseAuth, 'recaptcha-container', { size: 'invisible' });
+          const container = document.getElementById("recaptcha-container");
+          if (container) container.innerHTML = "";
+          recaptchaRef.current = new RecaptchaVerifier(
+            firebaseAuth,
+            "recaptcha-container",
+            { size: "invisible" },
+          );
           await recaptchaRef.current.render();
         }
-        const result = await signInWithPhoneNumber(firebaseAuth, identifier, recaptchaRef.current);
+        const result = await signInWithPhoneNumber(
+          firebaseAuth,
+          identifier,
+          recaptchaRef.current,
+        );
         setConfirmationResult(result);
         setShowOtp(true);
       }
     } catch (e: unknown) {
       if (recaptchaRef.current) {
-        try { recaptchaRef.current.clear(); } catch { /* ignore */ }
+        try {
+          recaptchaRef.current.clear();
+        } catch {
+          /* ignore */
+        }
         recaptchaRef.current = null;
       }
-      const msg = e instanceof Error ? e.message : '';
-      if (msg.includes('invalid-phone-number')) {
-        setSendError('Invalid phone number. Use E.164 format e.g. +919876543210');
-      } else if (msg.includes('too-many-requests')) {
-        setSendError('Too many attempts. Please wait before trying again.');
-      } else {
-        setSendError('Failed to send OTP. Please try again.');
-      }
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("invalid-phone-number"))
+        setSendError(
+          "Invalid phone number. Use E.164 format e.g. +919876543210",
+        );
+      else if (msg.includes("too-many-requests"))
+        setSendError("Too many attempts. Please wait before trying again.");
+      else setSendError("Failed to send OTP. Please try again.");
     } finally {
       setSending(false);
     }
   }
-
-  // ── OTP: confirm ──────────────────────────────────────────────────────────
 
   async function confirmOtp(otp: string) {
     if (isEmail) {
@@ -152,9 +173,8 @@ export default function LoginPage() {
           redirectAfterLogin(user!.role, user!.status, router);
         }
       } catch {
-        // authStore will surface generic errors; set a local one for bad OTP
-        useAuthStore.setState({ error: 'Incorrect OTP. Please try again.' });
-        setOtpInput('');
+        useAuthStore.setState({ error: "Incorrect OTP. Please try again." });
+        setOtpInput("");
       } finally {
         setOtpConfirming(false);
       }
@@ -162,159 +182,199 @@ export default function LoginPage() {
   }
 
   function handleOtpChange(val: string) {
-    const digits = val.replace(/\D/g, '').slice(0, 6);
+    const digits = val.replace(/\D/g, "").slice(0, 6);
     setOtpInput(digits);
     if (digits.length === 6) confirmOtp(digits);
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   return (
-    <>
-      <div className="space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Welcome Back</h1>
-          <p className="mt-1 text-sm text-gray-500">Sign in to your account</p>
+    <AuthShell>
+      <div className="px-6 pt-16 pb-12 lg:pt-0 lg:pb-0 lg:px-0">
+        {/* App icon — mobile only */}
+        <div className="lg:hidden mb-8">
+          <div className="w-[38px] h-[38px] rounded-[10px] overflow-hidden">
+            <Image
+              src="/app-icon.png"
+              alt="Wallo"
+              width={38}
+              height={38}
+              className="object-cover block"
+            />
+          </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex rounded-lg border-2 border-gray-200 p-1">
-          {(['password', 'otp'] as Tab[]).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => handleTabChange(t)}
-              className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
-                tab === t
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {t === 'password' ? 'Password' : 'OTP'}
-            </button>
-          ))}
+        {/* Heading */}
+        <h1 className="text-[30px] font-bold tracking-[-0.025em] text-(--ink) leading-[1.1]">
+          Welcome back
+        </h1>
+        <p className="text-[14px] text-(--ink-3) mt-1.5">
+          Sign in to continue your job.
+        </p>
+
+        {/* Tab switcher */}
+        <div className="mt-[22px]">
+          <Segmented
+            items={["Password", "One‑time code"]}
+            active={tab === "password" ? 0 : 1}
+            onChange={handleTabChange}
+          />
         </div>
 
-        {/* Error banner */}
-        {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-            {error}
+        {/* Error */}
+        {(error || sendError) && (
+          <div className="mt-3.5 px-[14px] py-[10px] bg-(--rejected-soft) border border-(--rejected) rounded-(--r) text-[13px] text-(--rejected)">
+            {error || sendError}
           </div>
         )}
 
-        {/* ── Password tab ── */}
-        {tab === 'password' && (
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Email or Phone
-              </label>
-              <input
-                type="text"
-                value={identifier}
-                onChange={e => setIdentifier(e.target.value)}
-                required
-                placeholder="you@example.com or +919876543210"
-                className="w-full rounded-md border-2 border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:border-blue-600 focus:outline-none"
-              />
-            </div>
+        <div className="mt-[18px] flex flex-col gap-3.5">
+          {/* Identifier field — both tabs */}
+          <AuthField
+            label="Email or phone"
+            type="text"
+            value={identifier}
+            onChange={(e) => handleIdentifierChange(e.target.value)}
+            placeholder="you@example.com or +919876543210"
+            autoComplete="username"
+          />
 
-            <div>
-              <div className="mb-1 flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">Password</label>
+          {/* ── Password tab ── */}
+          {tab === "password" && (
+            <>
+              <AuthField
+                label="Password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                trailing={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="text-(--ink-3) bg-none border-none cursor-pointer flex p-0"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                }
+              />
+
+              {/* Stay signed in + Forgot password */}
+              <div className="flex justify-between items-center mt-0.5">
+                <label className="flex gap-2 items-center text-[13px] text-(--ink-2) cursor-pointer">
+                  <span className="w-[18px] h-[18px] rounded-[5px] bg-(--ink) inline-flex items-center justify-center text-white shrink-0">
+                    <Check size={12} weight={2.6} />
+                  </span>
+                  Stay signed in
+                </label>
                 <Link
                   href="/forgot-password"
-                  className="text-sm font-medium text-blue-600 hover:underline"
+                  className="text-[13px] text-(--accent-deep) font-semibold no-underline"
                 >
                   Forgot password?
                 </Link>
               </div>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                className="w-full rounded-md border-2 border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:border-blue-600 focus:outline-none"
-              />
-            </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-            >
-              {isLoading ? 'Signing in…' : 'Sign In'}
-            </button>
-          </form>
-        )}
-
-        {/* ── OTP tab ── */}
-        {tab === 'otp' && (
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Email or Phone
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={identifier}
-                  onChange={e => handleIdentifierChange(e.target.value)}
-                  placeholder="you@example.com or +919876543210"
-                  className="flex-1 rounded-md border-2 border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:border-blue-600 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleSendOtp}
-                  disabled={!identifier || sending || isLoading}
-                  className="whitespace-nowrap rounded-md border-2 border-blue-600 px-3 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+              <form onSubmit={handlePasswordSubmit} className="mt-2">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  full
+                  disabled={isLoading}
+                  trailing={<ArrowRight size={18} weight={2.2} />}
                 >
-                  {sending ? 'Sending…' : showOtp ? 'Resend OTP' : 'Send OTP'}
-                </button>
-              </div>
+                  {isLoading ? "Signing in…" : "Sign in"}
+                </Button>
+              </form>
+            </>
+          )}
+
+          {/* ── OTP tab — send state ── */}
+          {tab === "otp" && !showOtp && (
+            <>
               {!isEmail && identifier && (
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="text-[12px] text-(--ink-3) leading-normal -mt-1">
                   Include country code — e.g. +91 for India
                 </p>
               )}
-              {sendError && <p className="mt-1 text-xs text-red-600">{sendError}</p>}
-            </div>
+              <p className="text-[12px] text-(--ink-3) leading-normal -mt-1">
+                We&apos;ll text or email you a 6‑digit code. No password needed.
+              </p>
+              <Button
+                variant="primary"
+                size="lg"
+                full
+                disabled={!identifier || sending}
+                onClick={handleSendOtp}
+                leading={<Send size={18} weight={2.2} />}
+              >
+                {sending ? "Sending…" : "Send code"}
+              </Button>
+            </>
+          )}
 
-            {showOtp && (
+          {/* ── OTP tab — enter code state ── */}
+          {tab === "otp" && showOtp && (
+            <>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Enter OTP
-                </label>
+                <div className="text-[12px] font-semibold text-(--ink-2) mb-2">
+                  Enter the 6‑digit code
+                </div>
                 <input
                   type="text"
                   inputMode="numeric"
                   value={otpInput}
-                  onChange={e => handleOtpChange(e.target.value)}
+                  onChange={(e) => handleOtpChange(e.target.value)}
                   maxLength={6}
                   disabled={otpConfirming || isLoading}
-                  placeholder={otpConfirming || isLoading ? 'Verifying…' : 'Enter 6-digit OTP'}
+                  placeholder={
+                    otpConfirming || isLoading ? "Verifying…" : "· · · · · ·"
+                  }
                   autoFocus
-                  className="w-full rounded-md border-2 border-blue-300 px-3 py-2.5 text-sm tracking-widest text-gray-900 focus:border-blue-600 focus:outline-none disabled:bg-gray-50"
+                  className="w-full h-14 rounded-(--r) border-[1.5px] border-(--ink) bg-(--surface) text-[22px] tracking-[.3em] text-center font-(--mono) text-(--ink) outline-none"
                 />
-                <p className="mt-1 text-xs text-gray-400">
-                  {isEmail ? 'Check your inbox' : 'Sent via SMS'}
-                </p>
+                <div className="mt-2 text-[11px] text-(--ink-3) flex justify-between">
+                  <span>Sent to {identifier}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetOtpState();
+                      handleSendOtp();
+                    }}
+                    className="text-(--accent-deep) font-semibold bg-none border-none cursor-pointer text-[11px] font-(--font)"
+                  >
+                    Resend
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
-        )}
+              <Button
+                variant="primary"
+                size="lg"
+                full
+                disabled={otpInput.length < 6 || isLoading || otpConfirming}
+                onClick={() => confirmOtp(otpInput)}
+                trailing={<ArrowRight size={18} weight={2.2} />}
+              >
+                {isLoading || otpConfirming ? "Verifying…" : "Sign in"}
+              </Button>
+            </>
+          )}
+        </div>
 
-        <p className="text-center text-sm text-gray-600">
-          Don&apos;t have an account?{' '}
-          <Link href="/register" className="font-medium text-blue-600 hover:underline">
-            Sign up
+        {/* Bottom link */}
+        <p className="mt-8 text-center text-[13px] text-(--ink-3)">
+          New to Wallo?{" "}
+          <Link
+            href="/register"
+            className="text-(--ink) font-semibold no-underline"
+          >
+            Create account
           </Link>
         </p>
       </div>
 
-      {/* Invisible reCAPTCHA — Firebase mounts here for phone OTP, do not remove */}
       <div id="recaptcha-container" />
-    </>
+    </AuthShell>
   );
 }

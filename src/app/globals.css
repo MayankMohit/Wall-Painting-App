@@ -1,18 +1,47 @@
 @import "tailwindcss";
 
-@keyframes notif-slide-in {
-  from { opacity: 0; transform: translateX(110%); }
-  to   { opacity: 1; transform: translateX(0);    }
-}
-.notif-slide-in {
-  animation: notif-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-@keyframes notif-progress {
-  from { transform: scaleX(1); }
-  to   { transform: scaleX(0); }
-}
-
+/* ── Design tokens ───────────────────────────────────────────────────────── */
 :root {
+  /* Ink (warm near-blacks to light grays) */
+  --ink:        oklch(0.22 0.012 80);
+  --ink-2:      oklch(0.42 0.010 80);
+  --ink-3:      oklch(0.58 0.008 80);
+  --ink-4:      oklch(0.74 0.006 80);
+  /* Surfaces */
+  --paper:      oklch(0.985 0.005 75);
+  --paper-2:    oklch(0.965 0.006 75);
+  --surface:    #ffffff;
+  --surface-ink:oklch(0.18 0.012 80);
+  /* Borders */
+  --border:     oklch(0.92 0.005 75);
+  --border-2:   oklch(0.86 0.006 75);
+  --border-3:   oklch(0.78 0.008 75);
+  /* Brand accent — wet paint orange */
+  --accent:      oklch(0.68 0.185 50);
+  --accent-deep: oklch(0.55 0.18 45);
+  --accent-soft: oklch(0.96 0.04 60);
+  --accent-ink:  #ffffff;
+  /* Status */
+  --pending:       oklch(0.62 0.025 80);
+  --pending-soft:  oklch(0.94 0.012 80);
+  --approved:      oklch(0.48 0.12 150);
+  --approved-soft: oklch(0.95 0.04 150);
+  --rejected:      oklch(0.55 0.17 25);
+  --rejected-soft: oklch(0.95 0.04 25);
+  --info:          oklch(0.5 0.12 240);
+  --info-soft:     oklch(0.95 0.03 240);
+  /* Typography */
+  --font: 'Geist', var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono: 'Geist Mono', var(--font-geist-mono), ui-monospace, monospace;
+  /* Radii */
+  --r-sm: 6px;
+  --r:    10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(20,15,10,.06);
+  --shadow:    0 4px 14px rgba(20,15,10,.08), 0 1px 2px rgba(20,15,10,.04);
+  /* Legacy */
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -34,5 +63,73 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+  font-feature-settings: "ss01", "cv11";
+}
+
+/* ── Landing page ────────────────────────────────────────────────────────── */
+.landing-bg {
+  background: var(--ink);
+}
+
+/* Accent (orange) CTA — "Get started" */
+.landing-btn-primary {
+  height: 52px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.landing-btn-primary:hover { opacity: 0.9; }
+
+/* Ghost — "I have an account" */
+.landing-btn-ghost {
+  height: 52px;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255,255,255,.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.landing-btn-ghost:hover { color: rgba(255,255,255,.9); }
+
+/* ── Notifications ───────────────────────────────────────────────────────── */
+@keyframes notif-slide-in {
+  from { opacity: 0; transform: translateX(110%); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+.notif-slide-in {
+  animation: notif-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes notif-progress {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* ── Spinner ─────────────────────────────────────────────────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.landing-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  border-top-color: transparent;
+  animation: spin 0.7s linear infinite;
 }
