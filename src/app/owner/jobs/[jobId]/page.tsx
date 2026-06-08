@@ -49,6 +49,9 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
   const [selectedTypes, setSelectedTypes] = useState<('excel' | 'pdf_photos' | 'pdf_file')[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const [headerName, setHeaderName] = useState('SAHU AD.');
+  const [headerAddress, setHeaderAddress] = useState('Address - Piska More, Ratu Road, Ranchi, Mo: 9123232592');
+
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Form for Editing Job (Name & Description Only)
@@ -426,7 +429,30 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
               ))}
             </div>
 
-            <div className="flex gap-3">
+            {/* --- NEW LETTERHEAD FORM --- */}
+            <div className="space-y-4 pt-4 border-t border-gray-100">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Letterhead Name</label>
+                <input 
+                  type="text" 
+                  value={headerName}
+                  onChange={(e) => setHeaderName(e.target.value)}
+                  className="w-full rounded-xl border border-gray-300 p-2.5 text-sm font-medium text-gray-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Letterhead Address</label>
+                <textarea 
+                  value={headerAddress}
+                  onChange={(e) => setHeaderAddress(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-xl border border-gray-300 p-2.5 text-sm font-medium text-gray-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none resize-none"
+                />
+              </div>
+            </div>
+            {/* --------------------------- */}
+
+            <div className="flex gap-3 pt-2">
               <button onClick={() => setIsGenModalOpen(false)} className="flex-1 py-3 text-sm font-bold text-gray-600">Cancel</button>
               <button
                 onClick={async () => {
@@ -441,7 +467,11 @@ export default function JobOverviewPage({ params }: { params: Promise<{ jobId: s
                       },
                       body: JSON.stringify({
                         types: selectedTypes,
-                        ownerInput: { companyName: jobData?.companyName }
+                        ownerInput: { 
+                          companyName: headerName, // Uses the form state
+                          address: headerAddress,  // Uses the form state
+                          jobName: jobData?.companyName || ''
+                        }
                       })
                     });
 
