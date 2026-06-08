@@ -41,7 +41,7 @@ export default function JobDetailPage({
       (jobErr as { data?: { error?: { message?: string } } })?.data?.error
         ?.message ?? "Job not found";
     return (
-      <div className="m-6 p-4 rounded-(--r) bg-(--rejected-soft) text-(--rejected) text-[13px] font-medium border border-[oklch(0.55_0.17_25_/_0.2)]">
+      <div className="m-6 p-4 rounded-(--r) bg-(--rejected-soft) text-(--rejected) text-[13px] font-medium border border-[oklch(0.55_0.17_25/0.2)]">
         {msg}
       </div>
     );
@@ -106,9 +106,9 @@ export default function JobDetailPage({
         {job.status === "active" && (
           <Link
             href={submitHref}
-            className="fixed right-[18px] bottom-[100px] flex items-center gap-2.5 no-underline z-40"
+            className="fixed right-4.5 bottom-25 flex items-center gap-2.5 no-underline z-40"
           >
-            <div className="h-[52px] pl-[18px] pr-1.5 bg-(--ink) text-white flex items-center gap-2.5 rounded-full shadow-(--shadow)">
+            <div className="h-13 pl-4.5 pr-1.5 bg-(--ink) text-white flex items-center gap-2.5 rounded-full shadow-(--shadow)">
               <span className="text-[14px] font-semibold">Submit</span>
               <div className="w-10 h-10 rounded-full bg-(--accent) flex items-center justify-center text-white">
                 <Plus size={20} weight={2.4} />
@@ -119,7 +119,7 @@ export default function JobDetailPage({
       </div>
 
       {/* ── DESKTOP ─────────────────────────────────────────────────────── */}
-      <div className="hidden lg:block px-[52px] py-11">
+      <div className="hidden lg:block px-13 py-11">
         <div className="flex items-start justify-between mb-7">
           <div>
             <Link
@@ -129,7 +129,7 @@ export default function JobDetailPage({
               <ArrowL size={16} weight={2} />
               My jobs
             </Link>
-            <div className="text-[26px] font-bold tracking-[-0.025em] text-(--ink) leading-[1.1]">
+            <div className="text-[26px] font-bold tracking-tight text-(--ink) leading-[1.1]">
               {job.companyName}
             </div>
           </div>

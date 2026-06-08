@@ -131,7 +131,7 @@ export default function EditSubmissionPage({
       (error as { data?: { error?: { message?: string } } })?.data?.error?.message ??
       "Failed to load submission";
     return (
-      <div className="m-6 p-4 rounded-(--r) bg-(--rejected-soft) text-(--rejected) text-[13px] font-medium border border-[oklch(0.55_0.17_25_/_0.2)]">
+      <div className="m-6 p-4 rounded-(--r) bg-(--rejected-soft) text-(--rejected) text-[13px] font-medium border border-[oklch(0.55_0.17_25/0.2)]">
         {msg}
       </div>
     );
@@ -155,7 +155,7 @@ export default function EditSubmissionPage({
       </div>
 
       {/* ── DESKTOP Header ───────────────────────────────────────────────── */}
-      <div className="hidden lg:flex items-center gap-3 max-w-[720px] mx-auto px-8 pt-11 pb-7">
+      <div className="hidden lg:flex items-center gap-3 max-w-180 mx-auto px-8 pt-11 pb-7">
         <button
           onClick={() => router.back()}
           className="w-9 h-9 border border-(--border-2) rounded-full bg-transparent text-(--ink) cursor-pointer flex items-center justify-center shrink-0"
@@ -168,7 +168,7 @@ export default function EditSubmissionPage({
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="px-4 pt-1 pb-[104px] lg:px-8 lg:pt-0 lg:pb-11 flex flex-col gap-[14px] lg:gap-5 lg:max-w-[720px] lg:mx-auto">
+        <div className="px-4 pt-1 pb-26 lg:px-8 lg:pt-0 lg:pb-11 flex flex-col gap-3.5 lg:gap-5 lg:max-w-180 lg:mx-auto">
           {/* Location */}
           <div>
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Wall location</div>
@@ -224,7 +224,7 @@ export default function EditSubmissionPage({
         </div>
 
         {/* Mobile fixed submit */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[51] px-4 pt-3 pb-7 bg-(--paper) border-t border-(--border)">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-51 px-4 pt-3 pb-7 bg-(--paper) border-t border-(--border)">
           <SubmitButton busy={busy} step={step} label="Save changes" />
         </div>
       </form>

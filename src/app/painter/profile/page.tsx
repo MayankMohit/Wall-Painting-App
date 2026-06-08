@@ -33,7 +33,7 @@ export default function PainterProfilePage() {
 
   if (profile.error) {
     return (
-      <div className="m-6 p-4 rounded-(--r) bg-(--rejected-soft) text-(--rejected) text-[13px] font-medium border border-[oklch(0.55_0.17_25_/_0.2)]">
+      <div className="m-6 p-4 rounded-(--r) bg-(--rejected-soft) text-(--rejected) text-[13px] font-medium border border-[oklch(0.55_0.17_25/0.2)]">
         {profile.error}
       </div>
     );
@@ -60,8 +60,8 @@ export default function PainterProfilePage() {
       </div>
 
       {/* ── Desktop Header ─────────────────────────────────────────────────── */}
-      <div className="hidden lg:flex items-center justify-between max-w-[660px] mx-auto px-8 pt-11 pb-6">
-        <div className="text-[26px] font-bold tracking-[-0.025em] text-(--ink)">Me</div>
+      <div className="hidden lg:flex items-center justify-between max-w-165 mx-auto px-8 pt-11 pb-6">
+        <div className="text-[26px] font-bold tracking-tight text-(--ink)">Me</div>
         {!profile.isEditing ? (
           <button onClick={() => profile.setIsEditing(true)} className="h-9 px-4 rounded-full border border-(--border-2) bg-transparent text-(--ink) text-[13px] font-semibold cursor-pointer">
             Edit profile
@@ -77,7 +77,7 @@ export default function PainterProfilePage() {
       </div>
 
       {/* ── Content ────────────────────────────────────────────────────────── */}
-      <div className="pb-10 lg:max-w-[660px] lg:mx-auto">
+      <div className="pb-10 lg:max-w-165 lg:mx-auto">
 
         {/* Avatar card */}
         <div className="px-4 lg:px-8">
@@ -143,7 +143,7 @@ export default function PainterProfilePage() {
         <div className="px-4 lg:px-8 pt-6">
           <button
             onClick={() => { logout(); router.push('/login'); }}
-            className="w-full h-[52px] rounded-full border border-(--border-2) bg-transparent text-(--rejected) text-[15px] font-semibold cursor-pointer flex items-center justify-center"
+            className="w-full h-13 rounded-full border border-(--border-2) bg-transparent text-(--rejected) text-[15px] font-semibold cursor-pointer flex items-center justify-center"
           >
             Sign out
           </button>

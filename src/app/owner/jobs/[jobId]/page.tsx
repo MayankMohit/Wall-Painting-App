@@ -139,7 +139,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
         </Link>
         <div className="mr-auto min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-[22px] font-bold text-(--ink) tracking-[-0.025em] leading-tight">
+            <h1 className="text-[22px] font-bold text-(--ink) tracking-tight leading-tight">
               {job.companyName}
             </h1>
             <JobStatusPill status={job.status} size="sm" />
@@ -180,13 +180,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
       <div className="lg:hidden px-4 pt-5 pb-40">
         {/* Title + status inline */}
         <div className="flex items-center gap-2.5 flex-wrap mb-0">
-          <h1 className="text-[24px] font-bold text-(--ink) tracking-[-0.025em] leading-[1.15]">
+          <h1 className="text-[24px] font-bold text-(--ink) tracking-tight leading-[1.15]">
             {job.companyName}
           </h1>
           <JobStatusPill status={job.status} size="sm" />
         </div>
         {job.description && (
-          <p className="text-[13px] text-(--ink-3) mt-1.5 leading-[1.5]">{job.description}</p>
+          <p className="text-[13px] text-(--ink-3) mt-1.5 leading-normal">{job.description}</p>
         )}
 
         {/* Dates */}
@@ -226,7 +226,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
         {/* Painters list */}
         <div className="mt-6">
           <div className="flex items-center justify-between mb-3">
-            <div className="text-[12px] font-bold text-(--ink-2) uppercase tracking-[.05em]">
+            <div className="text-[12px] font-bold text-(--ink-2) uppercase tracking-wider">
               Painters on this job
             </div>
             <button
@@ -256,17 +256,17 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                     <div className="flex-1 min-w-0">
                       <div className="text-[14px] font-semibold text-(--ink) truncate">{p.name}</div>
                       <div className="mt-1 flex items-center gap-1.5 text-[11px] flex-wrap">
-                        <span className="font-(--mono) font-semibold" style={{ color: 'var(--approved)' }}>
+                        <span className="font-semibold" style={{ color: 'var(--approved)' }}>
                           {p.stats.approved} approved
                         </span>
                         <span style={{ color: 'var(--ink-4)' }}>·</span>
-                        <span className="font-(--mono) font-semibold" style={{ color: 'var(--accent-deep)' }}>
+                        <span className="font-semibold" style={{ color: 'var(--accent-deep)' }}>
                           {p.stats.pending} pending
                         </span>
                         {rej > 0 && (
                           <>
                             <span style={{ color: 'var(--ink-4)' }}>·</span>
-                            <span className="font-(--mono) font-semibold" style={{ color: 'var(--rejected)' }}>
+                            <span className="font-semibold" style={{ color: 'var(--rejected)' }}>
                               {rej} rejected
                             </span>
                           </>
@@ -283,7 +283,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
       </div>
 
       {/* Mobile sticky bottom CTA — fixed above the bottom nav (bottom nav ≈ 84px) */}
-      <div className="lg:hidden fixed bottom-[70px] left-0 right-0 z-30 px-4 py-3 border-t border-(--border) bg-(--paper)">
+      <div className="lg:hidden fixed bottom-17.5 left-0 right-0 z-30 px-4 py-3 border-t border-(--border) bg-(--paper)">
         <button
           onClick={() => setGenOpen(true)}
           className="w-full h-12 rounded-(--r-md) text-white text-[15px] font-semibold cursor-pointer transition-opacity hover:opacity-88 flex items-center justify-center gap-2"
@@ -323,7 +323,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                 {['PAINTER', 'SUBMITTED', 'APPROVED', 'PENDING', 'REJECTED', ''].map((h, i) => (
                   <div
                     key={i}
-                    className={`text-[11px] font-semibold tracking-[.05em] uppercase text-(--ink-4) ${i >= 1 && i <= 4 ? 'text-center' : ''}`}
+                    className={`text-[11px] font-semibold tracking-wider uppercase text-(--ink-4) ${i >= 1 && i <= 4 ? 'text-center' : ''}`}
                   >
                     {h}
                   </div>
@@ -352,16 +352,16 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                           )}
                         </div>
                       </div>
-                      <div className="text-center text-[14px] font-semibold text-(--ink) font-(--mono) tabular-nums">
+                      <div className="text-center text-[14px] font-semibold text-(--ink) tabular-nums">
                         {p.stats.submitted}
                       </div>
-                      <div className="text-center text-[14px] font-semibold font-(--mono) tabular-nums" style={{ color: 'var(--approved)' }}>
+                      <div className="text-center text-[14px] font-semibold tabular-nums" style={{ color: 'var(--approved)' }}>
                         {p.stats.approved}
                       </div>
-                      <div className="text-center text-[14px] font-semibold font-(--mono) tabular-nums" style={{ color: p.stats.pending > 0 ? 'var(--accent-deep)' : 'var(--ink-4)' }}>
+                      <div className="text-center text-[14px] font-semibold tabular-nums" style={{ color: p.stats.pending > 0 ? 'var(--accent-deep)' : 'var(--ink-4)' }}>
                         {p.stats.pending}
                       </div>
-                      <div className="text-center text-[14px] font-semibold font-(--mono) tabular-nums" style={{ color: rej > 0 ? 'var(--rejected)' : 'var(--ink-4)' }}>
+                      <div className="text-center text-[14px] font-semibold tabular-nums" style={{ color: rej > 0 ? 'var(--rejected)' : 'var(--ink-4)' }}>
                         {rej}
                       </div>
                       <div className="flex justify-end">
@@ -389,12 +389,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               <div className="bg-(--paper-2) border border-(--border) rounded-(--r-md) px-4 py-3 flex flex-col gap-2">
                 <div className="flex items-center justify-between text-[12px]">
                   <span className="text-(--ink-3)">Started</span>
-                  <span className="font-(--mono) font-semibold text-(--ink-2)">{fmt(startDate)}</span>
+                  <span className="font-semibold text-(--ink-2)">{fmt(startDate)}</span>
                 </div>
                 {job.status === 'invoiced' && job.endDate && (
                   <div className="flex items-center justify-between text-[12px]">
                     <span className="text-(--ink-3)">Ended</span>
-                    <span className="font-(--mono) font-semibold text-(--ink-2)">{fmt(job.endDate)}</span>
+                    <span className="font-semibold text-(--ink-2)">{fmt(job.endDate)}</span>
                   </div>
                 )}
               </div>
@@ -422,7 +422,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Company name</div>
               <input
                 {...register('companyName', { required: true })}
-                className="w-full h-[44px] px-3.5 rounded-full border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color]"
+                className="w-full h-11 px-3.5 rounded-full border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color]"
               />
             </div>
             <div>
@@ -430,7 +430,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               <textarea
                 {...register('description')}
                 rows={4}
-                className="w-full px-3.5 py-3 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] resize-none leading-[1.5]"
+                className="w-full px-3.5 py-3 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] resize-none leading-normal"
               />
             </div>
           </form>
@@ -460,7 +460,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               <Trash size={22} style={{ color: 'var(--rejected)' }} />
             </div>
             <div className="text-[17px] font-bold text-(--ink) mb-2">Delete this job?</div>
-            <div className="text-[13px] text-(--ink-3) leading-[1.5] max-w-xs mx-auto">
+            <div className="text-[13px] text-(--ink-3) leading-normal max-w-xs mx-auto">
               All submissions, photos, and generated files will be permanently removed. This cannot be undone.
             </div>
             <div className="mt-5 flex gap-2">
@@ -499,7 +499,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                   style={{ borderColor: on ? 'var(--accent)' : 'var(--border-2)', background: on ? 'var(--accent-soft)' : 'var(--surface)' }}
                 >
                   <div
-                    className="w-[18px] h-[18px] rounded-[4px] shrink-0 flex items-center justify-center"
+                    className="w-4.5 h-4.5 rounded-sm shrink-0 flex items-center justify-center"
                     style={{ background: on ? 'var(--accent)' : 'transparent', border: on ? 'none' : '1.5px solid var(--border-3)' }}
                   >
                     {on && <Check size={11} weight={2.8} style={{ color: '#fff' }} />}
@@ -545,7 +545,7 @@ function MobileStat({ label, value, color, accent }: { label: string; value: num
       className="flex flex-col items-center gap-1.5 py-3 rounded-(--r-md) bg-(--surface) border border-(--border)"
       style={{ borderTop: `3px solid ${accent}` }}
     >
-      <div className="font-(--mono) text-[26px] font-bold leading-none tabular-nums" style={{ color, letterSpacing: '-0.02em' }}>
+      <div className="font-(--mono) text-[26px] leading-none tabular-nums" style={{ color, letterSpacing: '-0.02em' }}>
         {value}
       </div>
       <div className="text-[10px] font-bold text-(--ink-3) uppercase tracking-[.06em]">{label}</div>
@@ -556,8 +556,8 @@ function MobileStat({ label, value, color, accent }: { label: string; value: num
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div className="bg-(--surface) border border-(--border) rounded-(--r-md) px-4 py-3.5">
-      <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-[.05em]">{label}</div>
-      <div className="font-(--mono) text-[34px] font-bold mt-1.5 leading-none tabular-nums" style={{ color, letterSpacing: '-0.02em' }}>
+      <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-wider">{label}</div>
+      <div className="font-(--mono) text-[34px] mt-1.5 leading-none tabular-nums" style={{ color, letterSpacing: '-0.02em' }}>
         {value}
       </div>
     </div>

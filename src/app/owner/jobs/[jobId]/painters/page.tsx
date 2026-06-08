@@ -194,7 +194,7 @@ export default function JobPaintersPage({ params }: { params: Promise<{ jobId: s
                 href={`/owner/jobs/${jobId}/painters/${painter._id}`}
                 className="p-6 border-b border-gray-100 flex gap-4 items-center bg-gray-50/50 hover:bg-indigo-50 transition-colors group"
               >
-                <div className="h-14 w-14 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xl flex-shrink-0 border-2 border-white shadow-sm">
+                <div className="h-14 w-14 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xl shrink-0 border-2 border-white shadow-sm">
                   {painter.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1">

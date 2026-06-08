@@ -246,46 +246,47 @@ export default function AdminLogsPage() {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 px-4 py-6 lg:px-8 lg:py-8 bg-(--paper) min-h-screen">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-5">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-(--border) pb-5">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Logs</h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <h1 className="text-[24px] font-bold tracking-[-0.025em] text-(--ink)">Logs</h1>
+          <p className="text-[13px] text-(--ink-3) mt-1">
             {lastFetched
               ? `Last fetched ${lastFetched.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })} IST · ${total.toLocaleString()} total records`
               : 'Loading…'}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            type="text"
-            placeholder="Search action, IP, role…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-56 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30 transition"
-          />
+          <div className="h-10 bg-(--surface) border border-(--border-2) rounded-(--r) flex items-center gap-2 px-3">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8} style={{ color: 'var(--ink-3)' }}>
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search action, IP, role…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-44 bg-transparent border-0 outline-none text-[13px] text-(--ink) placeholder:text-(--ink-4)"
+            />
+          </div>
           <button
             onClick={() => fetchLogs(page)}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 h-10 px-4 rounded-full border border-(--border-2) bg-(--surface) text-[13px] font-semibold text-(--ink-2) hover:border-(--border-3) disabled:opacity-50 transition-[border-color] cursor-pointer"
           >
-            <svg
-              className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`}
-              fill="none" stroke="currentColor" viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            <svg className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0 1 15.7-3.7M20 15a9 9 0 0 1-15.7 3.7" />
             </svg>
             {isLoading && logs.length > 0 ? 'Refreshing…' : 'Refresh'}
           </button>
           <button
             onClick={() => exportCSV(logs)}
             disabled={logs.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 h-10 px-4 rounded-full bg-(--ink) text-white text-[13px] font-semibold hover:opacity-88 disabled:opacity-40 transition-opacity cursor-pointer"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             Export CSV
           </button>
@@ -295,18 +296,18 @@ export default function AdminLogsPage() {
       {/* Severity filter tabs */}
       <div className="flex gap-2 flex-wrap">
         {tabs.map(([sev, label, count]) => {
-          const active =
-            sev === 'ALL'   ? 'bg-slate-900 text-white' :
-            sev === 'INFO'  ? 'bg-blue-500 text-white' :
-            sev === 'WARN'  ? 'bg-yellow-400 text-slate-900' :
-                              'bg-red-500 text-white';
+          const activeStyle =
+            sev === 'ALL'   ? { background: 'var(--ink)',      color: '#fff'              } :
+            sev === 'INFO'  ? { background: 'var(--info)',     color: '#fff'              } :
+            sev === 'WARN'  ? { background: 'oklch(0.65 0.16 80)', color: '#fff'          } :
+                              { background: 'var(--rejected)', color: '#fff'              };
+          const inactiveStyle = { background: 'var(--paper-2)', color: 'var(--ink-2)' };
           return (
             <button
               key={sev}
               onClick={() => setSevFilter(sev)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                sevFilter === sev ? active : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+              className="px-3.5 py-1.5 rounded-full text-[12px] font-bold transition-colors cursor-pointer"
+              style={sevFilter === sev ? activeStyle : inactiveStyle}
             >
               {label}: {count}
             </button>
@@ -391,21 +392,21 @@ export default function AdminLogsPage() {
       {/* Pagination */}
       {pages > 1 && (
         <div className="flex items-center justify-between pt-1">
-          <span className="text-sm text-slate-500">
+          <span className="text-[13px] text-(--ink-3)">
             Page {page} of {pages} · {total.toLocaleString()} records
           </span>
           <div className="flex gap-2">
             <button
               onClick={() => fetchLogs(page - 1)}
               disabled={page <= 1 || isLoading}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+              className="h-9 px-4 rounded-full border border-(--border-2) text-[13px] font-semibold text-(--ink-2) hover:border-(--border-3) disabled:opacity-40 transition-[border-color] cursor-pointer"
             >
               Previous
             </button>
             <button
               onClick={() => fetchLogs(page + 1)}
               disabled={page >= pages || isLoading}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+              className="h-9 px-4 rounded-full border border-(--border-2) text-[13px] font-semibold text-(--ink-2) hover:border-(--border-3) disabled:opacity-40 transition-[border-color] cursor-pointer"
             >
               Next
             </button>

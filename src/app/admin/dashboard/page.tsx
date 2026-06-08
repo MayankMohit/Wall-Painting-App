@@ -1,331 +1,609 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { Refresh, Users, Briefcase, Activity, Server, ArrowRight, Check, X, Alert } from '@/components/admin/icons';
+import { Avatar } from '@/components/admin/Avatar';
 
-interface SystemStats {
-  users: { total: number; activeToday: number; suspended: number };
-  jobs: { total: number; active: number; completed: number };
-  queue: { pendingTasks: number; failedTasks: number; workersActive: number };
-  storage: { usedGB: number; totalGB: number; percentFull: number };
-  serverHealth: 'optimal' | 'degraded' | 'critical';
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface StatsResponse {
+  users:       Record<string, Record<string, number>>;
+  jobs:        Record<string, number>;
+  submissions: Record<string, number>;
+  storage:     { totalBytes: number };
+  queues: {
+    fileGen:      Record<string, number>;
+    notify:       Record<string, number>;
+    assetCleanup: Record<string, number>;
+  };
 }
 
 interface PendingOwner {
   _id: string;
   name: string;
   email: string;
-  phone: string;
+  phone?: string;
   createdAt: string;
 }
 
-interface Toast {
-  message: string;
-  type: 'success' | 'error';
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function authHeaders(body?: boolean) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('wallpainter_token') : '';
+  const h: Record<string, string> = { Authorization: `Bearer ${token}` };
+  if (body) h['Content-Type'] = 'application/json';
+  return h;
 }
 
-function authHeaders() {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('wallpainter_token') : '';
-  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+function fmtGB(bytes: number) {
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`;
+  return '0 GB';
 }
+
+function sumValues(obj: Record<string, number>) {
+  return Object.values(obj).reduce((a, b) => a + b, 0);
+}
+
+function sumRole(users: Record<string, Record<string, number>>, role: string) {
+  return sumValues(users[role] ?? {});
+}
+
+// ── Stat tile ─────────────────────────────────────────────────────────────────
+
+interface StatTileProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  sub: string;
+  href: string;
+  accent?: string;
+  warn?: boolean;
+}
+
+function StatTile({ icon, label, value, sub, href, accent = 'var(--accent)', warn }: StatTileProps) {
+  return (
+    <Link
+      href={href}
+      className="block no-underline bg-(--surface) border border-(--border) rounded-(--r-md) p-4 lg:p-5 shadow-(--shadow-sm) group transition-[border-color] hover:border-(--border-2)"
+      style={{ borderTop: `3px solid ${warn ? 'var(--rejected)' : accent}` }}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div className="w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0" style={{ background: `${accent}18` }}>
+          <span style={{ color: accent }}>{icon}</span>
+        </div>
+        <ArrowRight size={14} style={{ color: 'var(--ink-4)' }} className="mt-1 group-hover:translate-x-0.5 transition-transform" />
+      </div>
+      <div className="font-(--mono) text-[28px] lg:text-[32px] font-bold tracking-[-0.025em] leading-none text-(--ink)">
+        {value}
+      </div>
+      <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-[.05em] mt-1">{label}</div>
+      <div className="text-[12px] text-(--ink-3) mt-1.5">{sub}</div>
+    </Link>
+  );
+}
+
+// ── Queue row ─────────────────────────────────────────────────────────────────
+
+function QueueRow({ name, counts }: { name: string; counts: Record<string, number> }) {
+  const active  = counts.active  ?? 0;
+  const waiting = counts.waiting ?? 0;
+  const failed  = counts.failed  ?? 0;
+  const total   = active + waiting;
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-(--border) last:border-0">
+      <div className="font-(--mono) text-[12px] font-semibold text-(--ink) w-28 shrink-0">{name}</div>
+      <div className="flex items-center gap-2 flex-1">
+        <div
+          className="h-1.5 rounded-full flex-1 overflow-hidden"
+          style={{ background: 'var(--paper-2)' }}
+        >
+          {active > 0 && (
+            <div
+              className="h-full rounded-full animate-pulse"
+              style={{ width: `${Math.min(100, (active / Math.max(total, 1)) * 100)}%`, background: 'var(--accent)' }}
+            />
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {active > 0 && (
+          <span className="font-(--mono) text-[11px] font-bold" style={{ color: 'var(--accent-deep)' }}>
+            {active} active
+          </span>
+        )}
+        {waiting > 0 && (
+          <span className="font-(--mono) text-[11px] text-(--ink-3)">{waiting} waiting</span>
+        )}
+        {active === 0 && waiting === 0 && (
+          <span className="font-(--mono) text-[11px] text-(--ink-4)">idle</span>
+        )}
+        {failed > 0 && (
+          <span
+            className="font-(--mono) text-[11px] font-bold px-1.5 py-0.5 rounded"
+            style={{ background: 'var(--rejected-soft)', color: 'var(--rejected)' }}
+          >
+            {failed} failed
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Section label ──────────────────────────────────────────────────────────────
+
+function SectionLabel({ title, count }: { title: string; count?: number }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-[.06em]">{title}</div>
+      {count != null && count > 0 && (
+        <span
+          className="font-(--mono) text-[10px] font-bold h-4.5 min-w-4.5 px-1 rounded-full inline-flex items-center justify-center"
+          style={{ background: 'var(--pending-soft)', color: 'var(--pending)' }}
+        >
+          {count}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<SystemStats | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
-
-  // ── Pending owners state ──────────────────────────────────────────────────
-  const [pending, setPending] = useState<PendingOwner[]>([]);
-  const [pendingLoading, setPendingLoading] = useState(true);
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  const [stats,         setStats]         = useState<StatsResponse | null>(null);
+  const [statsLoading,  setStatsLoading]  = useState(true);
+  const [pending,       setPending]       = useState<PendingOwner[]>([]);
+  const [pendingLoading,setPendingLoading]= useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [rejectingId,   setRejectingId]   = useState<string | null>(null);
+  const [rejectReason,  setRejectReason]  = useState('');
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  // ── Toast auto-dismiss ────────────────────────────────────────────────────
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 4000);
+    const t = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(t);
   }, [toast]);
 
-  // ── Fetch system stats (placeholder) ─────────────────────────────────────
-  useEffect(() => {
-    let mounted = true;
-    const fetch_ = async () => {
-      setStatsLoading(true);
-      await new Promise(r => setTimeout(r, 800));
-      if (mounted) {
-        setStats({
-          users: { total: 1245, activeToday: 312, suspended: 14 },
-          jobs: { total: 3890, active: 142, completed: 3748 },
-          queue: { pendingTasks: 24, failedTasks: 2, workersActive: 4 },
-          storage: { usedGB: 412, totalGB: 1000, percentFull: 41.2 },
-          serverHealth: 'optimal',
-        });
-        setStatsLoading(false);
-      }
-    };
-    fetch_();
-    return () => { mounted = false; };
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const res  = await fetch('/api/admin/stats', { headers: authHeaders() });
+      const json = await res.json();
+      if (res.ok && json.data) setStats(json.data);
+      else setToast({ msg: 'Failed to load stats', ok: false });
+    } catch {
+      setToast({ msg: 'Could not reach server', ok: false });
+    } finally {
+      setStatsLoading(false);
+    }
   }, []);
 
-  // ── Fetch pending owners ──────────────────────────────────────────────────
-  const fetchPending = useCallback(async () => {
+  const loadPending = useCallback(async () => {
     setPendingLoading(true);
     try {
-      const res = await fetch('/api/users?role=owner&status=inactive', { headers: authHeaders() });
+      const res  = await fetch('/api/admin/users?role=owner&status=inactive', { headers: authHeaders() });
       const json = await res.json();
-      if (res.ok) setPending((json.data ?? json).users ?? []);
-    } catch {
-      setToast({ message: 'Failed to load pending owners', type: 'error' });
+      if (res.ok) setPending(json.data?.users ?? json.users ?? []);
     } finally {
       setPendingLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchPending(); }, [fetchPending]);
+  useEffect(() => { loadStats(); loadPending(); }, [loadStats, loadPending]);
 
-  // ── Approve ───────────────────────────────────────────────────────────────
-  async function handleApprove(owner: PendingOwner) {
+  const handleApprove = async (owner: PendingOwner) => {
     setActionLoading(owner._id);
-    // Optimistic remove
-    setPending(prev => prev.filter(o => o._id !== owner._id));
+    setPending((p) => p.filter((o) => o._id !== owner._id));
     try {
-      const res = await fetch(`/api/admin/users/${owner._id}/approve`, {
-        method: 'PATCH',
-        headers: authHeaders(),
-      });
+      const res = await fetch(`/api/admin/users/${owner._id}/approve`, { method: 'PATCH', headers: authHeaders(true) });
       if (!res.ok) throw new Error();
-      setToast({ message: `${owner.name} approved successfully`, type: 'success' });
+      setToast({ msg: `${owner.name} approved`, ok: true });
     } catch {
-      // Rollback
-      setPending(prev => [owner, ...prev]);
-      setToast({ message: `Failed to approve ${owner.name}`, type: 'error' });
+      setPending((p) => [owner, ...p]);
+      setToast({ msg: `Failed to approve`, ok: false });
     } finally {
       setActionLoading(null);
     }
-  }
+  };
 
-  // ── Reject ────────────────────────────────────────────────────────────────
-  function openReject(id: string) {
-    setRejectingId(id);
-    setRejectReason('');
-  }
-
-  async function handleReject(owner: PendingOwner) {
+  const handleReject = async (owner: PendingOwner) => {
     setActionLoading(owner._id);
-    setPending(prev => prev.filter(o => o._id !== owner._id));
+    setPending((p) => p.filter((o) => o._id !== owner._id));
     setRejectingId(null);
     try {
       const res = await fetch(`/api/admin/users/${owner._id}/reject`, {
         method: 'PATCH',
-        headers: authHeaders(),
+        headers: authHeaders(true),
         body: JSON.stringify({ reason: rejectReason.trim() || undefined }),
       });
       if (!res.ok) throw new Error();
-      setToast({ message: `${owner.name} rejected`, type: 'success' });
+      setToast({ msg: `${owner.name} rejected`, ok: true });
     } catch {
-      setPending(prev => [owner, ...prev]);
-      setToast({ message: `Failed to reject ${owner.name}`, type: 'error' });
+      setPending((p) => [owner, ...p]);
+      setToast({ msg: `Failed to reject`, ok: false });
     } finally {
       setActionLoading(null);
       setRejectReason('');
     }
-  }
+  };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── derived values ─────────────────────────────────────────────────────────
+  const totalUsers   = stats ? Object.values(stats.users).reduce((a, b) => a + sumValues(b), 0) : null;
+  const painters     = stats ? sumRole(stats.users, 'painter') : 0;
+  const owners       = stats ? sumRole(stats.users, 'owner')   : 0;
+  const activeJobs   = stats?.jobs.active ?? null;
+  const totalSubs    = stats ? sumValues(stats.submissions) : null;
+  const pendingSubs  = stats?.submissions.pending ?? 0;
+  const storageBytes = stats?.storage.totalBytes ?? 0;
+  const totalFailed  = stats
+    ? (stats.queues.fileGen.failed ?? 0) + (stats.queues.notify.failed ?? 0) + (stats.queues.assetCleanup.failed ?? 0)
+    : 0;
 
-  if (statsLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-teal-500"></div>
-        <span className="ml-3 font-medium text-slate-500">Loading system metrics...</span>
-      </div>
-    );
-  }
+  const operational = totalFailed === 0;
+
+  const TILES: StatTileProps[] = [
+    {
+      icon: <Users size={18} weight={1.6} />,
+      label: 'Total users',
+      value: statsLoading ? '—' : (totalUsers ?? 0),
+      sub: statsLoading ? '' : `${painters} painters · ${owners} owners`,
+      href: '/admin/users',
+      accent: 'var(--info,oklch(0.5 0.14 240))',
+    },
+    {
+      icon: <Briefcase size={18} weight={1.6} />,
+      label: 'Active jobs',
+      value: statsLoading ? '—' : (activeJobs ?? 0),
+      sub: statsLoading ? '' : `${(stats?.jobs.completed ?? 0) + (stats?.jobs.invoiced ?? 0)} completed all time`,
+      href: '/admin/jobs',
+      accent: 'var(--accent)',
+    },
+    {
+      icon: <Activity size={18} weight={1.6} />,
+      label: 'Submissions',
+      value: statsLoading ? '—' : (totalSubs ?? 0),
+      sub: statsLoading ? '' : `${pendingSubs} pending approval`,
+      href: '/admin/jobs',
+      accent: 'var(--approved)',
+    },
+    {
+      icon: <Server size={18} weight={1.6} />,
+      label: 'Generated files',
+      value: statsLoading ? '—' : fmtGB(storageBytes),
+      sub: 'stored in Cloudflare R2',
+      href: '/admin/storage',
+      accent: 'oklch(0.55 0.14 30)',
+      warn: false,
+    },
+  ];
+
+  const hasQueues = stats && (
+    Object.values(stats.queues.fileGen).some(Boolean) ||
+    Object.values(stats.queues.notify).some(Boolean)
+  );
 
   return (
-    <div className="space-y-8">
+    <div className="bg-(--paper) min-h-screen">
+
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 rounded-lg px-5 py-3 text-sm font-semibold text-white shadow-lg transition-all ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}>
-          {toast.message}
+        <div
+          className="fixed bottom-6 right-4 z-50 px-4 py-3 rounded-(--r-md) text-[13px] font-semibold text-white shadow-lg"
+          style={{ background: toast.ok ? 'var(--approved)' : 'var(--rejected)' }}
+        >
+          {toast.msg}
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-end justify-between border-b border-slate-200 pb-6">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-900">Platform Overview</h1>
-          <p className="mt-2 text-slate-500">Real-time system health, queue depth, and storage metrics.</p>
-        </div>
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2">
-          <span className="relative flex h-3 w-3">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500"></span>
-          </span>
-          <span className="text-sm font-bold uppercase tracking-wider text-emerald-700">System Optimal</span>
-        </div>
-      </div>
-
-      {/* Stats cards */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-400">Total Users</h3>
-          <div className="flex items-end justify-between">
-            <div className="text-4xl font-black text-slate-900">{stats?.users.total.toLocaleString()}</div>
-            <Link href="/admin/users" className="text-sm font-bold text-teal-600 hover:underline">Manage →</Link>
-          </div>
-          <p className="mt-4 text-xs font-medium text-slate-500">
-            <span className="text-emerald-600">{stats?.users.activeToday} active today</span> •{' '}
-            <span className="text-red-500">{stats?.users.suspended} suspended</span>
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-400">Global Jobs</h3>
-          <div className="flex items-end justify-between">
-            <div className="text-4xl font-black text-slate-900">{stats?.jobs.total.toLocaleString()}</div>
-            <Link href="/admin/jobs" className="text-sm font-bold text-teal-600 hover:underline">View All →</Link>
-          </div>
-          <p className="mt-4 text-xs font-medium text-slate-500">
-            <span className="text-blue-600">{stats?.jobs.active} currently active</span>
-          </p>
-        </div>
-
-        <div className={`rounded-xl p-6 shadow-sm border ${stats?.queue.failedTasks && stats.queue.failedTasks > 0 ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200'}`}>
-          <h3 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-400">Background Tasks</h3>
-          <div className="flex items-end justify-between">
-            <div className="text-4xl font-black text-slate-900">{stats?.queue.pendingTasks}</div>
-            <Link href="/admin/background-jobs" className="text-sm font-bold text-teal-600 hover:underline">Inspect →</Link>
-          </div>
-          <p className="mt-4 flex justify-between text-xs font-medium">
-            <span className="text-slate-500">{stats?.queue.workersActive} workers active</span>
-            {stats?.queue.failedTasks && stats.queue.failedTasks > 0 && (
-              <span className="font-bold text-red-600">{stats.queue.failedTasks} failed</span>
-            )}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-400">Total Storage</h3>
-          <div className="flex items-end justify-between">
-            <div className="text-4xl font-black text-slate-900">
-              {stats?.storage.usedGB}<span className="ml-1 text-lg text-slate-400">GB</span>
+      {/* ── Mobile ──────────────────────────────────────────────────── */}
+      <div className="lg:hidden">
+        {/* Top bar */}
+        <div className="sticky top-0 z-10 bg-(--paper) border-b border-(--border) px-4 py-3 flex items-center justify-between">
+          <div>
+            <div className="text-[22px] font-bold tracking-[-0.025em] text-(--ink)">System</div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <div
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ background: operational ? 'oklch(0.65 0.18 145)' : 'var(--rejected)' }}
+              />
+              <div className="text-[11px] text-(--ink-3)">
+                {statsLoading ? 'Loading…' : operational ? 'All systems nominal' : `${totalFailed} failed task${totalFailed !== 1 ? 's' : ''}`}
+              </div>
             </div>
-            <Link href="/admin/storage" className="text-sm font-bold text-teal-600 hover:underline">Details →</Link>
           </div>
-          <div className="mt-4 h-2 w-full rounded-full bg-slate-100">
-            <div
-              className={`h-2 rounded-full ${stats?.storage.percentFull && stats.storage.percentFull > 80 ? 'bg-red-500' : 'bg-teal-500'}`}
-              style={{ width: `${stats?.storage.percentFull}%` }}
-            />
-          </div>
-          <p className="mt-2 text-right text-xs font-medium text-slate-500">{stats?.storage.percentFull}% capacity</p>
+          <button
+            onClick={() => { loadStats(); loadPending(); }}
+            className="w-9 h-9 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) cursor-pointer hover:border-(--border-3) transition-[border-color]"
+          >
+            <Refresh size={16} weight={1.8} />
+          </button>
         </div>
-      </div>
 
-      {/* ── Pending Owner Approvals ── */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
-          <h2 className="text-xl font-black tracking-tight text-slate-900">Pending Owner Approvals</h2>
-          {!pendingLoading && (
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${pending.length > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-500'}`}>
-              {pending.length}
-            </span>
+        {/* Stats grid */}
+        <div className="px-4 pt-4 grid grid-cols-2 gap-2.5">
+          {TILES.map((t) => (
+            <StatTile key={t.label} {...t} />
+          ))}
+        </div>
+
+        {/* Queue — only if something is happening */}
+        {!statsLoading && stats && hasQueues && (
+          <div className="px-4 mt-5">
+            <SectionLabel title="Background queues" />
+            <div className="bg-(--surface) border border-(--border) rounded-(--r-md) px-4 shadow-(--shadow-sm)">
+              <QueueRow name="fileGen"  counts={stats.queues.fileGen} />
+              <QueueRow name="notify"   counts={stats.queues.notify} />
+            </div>
+            <div className="mt-2 text-right">
+              <Link href="/admin/background-jobs" className="text-[12px] font-semibold no-underline" style={{ color: 'var(--accent-deep)' }}>
+                View all queues →
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Pending approvals */}
+        <div className="px-4 mt-5">
+          <SectionLabel title="Pending owner approvals" count={pending.length} />
+          {pendingLoading ? (
+            <div className="bg-(--surface) border border-(--border) rounded-(--r-md) p-8 text-center animate-pulse text-[13px] text-(--ink-4)">Loading…</div>
+          ) : pending.length === 0 ? (
+            <div className="bg-(--surface) border border-(--border) rounded-(--r-md) p-6 text-center">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2.5" style={{ background: 'var(--approved-soft)', color: 'var(--approved)' }}>
+                <Check size={18} weight={2.4} />
+              </div>
+              <div className="text-[14px] font-semibold text-(--ink)">All caught up</div>
+              <div className="text-[12px] text-(--ink-3) mt-1">No pending registrations.</div>
+            </div>
+          ) : (
+            <div className="bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden shadow-(--shadow-sm)">
+              {pending.map((owner, i) => (
+                <div key={owner._id}>
+                  <div className={`px-4 py-3 flex items-center gap-3 ${i < pending.length - 1 || rejectingId === owner._id ? 'border-b border-(--border)' : ''}`}>
+                    <Avatar name={owner.name} size={36} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[14px] font-semibold text-(--ink) truncate">{owner.name}</div>
+                      <div className="font-(--mono) text-[11px] text-(--ink-3) truncate">{owner.email}</div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handleApprove(owner)}
+                        disabled={actionLoading === owner._id}
+                        className="h-8 px-3 rounded-full text-[12px] font-semibold text-white cursor-pointer disabled:opacity-40"
+                        style={{ background: 'var(--approved)' }}
+                      >
+                        {actionLoading === owner._id ? '…' : 'Approve'}
+                      </button>
+                      <button
+                        onClick={() => rejectingId === owner._id ? setRejectingId(null) : (setRejectingId(owner._id), setRejectReason(''))}
+                        disabled={actionLoading === owner._id}
+                        className="h-8 px-3 rounded-full text-[12px] font-semibold cursor-pointer border disabled:opacity-40"
+                        style={{ borderColor: 'var(--rejected)', color: 'var(--rejected)', background: 'var(--rejected-soft)' }}
+                      >
+                        {rejectingId === owner._id ? 'Cancel' : 'Reject'}
+                      </button>
+                    </div>
+                  </div>
+                  {rejectingId === owner._id && (
+                    <div className="px-4 py-3 border-b border-(--border)" style={{ background: 'var(--rejected-soft)' }}>
+                      <textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        rows={2}
+                        placeholder="Rejection reason (optional)"
+                        autoFocus
+                        className="w-full resize-none rounded-(--r) border border-(--border-2) bg-(--surface) px-3 py-2 text-[13px] text-(--ink) focus:outline-none focus:border-(--ink)"
+                      />
+                      <button
+                        onClick={() => handleReject(owner)}
+                        disabled={actionLoading === owner._id}
+                        className="mt-2 w-full h-9 rounded-full text-[13px] font-semibold text-white cursor-pointer disabled:opacity-40"
+                        style={{ background: 'var(--rejected)' }}
+                      >
+                        {actionLoading === owner._id ? 'Rejecting…' : 'Confirm Reject'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
-        {pendingLoading ? (
-          <div className="flex items-center gap-3 py-8 text-slate-500">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" />
-            <span className="text-sm">Loading pending registrations…</span>
+        <div className="h-6" />
+      </div>
+
+      {/* ── Desktop ──────────────────────────────────────────────────── */}
+      <div className="hidden lg:block">
+        {/* Page header */}
+        <div className="flex items-center justify-between px-8 pt-8 pb-6 border-b border-(--border)">
+          <div>
+            <h1 className="text-[24px] font-bold tracking-[-0.025em] text-(--ink)">System Overview</h1>
+            <p className="text-[13px] text-(--ink-3) mt-1">
+              {statsLoading
+                ? 'Fetching metrics…'
+                : totalFailed > 0
+                  ? `${totalFailed} background task${totalFailed !== 1 ? 's' : ''} failed — check Task Queue`
+                  : 'All services nominal'}
+            </p>
           </div>
-        ) : pending.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 py-12 text-center">
-            <p className="font-semibold text-slate-500">No pending owner registrations</p>
-            <p className="mt-1 text-sm text-slate-400">All caught up — new registrations will appear here.</p>
+          <div className="flex items-center gap-3">
+            {/* System status pill */}
+            <div
+              className="flex items-center gap-2 h-9 px-3.5 rounded-full border"
+              style={{
+                borderColor: operational ? 'oklch(0.8 0.1 145)' : 'oklch(0.8 0.1 25)',
+                background:  operational ? 'var(--approved-soft)' : 'var(--rejected-soft)',
+              }}
+            >
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ background: operational ? 'oklch(0.65 0.18 145)' : 'var(--rejected)' }}
+              />
+              <span
+                className="text-[12px] font-semibold"
+                style={{ color: operational ? 'var(--approved)' : 'var(--rejected)' }}
+              >
+                {operational ? 'Operational' : 'Degraded'}
+              </span>
+            </div>
+            <button
+              onClick={() => { loadStats(); loadPending(); }}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-full border border-(--border-2) bg-(--surface) text-[13px] font-semibold text-(--ink-2) cursor-pointer hover:border-(--border-3) transition-[border-color]"
+            >
+              <Refresh size={14} weight={2} /> Refresh
+            </button>
           </div>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  <th className="p-4">Owner</th>
-                  <th className="p-4 hidden sm:table-cell">Phone</th>
-                  <th className="p-4 hidden md:table-cell">Registered</th>
-                  <th className="p-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {pending.map((owner) => (
-                  <React.Fragment key={owner._id}>
-                    <tr className="transition-colors hover:bg-slate-50">
-                      <td className="p-4">
-                        <div className="font-semibold text-slate-900">{owner.name}</div>
-                        <div className="text-sm text-slate-500">{owner.email}</div>
-                      </td>
-                      <td className="p-4 hidden text-sm text-slate-600 sm:table-cell">
-                        {owner.phone ?? '—'}
-                      </td>
-                      <td className="p-4 hidden text-sm text-slate-500 md:table-cell">
-                        {owner.createdAt ? new Date(owner.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+        </div>
+
+        <div className="px-8 pt-6 pb-10">
+          {/* Stat tiles */}
+          <div className="grid grid-cols-4 gap-4 mb-8">
+            {TILES.map((t) => (
+              <StatTile key={t.label} {...t} />
+            ))}
+          </div>
+
+          {/* Two-column section */}
+          <div className="grid grid-cols-3 gap-6">
+
+            {/* Pending approvals — wider */}
+            <div className="col-span-2">
+              <SectionLabel title="Pending owner approvals" count={pending.length} />
+              {pendingLoading ? (
+                <div className="bg-(--surface) border border-(--border) rounded-(--r-md) p-10 text-center animate-pulse text-[13px] text-(--ink-4)">Loading…</div>
+              ) : pending.length === 0 ? (
+                <div className="bg-(--surface) border border-(--border) rounded-(--r-md) p-8 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--approved-soft)', color: 'var(--approved)' }}>
+                    <Check size={18} weight={2.4} />
+                  </div>
+                  <div>
+                    <div className="text-[14px] font-semibold text-(--ink)">All caught up</div>
+                    <div className="text-[12px] text-(--ink-3) mt-0.5">No pending owner registrations — new ones will appear here.</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden shadow-(--shadow-sm)">
+                  {/* Table header */}
+                  <div
+                    className="grid gap-4 px-5 py-2.5 border-b border-(--border) bg-(--paper-2) text-[10px] font-bold uppercase tracking-[.05em] text-(--ink-3)"
+                    style={{ gridTemplateColumns: '1fr 1.4fr 1fr auto' }}
+                  >
+                    <div>Name</div><div>Email</div><div>Registered</div><div />
+                  </div>
+                  {pending.map((owner, i) => (
+                    <div key={owner._id}>
+                      <div
+                        className={`grid gap-4 px-5 py-3.5 items-center ${i < pending.length - 1 || rejectingId === owner._id ? 'border-b border-(--border)' : ''}`}
+                        style={{ gridTemplateColumns: '1fr 1.4fr 1fr auto' }}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar name={owner.name} size={32} />
+                          <div className="text-[14px] font-semibold text-(--ink) truncate">{owner.name}</div>
+                        </div>
+                        <div className="font-(--mono) text-[12px] text-(--ink-3) truncate">{owner.email}</div>
+                        <div className="text-[12px] text-(--ink-3)">
+                          {owner.createdAt
+                            ? new Date(owner.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : '—'}
+                        </div>
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleApprove(owner)}
                             disabled={actionLoading === owner._id}
-                            className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="h-8 px-3.5 rounded-full text-[12px] font-semibold text-white cursor-pointer disabled:opacity-40"
+                            style={{ background: 'var(--approved)' }}
                           >
-                            Approve
+                            {actionLoading === owner._id ? '…' : 'Approve'}
                           </button>
                           <button
-                            onClick={() => rejectingId === owner._id ? setRejectingId(null) : openReject(owner._id)}
+                            onClick={() => rejectingId === owner._id ? setRejectingId(null) : (setRejectingId(owner._id), setRejectReason(''))}
                             disabled={actionLoading === owner._id}
-                            className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="h-8 px-3.5 rounded-full text-[12px] font-semibold cursor-pointer border disabled:opacity-40"
+                            style={{ borderColor: 'var(--rejected)', color: 'var(--rejected)', background: 'var(--rejected-soft)' }}
                           >
                             {rejectingId === owner._id ? 'Cancel' : 'Reject'}
                           </button>
                         </div>
-                      </td>
-                    </tr>
-
-                    {/* Inline reject form */}
-                    {rejectingId === owner._id && (
-                      <tr>
-                        <td colSpan={4} className="border-t border-red-100 bg-red-50 px-4 py-4">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                            <div className="flex-1">
-                              <label className="mb-1 block text-xs font-semibold text-red-700">
-                                Rejection reason <span className="font-normal text-red-400">(optional)</span>
-                              </label>
-                              <textarea
-                                value={rejectReason}
-                                onChange={e => setRejectReason(e.target.value)}
-                                rows={2}
-                                placeholder="e.g. Incomplete business information provided"
-                                autoFocus
-                                className="w-full resize-none rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-400 focus:outline-none"
-                              />
-                            </div>
+                      </div>
+                      {rejectingId === owner._id && (
+                        <div className="px-5 pb-4 border-b border-(--border)" style={{ background: 'var(--rejected-soft)' }}>
+                          <div className="text-[11px] font-semibold text-(--rejected) mb-1.5">Rejection reason (optional)</div>
+                          <div className="flex gap-3">
+                            <textarea
+                              value={rejectReason}
+                              onChange={(e) => setRejectReason(e.target.value)}
+                              rows={2}
+                              placeholder="e.g. Incomplete business information"
+                              autoFocus
+                              className="flex-1 resize-none rounded-(--r) border border-(--border-2) bg-(--surface) px-3 py-2 text-[13px] text-(--ink) focus:outline-none focus:border-(--ink)"
+                            />
                             <button
                               onClick={() => handleReject(owner)}
                               disabled={actionLoading === owner._id}
-                              className="rounded-md bg-red-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="h-9 px-4 rounded-full text-[13px] font-semibold text-white cursor-pointer self-end disabled:opacity-40"
+                              style={{ background: 'var(--rejected)' }}
                             >
-                              Confirm Reject
+                              {actionLoading === owner._id ? '…' : 'Confirm'}
                             </button>
                           </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right column: quick links + queue */}
+            <div className="space-y-5">
+
+              {/* Quick navigation */}
+              <div>
+                <SectionLabel title="Navigate" />
+                <div className="bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden shadow-(--shadow-sm)">
+                  {[
+                    { label: 'User directory',  sub: `${totalUsers ?? '…'} total`,  href: '/admin/users',           Icon: Users },
+                    { label: 'Jobs monitor',    sub: `${activeJobs ?? '…'} active`, href: '/admin/jobs',            Icon: Briefcase },
+                    { label: 'Task queue',      sub: totalFailed > 0 ? `${totalFailed} failed` : 'All queues',      href: '/admin/background-jobs', Icon: Activity, warn: totalFailed > 0 },
+                    { label: 'Storage',         sub: fmtGB(storageBytes),            href: '/admin/storage',         Icon: Server },
+                  ].map(({ label, sub, href, Icon, warn }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      className="flex items-center gap-3 px-4 py-3 border-b border-(--border) last:border-0 no-underline text-inherit hover:bg-(--paper-2) transition-colors group"
+                    >
+                      <div className="w-8 h-8 rounded-[8px] flex items-center justify-center shrink-0" style={{ background: warn ? 'var(--rejected-soft)' : 'var(--paper-2)' }}>
+                        <Icon size={16} weight={1.6} style={{ color: warn ? 'var(--rejected)' : 'var(--ink-2)' }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-semibold text-(--ink)" style={{ color: warn ? 'var(--rejected)' : undefined }}>{label}</div>
+                        <div className="font-(--mono) text-[11px] text-(--ink-3)">{sub}</div>
+                      </div>
+                      <ArrowRight size={14} style={{ color: 'var(--ink-4)', flexShrink: 0 }} />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              {/* Queue health */}
+              {stats && (
+                <div>
+                  <SectionLabel title="Queue health" />
+                  <div className="bg-(--surface) border border-(--border) rounded-(--r-md) px-4 shadow-(--shadow-sm)">
+                    <QueueRow name="fileGen"      counts={stats.queues.fileGen}      />
+                    <QueueRow name="notify"       counts={stats.queues.notify}       />
+                    <QueueRow name="assetCleanup" counts={stats.queues.assetCleanup} />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

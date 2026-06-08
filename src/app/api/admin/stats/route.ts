@@ -13,10 +13,11 @@ export const GET = withRole(['admin'], { audit: 'ADMIN_STATS_VIEW' })(
       Job.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }]),
       Submission.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }]),
       GeneratedFile.aggregate([{ $group: { _id: null, total: { $sum: '$fileSize' } } }]),
+      // Queue counts are best-effort — Redis may not be running in every environment
       Promise.all([
-        fileGenQueue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed'),
-        notifyQueue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed'),
-        assetCleanupQueue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed'),
+        fileGenQueue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed').catch(() => ({})),
+        notifyQueue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed').catch(() => ({})),
+        assetCleanupQueue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed').catch(() => ({})),
       ]),
     ]);
 

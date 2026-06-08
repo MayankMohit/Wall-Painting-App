@@ -129,7 +129,7 @@ export default function PainterQueuePage({
           <ArrowLeft size={17} />
         </Link>
         <div className="mr-auto min-w-0">
-          <h1 className="text-[22px] font-bold text-(--ink) tracking-[-0.025em] leading-tight truncate">
+          <h1 className="text-[22px] font-bold text-(--ink) tracking-tight leading-tight truncate">
             {queue.painter.name}
           </h1>
           <p className="text-[13px] text-(--ink-3) mt-0.5">
@@ -161,7 +161,7 @@ export default function PainterQueuePage({
                 <span className="text-[11px] text-(--ink-3) font-(--mono)">{painterPhone}</span>
                 <button
                   onClick={handleCopyPhone}
-                  className="h-[18px] px-1.5 rounded text-[10px] font-semibold cursor-pointer transition-colors"
+                  className="h-4.5 px-1.5 rounded text-[10px] font-semibold cursor-pointer transition-colors"
                   style={{
                     background: copied ? 'var(--approved-soft)' : 'var(--paper-2)',
                     color: copied ? 'var(--approved)' : 'var(--ink-3)',
@@ -196,7 +196,7 @@ export default function PainterQueuePage({
               className="flex-1 flex flex-col items-center gap-1 py-3 rounded-(--r-md) bg-(--surface) border border-(--border) cursor-pointer transition-[border-color] hover:border-(--border-2)"
               style={{ borderTop: `3px solid ${t.accent}` }}
             >
-              <span className="font-(--mono) text-[26px] font-bold leading-none tabular-nums" style={{ color: t.color, letterSpacing: '-0.02em' }}>
+              <span className="text-[26px] font-bold leading-none tabular-nums" style={{ color: t.color, letterSpacing: '-0.02em' }}>
                 {t.value}
               </span>
               <span className="text-[10px] font-bold text-(--ink-3) uppercase tracking-[.06em]">{t.label}</span>
@@ -221,7 +221,7 @@ export default function PainterQueuePage({
                 <span className="text-[12px] font-semibold" style={{ color: on ? '#fff' : 'var(--ink-2)' }}>
                   {t.label}
                 </span>
-                <span className="font-(--mono) text-[10px] font-bold" style={{ color: on ? 'rgba(255,255,255,.6)' : 'var(--ink-4)' }}>
+                <span className="text-[10px] font-bold" style={{ color: on ? 'rgba(255,255,255,.6)' : 'var(--ink-4)' }}>
                   {t.count}
                 </span>
               </button>
@@ -259,8 +259,8 @@ export default function PainterQueuePage({
               className="flex flex-col p-4 bg-(--surface) border border-(--border) rounded-(--r-md) text-left cursor-pointer hover:border-(--border-2) transition-[border-color]"
               style={{ borderLeft: `4px solid ${t.accent}` }}
             >
-              <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-[.05em]">{t.label}</div>
-              <div className="font-(--mono) text-[36px] font-bold mt-1 leading-none tabular-nums" style={{ color: t.color, letterSpacing: '-0.02em' }}>
+              <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-wider">{t.label}</div>
+              <div className="font-(--mono) text-[36px] mt-1 leading-none tabular-nums" style={{ color: t.color, letterSpacing: '-0.02em' }}>
                 {t.value}
               </div>
               <div className="flex items-center gap-1 mt-1.5 text-[11px] font-semibold" style={{ color: t.color }}>
@@ -287,7 +287,7 @@ export default function PainterQueuePage({
                 }}
               >
                 {t.label}
-                <span className="font-(--mono) text-[11px] font-bold" style={{ color: on ? 'rgba(255,255,255,.5)' : 'var(--ink-4)' }}>
+                <span className="font-(--mono) text-[11px]" style={{ color: on ? 'rgba(255,255,255,.5)' : 'var(--ink-4)' }}>
                   · {t.count}
                 </span>
               </button>
@@ -328,11 +328,11 @@ export default function PainterQueuePage({
               </button>
             </div>
             <div className="px-5 py-4 space-y-2.5">
-              <p className="text-[14px] text-(--ink) leading-[1.5]">
+              <p className="text-[14px] text-(--ink) leading-normal">
                 <span className="font-semibold">{queue.painter.name}</span> will be removed from{' '}
                 <span className="font-semibold">{queue.job.companyName}</span>.
               </p>
-              <p className="text-[13px] text-(--ink-3) leading-[1.5]">
+              <p className="text-[13px] text-(--ink-3) leading-normal">
                 All their submissions and photos on this job will be permanently deleted. This cannot be undone.
               </p>
             </div>

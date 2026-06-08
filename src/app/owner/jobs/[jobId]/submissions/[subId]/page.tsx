@@ -392,7 +392,7 @@ export default function OwnerSubmissionReviewPage({
 
         {/* ── Fullscreen overlay ────────────────────────────────── */}
         {fsOpen && (
-          <div className="fixed inset-0 z-[200] flex flex-col" style={{ background: '#000' }}>
+          <div className="fixed inset-0 z-200 flex flex-col" style={{ background: '#000' }}>
             <div className="flex items-center justify-between px-4 py-3 shrink-0">
               <span className="font-mono text-[13px] text-white/50 tabular-nums">
                 {String(fsIdx + 1).padStart(2, '0')} / {String(photos.length).padStart(2, '0')}
@@ -497,7 +497,7 @@ export default function OwnerSubmissionReviewPage({
 
         {/* Wall sizes */}
         <div className="rounded-(--r-md) p-4" style={{ background: 'rgba(255,255,255,.05)' }}>
-          <div className="text-[10px] text-white/50 uppercase tracking-[.05em] mb-2.5">Wall sizes</div>
+          <div className="text-[10px] text-white/50 uppercase tracking-wider mb-2.5">Wall sizes</div>
           {s.sizes.map((sz, i) => (
             <div
               key={i}
@@ -517,11 +517,11 @@ export default function OwnerSubmissionReviewPage({
         {/* Meta grid */}
         <div className="grid grid-cols-2 gap-2.5">
           <div className="rounded-(--r) p-3" style={{ background: 'rgba(255,255,255,.05)' }}>
-            <div className="text-[10px] text-white/50 uppercase tracking-[.05em]">Photo number</div>
+            <div className="text-[10px] text-white/50 uppercase tracking-wider">Photo number</div>
             <div className="font-mono text-[20px] font-bold mt-1">{String(s.photoNo).padStart(2, '0')}</div>
           </div>
           <div className="rounded-(--r) p-3" style={{ background: 'rgba(255,255,255,.05)' }}>
-            <div className="text-[10px] text-white/50 uppercase tracking-[.05em]">Photos</div>
+            <div className="text-[10px] text-white/50 uppercase tracking-wider">Photos</div>
             <div className="font-mono text-[20px] font-bold mt-1">{photos.length}</div>
           </div>
         </div>
@@ -529,15 +529,15 @@ export default function OwnerSubmissionReviewPage({
         {/* Rejection reason */}
         {s.status === 'rejected' && s.rejectionReason && (
           <div className="rounded-(--r) p-3" style={{ background: 'oklch(0.55 0.2 25 / .14)', border: '1px solid oklch(0.55 0.2 25 / .35)' }}>
-            <div className="text-[10px] uppercase tracking-[.05em] font-bold mb-1.5" style={{ color: 'oklch(0.78 0.14 25)' }}>Rejection reason</div>
+            <div className="text-[10px] uppercase tracking-wider font-bold mb-1.5" style={{ color: 'oklch(0.78 0.14 25)' }}>Rejection reason</div>
             <div className="text-[13px] text-white/85 leading-[1.45]">{s.rejectionReason}</div>
           </div>
         )}
 
         {s.notes && (
           <div>
-            <div className="text-[10px] text-white/50 uppercase tracking-[.05em] mb-1.5">Notes</div>
-            <div className="text-[13px] text-white/70 leading-[1.5]">{s.notes}</div>
+            <div className="text-[10px] text-white/50 uppercase tracking-wider mb-1.5">Notes</div>
+            <div className="text-[13px] text-white/70 leading-normal">{s.notes}</div>
           </div>
         )}
       </div>
@@ -722,9 +722,9 @@ export default function OwnerSubmissionReviewPage({
 
       {/* ══ Edit panel ══════════════════════════════════════════════ */}
       {editOpen && (
-        <div className="fixed inset-0 z-[60] flex" style={{ background: 'rgba(0,0,0,.6)' }} onClick={(e) => { if (e.target === e.currentTarget) closeEdit(); }}>
+        <div className="fixed inset-0 z-60 flex" style={{ background: 'rgba(0,0,0,.6)' }} onClick={(e) => { if (e.target === e.currentTarget) closeEdit(); }}>
           <div
-            className="ml-auto w-full lg:max-w-[560px] flex flex-col overflow-hidden shadow-2xl"
+            className="ml-auto w-full lg:max-w-140 flex flex-col overflow-hidden shadow-2xl"
             style={{ background: 'var(--paper)' }}
           >
             {/* Header */}
@@ -865,7 +865,7 @@ export default function OwnerSubmissionReviewPage({
                 </button>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-(--ink-3) uppercase tracking-[.05em] mb-1.5">
+                <label className="block text-[11px] font-semibold text-(--ink-3) uppercase tracking-wider mb-1.5">
                   Rejection notes <span className="normal-case text-(--ink-4)">(optional)</span>
                 </label>
                 <textarea

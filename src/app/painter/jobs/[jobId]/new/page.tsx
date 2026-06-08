@@ -107,7 +107,7 @@ export default function NewSubmissionPage({
       </div>
 
       {/* ── DESKTOP Header ───────────────────────────────────────────────── */}
-      <div className="hidden lg:flex items-center gap-3 max-w-[720px] mx-auto px-8 pt-11 pb-7">
+      <div className="hidden lg:flex items-center gap-3 max-w-180 mx-auto px-8 pt-11 pb-7">
         <button
           onClick={() => router.back()}
           className="w-9 h-9 border border-(--border-2) rounded-full bg-transparent text-(--ink) cursor-pointer flex items-center justify-center shrink-0"
@@ -120,7 +120,7 @@ export default function NewSubmissionPage({
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="px-4 pt-1 pb-[104px] lg:px-8 lg:pt-0 lg:pb-11 flex flex-col gap-[14px] lg:gap-5 lg:max-w-[720px] lg:mx-auto">
+        <div className="px-4 pt-1 pb-26 lg:px-8 lg:pt-0 lg:pb-11 flex flex-col gap-3.5 lg:gap-5 lg:max-w-180 lg:mx-auto">
           {/* Location */}
           <div>
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Wall location</div>
@@ -153,7 +153,7 @@ export default function NewSubmissionPage({
           {/* Photo number */}
           <div>
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Photo number</div>
-            <div className={[inputBox, "max-w-[220px] lg:max-w-none lg:w-[240px]", errors.photoNo ? "border-(--rejected)" : ""].join(" ")}>
+            <div className={[inputBox, "max-w-55 lg:max-w-none lg:w-60", errors.photoNo ? "border-(--rejected)" : ""].join(" ")}>
               <input
                 {...register("photoNo", { required: true })}
                 type="number"
@@ -187,7 +187,7 @@ export default function NewSubmissionPage({
         </div>
 
         {/* Mobile fixed submit */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[51] px-4 pt-3 pb-7 bg-(--paper) border-t border-(--border)">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-51 px-4 pt-3 pb-7 bg-(--paper) border-t border-(--border)">
           <SubmitButton busy={busy} step={step} />
         </div>
       </form>

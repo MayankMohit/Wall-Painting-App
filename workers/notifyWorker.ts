@@ -24,6 +24,9 @@ function redisConnection() {
     ...(url.username && url.username !== 'default' ? { username: url.username } : {}),
     ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
     maxRetriesPerRequest: null as unknown as number,
+    // Exponential backoff capped at 30s.
+    // Prevents the tight retry loop that burns Upstash free-tier request quota.
+    retryStrategy: (times: number) => Math.min(times * 2_000, 30_000),
   };
 }
 
@@ -130,7 +133,14 @@ async function main() {
           console.warn(`[notifyWorker] Unknown job type: ${job.name}`);
       }
     },
-    { connection, concurrency: 10 }
+    {
+      connection,
+      concurrency:      10,
+      drainDelay:       30,       // seconds to wait between polls when queue is empty (was ~5s)
+      stalledInterval:  60_000,   // check for stalled jobs every 60s instead of 30s
+      lockDuration:     120_000,  // hold job lock for 2 min (reduces lock-renewal commands)
+      lockRenewTime:    60_000,   // renew at halftime
+    }
   );
 
   worker.on('completed', (job) => {

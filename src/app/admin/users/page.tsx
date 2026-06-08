@@ -1,165 +1,268 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { Search, ArrowRight, Filter } from '@/components/admin/icons';
+import { Avatar } from '@/components/admin/Avatar';
+import { RolePill, StatusPill, type UserRole, type UserStatus } from '@/components/admin/AdminPills';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface SystemUser {
   _id: string;
   name: string;
   email: string;
-  role: 'admin' | 'owner' | 'painter';
-  status: 'active' | 'suspended';
-  joinedAt: string;
+  phone?: string;
+  role: UserRole;
+  status: UserStatus;
+  createdAt: string;
 }
 
+type RoleFilter   = 'all' | UserRole;
+type StatusFilter = 'all' | UserStatus;
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function authHeaders() {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('wallpainter_token') : '';
+  return { Authorization: `Bearer ${token}` };
+}
+
+function relTime(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(diff / 86_400_000);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 30)  return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return months < 12 ? `${months}mo ago` : `${Math.floor(months / 12)}y ago`;
+}
+
+// ── Chip ──────────────────────────────────────────────────────────────────────
+
+function Chip({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-3 py-1.5 rounded-full text-[12px] font-semibold border cursor-pointer transition-[background,border-color,color] duration-100 whitespace-nowrap"
+      style={{
+        background:   on ? 'var(--ink)' : 'var(--surface)',
+        borderColor:  on ? 'var(--ink)' : 'var(--border-2)',
+        color:        on ? '#fff'        : 'var(--ink-2)',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<SystemUser[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'admin' | 'owner' | 'painter' | 'suspended'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [users,       setUsers]       = useState<SystemUser[]>([]);
+  const [total,       setTotal]       = useState(0);
+  const [isLoading,   setIsLoading]   = useState(true);
+  const [role,        setRole]        = useState<RoleFilter>('all');
+  const [status,      setStatus]      = useState<StatusFilter>('all');
+  const [q,           setQ]           = useState('');
+  const [debouncedQ,  setDebouncedQ]  = useState('');
 
   useEffect(() => {
-    let isMounted = true;
+    const t = setTimeout(() => setDebouncedQ(q), 350);
+    return () => clearTimeout(t);
+  }, [q]);
 
-    const fetchUsers = async () => {
-      setIsLoading(true);
-      // ---------------------------------------------------------
-      // API TESTING PLACEHOLDER: GET /api/admin/users
-      // ---------------------------------------------------------
-      await new Promise(resolve => setTimeout(resolve, 600));
-
-      if (isMounted) {
-        setUsers([
-          { _id: 'u_901', name: 'SuperAdmin', email: 'admin@wallpainter.com', role: 'admin', status: 'active', joinedAt: 'Jan 10, 2024' },
-          { _id: 'u_105', name: 'Premier Painting Co.', email: 'owner@premier.com', role: 'owner', status: 'active', joinedAt: 'Mar 15, 2024' },
-          { _id: 'u_106', name: 'City Colors LLC', email: 'hello@citycolors.com', role: 'owner', status: 'suspended', joinedAt: 'Apr 02, 2024' },
-          { _id: 'u_201', name: 'Alex Johnson', email: 'alex@wallpainter.com', role: 'painter', status: 'active', joinedAt: 'Oct 12, 2024' },
-          { _id: 'u_202', name: 'Maria Garcia', email: 'maria@wallpainter.com', role: 'painter', status: 'active', joinedAt: 'Oct 14, 2024' },
-          { _id: 'u_205', name: 'James Wilson', email: 'james@wallpainter.com', role: 'painter', status: 'active', joinedAt: 'Oct 18, 2024' },
-        ]);
-        setIsLoading(false);
+  const fetchUsers = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (role   !== 'all') params.set('role',   role);
+      if (status !== 'all') params.set('status', status);
+      if (debouncedQ)       params.set('q',      debouncedQ);
+      const res  = await fetch(`/api/admin/users?${params}`, { headers: authHeaders() });
+      const json = await res.json();
+      if (res.ok) {
+        setUsers(json.data?.users ?? json.users ?? []);
+        setTotal(json.data?.total ?? json.total ?? 0);
       }
-    };
+    } finally {
+      setIsLoading(false);
+    }
+  }, [role, status, debouncedQ]);
 
-    fetchUsers();
-    return () => { isMounted = false; };
-  }, []);
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
-  // Filter and Search Logic
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          user.email.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    if (!matchesSearch) return false;
-    if (filter === 'all') return true;
-    if (filter === 'suspended') return user.status === 'suspended';
-    return user.role === filter;
-  });
+  const ROLE_FILTERS:   { key: RoleFilter;   label: string }[] = [
+    { key: 'all',     label: 'All roles' },
+    { key: 'painter', label: 'Painter'   },
+    { key: 'owner',   label: 'Owner'     },
+    { key: 'admin',   label: 'Admin'     },
+  ];
+  const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
+    { key: 'all',       label: 'All statuses' },
+    { key: 'active',    label: 'Active'       },
+    { key: 'inactive',  label: 'Inactive'     },
+    { key: 'suspended', label: 'Suspended'    },
+  ];
 
   return (
-    <div className="space-y-6">
-      
-      {/* Header & Global Search */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-6">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">User Directory</h1>
-          <p className="text-slate-500 mt-1">Manage platform access, roles, and account statuses.</p>
-        </div>
-        <div className="w-full sm:w-72 relative">
-          <input 
-            type="text" 
-            placeholder="Search by name or email..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-lg border-2 border-slate-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none text-sm text-slate-900"
-          />
-          <svg className="w-5 h-5 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-        </div>
-      </div>
+    <div className="bg-(--paper) min-h-screen">
 
-      {/* Role Filters */}
-      <div className="flex flex-wrap gap-2">
-        {['all', 'admin', 'owner', 'painter', 'suspended'].map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f as any)}
-            className={`px-4 py-2 rounded-full text-sm font-bold capitalize transition-colors ${
-              filter === f 
-                ? f === 'suspended' ? 'bg-red-100 text-red-700' : 'bg-slate-900 text-white' 
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {f}
-          </button>
-        ))}
-      </div>
+      {/* ── Mobile ──────────────────────────────────────────────────── */}
+      <div className="lg:hidden">
+        {/* Top bar */}
+        <div className="sticky top-0 z-10 bg-(--paper) border-b border-(--border)">
+          <div className="px-4 pt-3 pb-2">
+            <div className="text-[20px] font-bold tracking-[-0.025em] text-(--ink)">
+              Users <span className="font-(--mono) text-[16px] font-normal text-(--ink-3)">{total}</span>
+            </div>
+          </div>
+          {/* Search */}
+          <div className="px-4 pb-3">
+            <div className="h-11 bg-(--surface) border border-(--border-2) rounded-(--r) flex items-center gap-2.5 px-3.5">
+              <Search size={16} style={{ color: 'var(--ink-3)', flexShrink: 0 }} />
+              <input
+                type="text"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search name, email or phone"
+                className="flex-1 bg-transparent border-0 outline-none text-[14px] text-(--ink) placeholder:text-(--ink-4)"
+              />
+            </div>
+          </div>
+          {/* Role chips */}
+          <div className="flex gap-1.5 px-4 pb-2 overflow-x-auto">
+            {ROLE_FILTERS.map(({ key, label }) => (
+              <Chip key={key} label={label} on={role === key} onClick={() => setRole(key)} />
+            ))}
+          </div>
+          {/* Status chips */}
+          <div className="flex gap-1.5 px-4 pb-3 overflow-x-auto">
+            {STATUS_FILTERS.map(({ key, label }) => (
+              <Chip key={key} label={label} on={status === key} onClick={() => setStatus(key)} />
+            ))}
+          </div>
+        </div>
 
-      {/* Data Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {isLoading ? (
-          <div className="py-20 text-center text-slate-500 animate-pulse">Loading directory...</div>
+          <div className="flex items-center justify-center py-20">
+            <div className="w-6 h-6 rounded-full border-2 border-(--border-3) border-t-(--ink) animate-spin" />
+          </div>
+        ) : users.length === 0 ? (
+          <div className="py-16 text-center text-[13px] text-(--ink-3)">No users found.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
-                  <th className="p-4">User</th>
-                  <th className="p-4">Role</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4 hidden sm:table-cell">Joined</th>
-                  <th className="p-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredUsers.map((user) => (
-                  <tr key={user._id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="p-4">
-                      <div className="font-bold text-slate-900">{user.name}</div>
-                      <div className="text-sm text-slate-500">{user.email}</div>
-                    </td>
-                    <td className="p-4">
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wide ${
-                        user.role === 'admin' ? 'bg-teal-100 text-teal-800' :
-                        user.role === 'owner' ? 'bg-indigo-100 text-indigo-800' :
-                        'bg-slate-100 text-slate-700'
-                      }`}>
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      {user.status === 'active' ? (
-                        <span className="flex items-center gap-1.5 text-sm font-bold text-emerald-600">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Active
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1.5 text-sm font-bold text-red-600">
-                          <span className="w-2 h-2 rounded-full bg-red-500"></span> Suspended
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-4 text-sm text-slate-500 font-medium hidden sm:table-cell">
-                      {user.joinedAt}
-                    </td>
-                    <td className="p-4 text-right">
-                      <Link 
-                        href={`/admin/users/${user._id}`}
-                        className="text-teal-600 font-bold text-sm hover:text-teal-800 hover:underline px-3 py-2 rounded-md transition-colors"
-                      >
-                        Manage →
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            
-            {filteredUsers.length === 0 && (
-              <div className="py-12 text-center text-slate-500 font-medium">
-                No users found matching your search or filter.
-              </div>
-            )}
+          <div>
+            {users.map((u) => (
+              <Link
+                key={u._id}
+                href={`/admin/users/${u._id}`}
+                className="flex items-center gap-3 px-4 py-3.5 border-b border-(--border) no-underline text-inherit transition-colors hover:bg-(--paper-2)"
+              >
+                <Avatar name={u.name} size={40} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="text-[14px] font-semibold text-(--ink)">{u.name}</div>
+                    <RolePill role={u.role} />
+                    <StatusPill status={u.status} />
+                  </div>
+                  <div className="font-(--mono) text-[11px] text-(--ink-3) mt-0.5 truncate">{u.email}</div>
+                </div>
+                <ArrowRight size={16} style={{ color: 'var(--ink-4)', flexShrink: 0 }} />
+              </Link>
+            ))}
           </div>
         )}
+      </div>
+
+      {/* ── Desktop ──────────────────────────────────────────────────── */}
+      <div className="hidden lg:block">
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 pt-8 pb-5 border-b border-(--border)">
+          <div>
+            <h1 className="text-[24px] font-bold tracking-[-0.025em] text-(--ink)">
+              Users
+              {!isLoading && <span className="font-(--mono) text-[18px] font-normal text-(--ink-3) ml-2">{total}</span>}
+            </h1>
+            <p className="text-[13px] text-(--ink-3) mt-1">Manage platform access, roles, and account statuses.</p>
+          </div>
+          {/* Search */}
+          <div className="w-80 h-10 bg-(--surface) border border-(--border-2) rounded-(--r) flex items-center gap-2.5 px-3.5">
+            <Search size={16} style={{ color: 'var(--ink-3)', flexShrink: 0 }} />
+            <input
+              type="text"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search name, email or phone"
+              className="flex-1 bg-transparent border-0 outline-none text-[14px] text-(--ink) placeholder:text-(--ink-4)"
+            />
+          </div>
+        </div>
+
+        <div className="px-8 py-5">
+          {/* Filters */}
+          <div className="flex items-center gap-4 mb-5">
+            <div className="flex items-center gap-2">
+              <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-[.05em] w-14">Role</div>
+              <div className="flex gap-1.5">
+                {ROLE_FILTERS.map(({ key, label }) => (
+                  <Chip key={key} label={label} on={role === key} onClick={() => setRole(key)} />
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 ml-4">
+              <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-[.05em] w-14">Status</div>
+              <div className="flex gap-1.5">
+                {STATUS_FILTERS.map(({ key, label }) => (
+                  <Chip key={key} label={label} on={status === key} onClick={() => setStatus(key)} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden shadow-(--shadow-sm)">
+            {/* Header row */}
+            <div
+              className="grid gap-4 px-5 py-3 border-b border-(--border) bg-(--paper-2) text-[10px] font-bold uppercase tracking-[.05em] text-(--ink-3)"
+              style={{ gridTemplateColumns: '2.4fr 1.8fr 110px 130px 90px 50px' }}
+            >
+              <div>User</div>
+              <div>Contact</div>
+              <div>Role</div>
+              <div>Status</div>
+              <div>Joined</div>
+              <div />
+            </div>
+
+            {isLoading ? (
+              <div className="p-16 text-center animate-pulse text-[13px] text-(--ink-4)">Loading users…</div>
+            ) : users.length === 0 ? (
+              <div className="p-16 text-center text-[13px] text-(--ink-3)">No users match your filters.</div>
+            ) : (
+              users.map((u, i) => (
+                <Link
+                  key={u._id}
+                  href={`/admin/users/${u._id}`}
+                  className={[
+                    'grid gap-4 px-5 py-3.5 items-center no-underline text-inherit transition-colors hover:bg-(--paper-2)',
+                    i < users.length - 1 ? 'border-b border-(--border)' : '',
+                  ].join(' ')}
+                  style={{ gridTemplateColumns: '2.4fr 1.8fr 110px 130px 90px 50px' }}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar name={u.name} size={36} />
+                    <div className="text-[14px] font-semibold text-(--ink) truncate">{u.name}</div>
+                  </div>
+                  <div className="font-(--mono) text-[12px] text-(--ink-3) truncate">{u.email}</div>
+                  <div><RolePill role={u.role} /></div>
+                  <div><StatusPill status={u.status} /></div>
+                  <div className="font-(--mono) text-[12px] text-(--ink-3)">{relTime(u.createdAt)}</div>
+                  <div className="text-right"><ArrowRight size={16} style={{ color: 'var(--ink-4)' }} /></div>
+                </Link>
+              ))
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

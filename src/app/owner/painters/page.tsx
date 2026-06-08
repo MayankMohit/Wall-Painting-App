@@ -198,7 +198,7 @@ export default function PaintersPage() {
 
       {/* ══ Desktop filter row ══════════════════════════════════════ */}
       <div className="hidden lg:flex items-center gap-1.5 px-8 pb-4">
-        <span className="text-[11px] font-bold tracking-[.05em] uppercase mr-1.5" style={{ color: 'var(--ink-3)' }}>
+        <span className="text-[11px] font-bold tracking-wider uppercase mr-1.5" style={{ color: 'var(--ink-3)' }}>
           Filter
         </span>
         {([
@@ -307,7 +307,7 @@ export default function PaintersPage() {
         >
           {/* Table header */}
           <div
-            className="grid px-5 py-3 border-b border-(--border) text-[11px] font-bold uppercase tracking-[.05em]"
+            className="grid px-5 py-3 border-b border-(--border) text-[11px] font-bold uppercase tracking-wider"
             style={{ gridTemplateColumns: '2.2fr 1.6fr', background: 'var(--paper-2)', color: 'var(--ink-3)' }}
           >
             <div>Painter</div>

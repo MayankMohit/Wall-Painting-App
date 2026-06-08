@@ -41,7 +41,7 @@ export default function OwnerJobsPage() {
       {/* ══ Mobile top bar ═══════════════════════════════════════════ */}
       <div className="lg:hidden sticky top-0 z-20 bg-(--paper) border-b border-(--border)">
         <div className="flex items-center gap-2 px-4 h-14">
-          <h1 className="flex-1 text-[22px] font-bold tracking-[-0.025em] text-(--ink)">Jobs</h1>
+          <h1 className="flex-1 text-[22px] font-bold tracking-tight text-(--ink)">Jobs</h1>
           <button
             onClick={() => { setMobileSearchOpen((v) => !v); if (mobileSearchOpen) setSearchQuery(''); }}
             className="w-9 h-9 flex items-center justify-center rounded-full text-(--ink-2) hover:bg-(--paper-2) transition-colors"
@@ -79,7 +79,7 @@ export default function OwnerJobsPage() {
       {/* ══ Desktop header ═══════════════════════════════════════════ */}
       <div className="hidden lg:flex items-start gap-4 px-8 pt-8 pb-5">
         <div className="mr-auto">
-          <h1 className="text-[26px] font-bold tracking-[-0.025em] text-(--ink) leading-tight">Jobs</h1>
+          <h1 className="text-[26px] font-bold tracking-tight text-(--ink) leading-tight">Jobs</h1>
           {totalJobs !== null && stats && (
             <p className="text-[13px] text-(--ink-3) mt-0.5">
               <span className="font-(--mono)">{totalJobs}</span> jobs
@@ -132,7 +132,7 @@ export default function OwnerJobsPage() {
               {FILTER_LABELS[f]}
               {stats !== undefined && (
                 <span
-                  className="font-(--mono) text-[11px] font-bold tabular-nums"
+                  className="text-[11px] font-bold tabular-nums"
                   style={{ color: on ? 'rgba(255,255,255,0.5)' : 'var(--ink-4)' }}
                 >
                   · {stats[f]}
@@ -160,7 +160,7 @@ export default function OwnerJobsPage() {
           {['JOB', 'SUBMITTED', 'APPROVED', 'PENDING', 'STATUS', ''].map((h, i) => (
             <div
               key={i}
-              className={`text-[11px] font-semibold tracking-[.05em] uppercase text-(--ink-4) ${i >= 1 && i <= 3 ? 'text-center' : ''}`}
+              className={`text-[11px] font-semibold tracking-wider uppercase text-(--ink-4) ${i >= 1 && i <= 3 ? 'text-center' : ''}`}
             >
               {h}
             </div>
@@ -198,19 +198,19 @@ export default function OwnerJobsPage() {
                   </div>
                 </div>
 
-                <div className="text-center text-[15px] font-semibold text-(--ink) font-(--mono) tabular-nums">
+                <div className="text-center text-[15px] font-semibold text-(--ink) tabular-nums">
                   {job.stats?.submitted ?? 0}
                 </div>
 
                 <div
-                  className="text-center text-[15px] font-semibold font-(--mono) tabular-nums"
+                  className="text-center text-[15px] font-semibold tabular-nums"
                   style={{ color: 'var(--approved)' }}
                 >
                   {job.stats?.approved ?? 0}
                 </div>
 
                 <div
-                  className="text-center text-[15px] font-semibold font-(--mono) tabular-nums"
+                  className="text-center text-[15px] font-semibold tabular-nums"
                   style={{ color: pending > 0 ? 'var(--accent-deep)' : 'var(--ink-4)' }}
                 >
                   {pending}
@@ -264,7 +264,7 @@ export default function OwnerJobsPage() {
                       <JobTypeBadge type={job.type} />
                       {pending > 0 && (
                         <span
-                          className="inline-flex items-center h-[18px] px-[9px] rounded-full text-[11px] font-bold"
+                          className="inline-flex items-center h-4.5 px-2.25 rounded-full text-[11px] font-bold"
                           style={{ background: 'var(--accent-soft)', color: 'var(--accent-deep)' }}
                         >
                           <span className="font-(--mono)">{pending}</span>&nbsp;pending

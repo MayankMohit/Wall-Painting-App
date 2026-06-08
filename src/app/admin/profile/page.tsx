@@ -1,150 +1,283 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
-import EmailSection from '@/components/common/EmailSection';
-import { NotificationPreferences } from '@/components/common/NotificationPreferences';
+import { useEmailChange } from '@/hooks/useEmailChange';
+import { SecurityCard } from '@/components/profile/SecurityCard';
+import { SectionHdr } from '@/components/profile/SectionHdr';
+import { Pill } from '@/components/profile/Pill';
+import { EyeOff } from '@/components/profile/icons';
+import { OtpInput } from '@/components/ui/OtpInput';
 
-export default function AdminProfilePage() {
-  const { user, checkAuth } = useAuthStore();
-  const [profileData, setProfileData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+// ── Profile hook ───────────────────────────────────────────────────────────────
+
+interface ProfileData {
+  name:   string;
+  email:  string;
+  phone:  string;
+  joined: string;
+}
+
+function useAdminProfile(user: { name?: string; email?: string } | null) {
+  const [data,      setData]      = useState<ProfileData | null>(null);
+  const [isLoading, setLoading]   = useState(true);
+  const [error,     setError]     = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving,  setIsSaving]  = useState(false);
+  const [editName,  setEditName]  = useState('');
 
   useEffect(() => {
-    let isMounted = true;
-    
-    const fetchAdminProfile = async () => {
-      // ---------------------------------------------------------
-      // API TESTING PLACEHOLDER: GET /api/admin/profile
-      // ---------------------------------------------------------
-      await new Promise(resolve => setTimeout(resolve, 500)); 
-      
-      if (isMounted) {
-        setProfileData({
-          name: user?.name || 'SuperAdmin',
-          email: user?.email || 'admin@wallpainter.com',
-          role: 'Root Administrator',
-          mfaEnabled: true,
-          lastPasswordChange: '45 days ago',
-          activeApiKeys: 2
-        });
-        setIsLoading(false);
+    if (!user) { setLoading(false); return; }
+    let mounted = true;
+    (async () => {
+      try {
+        const token = localStorage.getItem('wallpainter_token');
+        if (!token) throw new Error('No token');
+        const res  = await fetch('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Failed to load profile');
+        const json = await res.json();
+        const d    = json?.data ?? json;
+        if (!mounted) return;
+        const profile: ProfileData = {
+          name:   d.name  || user.name  || '',
+          email:  d.email || user.email || '',
+          phone:  d.phone || '',
+          joined: d.createdAt
+            ? new Date(d.createdAt).toLocaleDateString([], { month: 'long', year: 'numeric' })
+            : '—',
+        };
+        setData(profile);
+        setEditName(profile.name);
+      } catch (e: unknown) {
+        if (mounted) setError(e instanceof Error ? e.message : 'Failed to load profile');
+      } finally {
+        if (mounted) setLoading(false);
       }
-    };
-    
-    fetchAdminProfile();
-    return () => { isMounted = false; };
+    })();
+    return () => { mounted = false; };
   }, [user]);
 
-  if (isLoading) return <div className="py-20 text-center text-slate-500 animate-pulse">Loading secure profile...</div>;
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const token = localStorage.getItem('wallpainter_token');
+      const res = await fetch('/api/users/me', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editName }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Failed to update');
+      setData((p) => p ? { ...p, name: editName } : p);
+      setIsEditing(false);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    if (data) setEditName(data.name);
+  };
+
+  return { data, isLoading, error, isEditing, setIsEditing, isSaving, editName, setEditName, handleSave, cancelEdit };
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
+export default function AdminProfilePage() {
+  const { user, checkAuth, logout } = useAuthStore();
+  const router  = useRouter();
+  const profile = useAdminProfile(user);
+  const change  = useEmailChange(checkAuth);
+
+  const displayEmail = profile.data?.email || user?.email || '';
+
+  if (profile.isLoading) {
+    return (
+      <div className="flex justify-center py-20">
+        <div className="w-7 h-7 rounded-full border-2 border-(--border-3) border-t-(--ink) animate-spin" />
+      </div>
+    );
+  }
+
+  if (profile.error) {
+    return (
+      <div className="m-6 p-4 rounded-(--r) text-[13px] font-medium" style={{ background: 'var(--rejected-soft)', color: 'var(--rejected)' }}>
+        {profile.error}
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="border-b border-slate-200 pb-6">
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Administrator Settings</h1>
-        <p className="text-slate-500 mt-1">Manage your superuser account, security preferences, and API access.</p>
+    <div className="bg-(--paper) min-h-svh">
+
+      {/* ── Mobile top bar ──────────────────────────────────────────── */}
+      <div className="lg:hidden sticky top-0 z-10 bg-(--paper) border-b border-(--border) px-4 py-2.5 flex items-center justify-between">
+        <div className="text-[22px] font-bold tracking-[-0.02em] text-(--ink)">Me</div>
+        {!profile.isEditing ? (
+          <button onClick={() => profile.setIsEditing(true)} className="text-[13px] font-semibold cursor-pointer bg-transparent border-0 py-1 px-0.5" style={{ color: 'var(--accent-deep)' }}>
+            Edit
+          </button>
+        ) : (
+          <div className="flex items-center gap-4">
+            <button onClick={profile.cancelEdit} disabled={profile.isSaving} className="text-[13px] font-medium text-(--ink-3) bg-transparent border-0 cursor-pointer disabled:opacity-50">Cancel</button>
+            <button onClick={profile.handleSave} disabled={profile.isSaving} className="text-[13px] font-semibold text-(--ink) bg-transparent border-0 cursor-pointer disabled:opacity-50">
+              {profile.isSaving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        
-        {/* Main Profile Info */}
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 mb-6">Personal Information</h2>
-            
-            <div className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Display Name</label>
-                  <input
-                    type="text"
-                    defaultValue={profileData.name}
-                    className="w-full p-2.5 rounded-lg border-2 border-slate-200 focus:border-teal-500 outline-none text-slate-900 font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Root Email</label>
-                  <input
-                    type="email"
-                    defaultValue={profileData.email}
-                    className="w-full p-2.5 rounded-lg border-2 border-slate-200 focus:border-teal-500 outline-none text-slate-900 font-medium"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">System Role Level</label>
-                <input
-                  type="text"
-                  value={profileData.role}
-                  disabled
-                  className="w-full p-2.5 rounded-lg border-2 border-slate-100 bg-slate-50 text-slate-500 font-mono text-sm cursor-not-allowed"
-                />
-              </div>
+      {/* ── Desktop header ──────────────────────────────────────────── */}
+      <div className="hidden lg:flex items-center justify-between max-w-[660px] mx-auto px-8 pt-11 pb-6">
+        <div className="text-[26px] font-bold tracking-[-0.025em] text-(--ink)">Me</div>
+        {!profile.isEditing ? (
+          <button onClick={() => profile.setIsEditing(true)} className="h-9 px-4 rounded-full border border-(--border-2) bg-transparent text-(--ink) text-[13px] font-semibold cursor-pointer hover:border-(--border-3) transition-[border-color]">
+            Edit profile
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button onClick={profile.cancelEdit} disabled={profile.isSaving} className="h-9 px-4 text-[13px] font-medium text-(--ink-3) bg-transparent border-0 cursor-pointer disabled:opacity-50">Cancel</button>
+            <button onClick={profile.handleSave} disabled={profile.isSaving} className="h-9 px-5 rounded-full bg-(--ink) text-white text-[13px] font-semibold border-0 cursor-pointer disabled:opacity-50">
+              {profile.isSaving ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        )}
+      </div>
 
-              <div className="pt-4 flex justify-end">
-                <button className="bg-teal-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-teal-700 transition-colors">
-                  Update Profile
-                </button>
+      {/* ── Content ─────────────────────────────────────────────────── */}
+      <div className="pb-10 lg:max-w-[660px] lg:mx-auto">
+
+        {/* Avatar card */}
+        <div className="px-4 lg:px-8">
+          <div className="bg-(--surface) border border-(--border) rounded-(--r-md) p-4">
+            <div className="flex items-center gap-4">
+              <div
+                className="shrink-0 rounded-full bg-(--ink) text-white flex items-center justify-center text-[22px] font-bold select-none"
+                style={{ width: 56, height: 56 }}
+              >
+                {(profile.data?.name || user?.name || '?').charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[17px] font-semibold text-(--ink) truncate">{profile.data?.name || user?.name}</div>
+                <div className="text-[12px] text-(--ink-3) mt-0.5 truncate">{displayEmail}</div>
+                <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                  <Pill kind="neutral">Admin</Pill>
+                  <Pill kind="approved">Verified</Pill>
+                </div>
               </div>
             </div>
           </div>
-
-          {/* Developer / API Keys */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-             <div className="flex justify-between items-center mb-6">
-               <h2 className="text-lg font-bold text-slate-900">Developer API Keys</h2>
-               <button className="text-teal-600 text-sm font-bold hover:text-teal-800">+ Generate New Key</button>
-             </div>
-             
-             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex justify-between items-center">
-                <div>
-                  <div className="text-sm font-bold text-slate-900">Production Integration</div>
-                  <div className="text-xs font-mono text-slate-500 mt-1">sk_live_••••••••••••••••8f92</div>
-                </div>
-                <button className="text-slate-400 hover:text-slate-600 transition-colors">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                </button>
-             </div>
-          </div>
         </div>
 
-        {/* Sidebar Security */}
-        <div className="space-y-6">
-          <div className="bg-slate-900 text-white p-6 rounded-xl shadow-sm">
-            <h3 className="text-sm font-bold text-teal-400 uppercase tracking-wider mb-4">Security Status</h3>
-            
-            <ul className="space-y-4">
-              <li className="flex justify-between items-center border-b border-slate-700 pb-4">
-                <div>
-                  <span className="block text-sm font-bold">Two-Factor Auth</span>
-                  <span className="text-xs text-slate-400">Authenticator App</span>
-                </div>
-                {profileData.mfaEnabled ? (
-                  <span className="bg-emerald-500/20 text-emerald-400 text-xs px-2 py-1 rounded font-bold uppercase">Enabled</span>
-                ) : (
-                  <button className="bg-teal-600 text-white text-xs px-3 py-1.5 rounded font-bold">Enable</button>
+        {/* Personal info */}
+        <SectionHdr title="Personal info" />
+        <div className="px-4 lg:px-8">
+          <div className="bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden">
+            {/* Full name */}
+            <div className="px-3.5 py-3 flex items-center gap-3 border-b border-(--border)">
+              <div className="text-[13px] text-(--ink-3) w-24 shrink-0">Full name</div>
+              {profile.isEditing ? (
+                <input
+                  value={profile.editName}
+                  onChange={(e) => profile.setEditName(e.target.value)}
+                  disabled={profile.isSaving}
+                  className="flex-1 text-[13px] font-semibold text-(--ink) text-right bg-(--paper-2) border border-(--border-2) rounded-(--r-sm) px-2 py-1 focus:outline-none"
+                />
+              ) : (
+                <div className="flex-1 text-[13px] font-semibold text-(--ink) text-right">{profile.data?.name}</div>
+              )}
+            </div>
+
+            {/* Email */}
+            <div className="px-3.5 py-3 border-b border-(--border)">
+              <div className="flex items-center gap-2">
+                <div className="text-[13px] text-(--ink-3) flex-1">Email</div>
+                {change.mode === 'idle' && (
+                  <button onClick={change.open} className="text-[13px] font-semibold text-(--ink-2) bg-transparent border-0 cursor-pointer shrink-0">Change</button>
                 )}
-              </li>
-              
-              <li className="flex justify-between items-center pt-2">
-                <div>
-                  <span className="block text-sm font-bold">Password</span>
-                  <span className="text-xs text-slate-400">Last changed {profileData.lastPasswordChange}</span>
+                {change.mode !== 'idle' && (
+                  <button onClick={change.cancel} className="text-[13px] font-medium text-(--ink-3) bg-transparent border-0 cursor-pointer shrink-0">Cancel</button>
+                )}
+              </div>
+              <div className="text-[13px] font-semibold text-(--ink) mt-0.5 truncate">{displayEmail}</div>
+              {change.mode === 'form' && (
+                <div className="mt-3 space-y-2.5">
+                  <div>
+                    <div className="text-[11px] font-semibold text-(--ink-3) mb-1.5">New email address</div>
+                    <div className="h-11 bg-(--paper-2) border border-(--border-2) rounded-(--r) px-3 flex items-center">
+                      <input type="email" value={change.newEmail} onChange={(e) => change.setNewEmail(e.target.value)} placeholder="new@example.com" className="flex-1 bg-transparent border-0 outline-none text-[14px] text-(--ink) placeholder:text-(--ink-4)" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-semibold text-(--ink-3) mb-1.5">Current password</div>
+                    <div className="h-11 bg-(--paper-2) border border-(--border-2) rounded-(--r) px-3 flex items-center gap-2">
+                      <input type={change.showPassword ? 'text' : 'password'} value={change.password} onChange={(e) => change.setPassword(e.target.value)} placeholder="Confirm it's you" className="flex-1 bg-transparent border-0 outline-none text-[14px] text-(--ink) placeholder:text-(--ink-4)" />
+                      <button type="button" onClick={() => change.setShowPassword((s) => !s)} className="text-(--ink-3) bg-transparent border-0 cursor-pointer shrink-0">
+                        <EyeOff size={16} weight={1.6} />
+                      </button>
+                    </div>
+                  </div>
+                  {change.error && <div className="text-[11px]" style={{ color: 'var(--rejected)' }}>{change.error}</div>}
+                  <button
+                    onClick={change.sendOtp}
+                    disabled={change.sending || !change.newEmail || !change.password}
+                    className="w-full h-10 rounded-(--r) bg-(--ink) text-white text-[13px] font-semibold border-0 cursor-pointer disabled:opacity-40"
+                  >
+                    {change.sending ? 'Sending code…' : 'Send verification code'}
+                  </button>
                 </div>
-                <button className="text-slate-300 hover:text-white text-xs font-bold underline">Change</button>
-              </li>
-            </ul>
+              )}
+              {change.mode === 'otp' && (
+                <div className="mt-3 space-y-2">
+                  <div className="text-[12px] text-(--ink-3) leading-[1.4]">
+                    Enter the 6-digit code sent to <span className="font-semibold text-(--ink)">{change.newEmail}</span>
+                  </div>
+                  <OtpInput value={change.otp} onChange={change.handleOtpChange} disabled={change.confirming} error={change.error} placeholder={change.confirming ? 'Verifying…' : 'Enter 6-digit code'} />
+                  <div className="flex items-center justify-between">
+                    <button onClick={change.backToForm} className="text-[12px] font-medium text-(--ink-3) bg-transparent border-0 cursor-pointer">← Back</button>
+                    <button onClick={change.sendOtp} disabled={change.sending} className="text-[12px] font-semibold bg-transparent border-0 cursor-pointer disabled:opacity-50" style={{ color: 'var(--accent-deep)' }}>
+                      {change.sending ? 'Sending…' : 'Resend code'}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {change.success && <div className="mt-2 text-[12px] font-medium" style={{ color: 'var(--approved)' }}>Email updated successfully.</div>}
+            </div>
+
+            {/* Phone */}
+            <div className="px-3.5 py-3 flex items-center gap-3 border-b border-(--border)">
+              <div className="text-[13px] text-(--ink-3) w-24 shrink-0">Phone</div>
+              <div className="flex-1 text-[13px] font-semibold text-(--ink) text-right">{profile.data?.phone || '—'}</div>
+            </div>
+
+            {/* Joined */}
+            <div className="px-3.5 py-3 flex items-center gap-3">
+              <div className="text-[13px] text-(--ink-3) w-24 shrink-0">Joined</div>
+              <div className="flex-1 text-[13px] font-semibold text-(--ink) text-right">{profile.data?.joined ?? '—'}</div>
+            </div>
           </div>
         </div>
-        
-      </div>
 
-      {user && <EmailSection user={user} onEmailUpdated={checkAuth} />}
+        {/* Security */}
+        <SectionHdr title="Security" />
+        <div className="px-4 lg:px-8">
+          <SecurityCard />
+        </div>
 
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900 mb-4">Notification Preferences</h2>
-        <NotificationPreferences />
+        {/* Sign out */}
+        <div className="px-4 lg:px-8 pt-6">
+          <button
+            onClick={() => { logout(); router.push('/login'); }}
+            className="w-full h-[52px] rounded-full border border-(--border-2) bg-transparent text-[15px] font-semibold cursor-pointer flex items-center justify-center transition-[border-color] hover:border-(--border-3)"
+            style={{ color: 'var(--rejected)' }}
+          >
+            Sign out
+          </button>
+        </div>
       </div>
     </div>
   );

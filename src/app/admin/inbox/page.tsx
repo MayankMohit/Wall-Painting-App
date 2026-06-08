@@ -10,8 +10,7 @@ import {
 } from '@/store/api/notificationsApi';
 import { groupByDate } from '@/components/notifications/notifHelpers';
 import { Bell, SpeakerOn, SpeakerOff } from '@/components/notifications/icons';
-
-// ── Helpers ────────────────────────────────────────────────────────────────
+import { Check, Clock, X } from '@/components/owner/icons';
 
 type NotifKind = 'pending' | 'approved' | 'rejected' | 'info';
 
@@ -31,18 +30,10 @@ const KIND_COLOR: Record<NotifKind, string> = {
 };
 
 function KindIcon({ kind, size = 14 }: { kind: NotifKind; size?: number }) {
-  const strokeWidth = kind === 'approved' || kind === 'rejected' ? 2.4 : 1.6;
-  const paths: Record<NotifKind, React.ReactNode> = {
-    approved: <path d="m5 12 5 5 9-11" />,
-    rejected: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
-    pending:  <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-    info:     <><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2H4.5z" /><path d="M10 20a2 2 0 0 0 4 0" /></>,
-  };
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-      {paths[kind]}
-    </svg>
-  );
+  if (kind === 'approved') return <Check size={size} weight={2.4} />;
+  if (kind === 'rejected') return <X size={size} weight={2.4} />;
+  if (kind === 'pending')  return <Clock size={size} />;
+  return <Bell size={size} />;
 }
 
 function relativeTime(iso: string): string {
@@ -56,12 +47,9 @@ function relativeTime(iso: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-// ── Row ────────────────────────────────────────────────────────────────────
-
 function NotifRow({ notif, onRead }: { notif: AppNotification; onRead: (id: string) => void }) {
   const unread = notif.readAt === null;
-  const kind = getKind(notif.eventId);
-
+  const kind   = getKind(notif.eventId);
   return (
     <button
       onClick={() => { if (unread) onRead(notif._id); }}
@@ -69,27 +57,21 @@ function NotifRow({ notif, onRead }: { notif: AppNotification; onRead: (id: stri
       style={{ background: unread ? 'oklch(0.97 0.012 60 / .6)' : 'transparent', cursor: unread ? 'pointer' : 'default' }}
     >
       <div
-        className="w-8.5 h-8.5 rounded-full shrink-0 flex items-center justify-center text-white mt-0.5"
+        className="w-[34px] h-[34px] rounded-full shrink-0 flex items-center justify-center text-white mt-0.5"
         style={{ background: KIND_COLOR[kind] }}
       >
         <KindIcon kind={kind} size={14} />
       </div>
-
       <div className="flex-1 min-w-0">
         <div className="text-[14px] leading-[1.35] text-(--ink)" style={{ fontWeight: unread ? 600 : 500 }}>
           {notif.title}
         </div>
         {notif.body && (
-          <div className="text-[13px] text-(--ink-2) mt-0.5 leading-[1.4] line-clamp-2">
-            {notif.body}
-          </div>
+          <div className="text-[13px] text-(--ink-2) mt-0.5 leading-[1.4] line-clamp-2">{notif.body}</div>
         )}
       </div>
-
       <div className="flex items-center gap-2 shrink-0 mt-0.5">
-        {unread && (
-          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--accent)' }} />
-        )}
+        {unread && <div className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--accent)' }} />}
         <div className="text-[11px] whitespace-nowrap" style={{ color: 'var(--ink-4)', fontFamily: 'var(--mono)' }}>
           {relativeTime(notif.createdAt)}
         </div>
@@ -98,12 +80,10 @@ function NotifRow({ notif, onRead }: { notif: AppNotification; onRead: (id: stri
   );
 }
 
-// ── Skeleton ───────────────────────────────────────────────────────────────
-
 function SkeletonRow() {
   return (
     <div className="flex items-start gap-3.5 px-5 py-3.5 border-b border-(--border) last:border-0 animate-pulse">
-      <div className="w-8.5 h-8.5 rounded-full bg-(--paper-2) shrink-0 mt-0.5" />
+      <div className="w-[34px] h-[34px] rounded-full bg-(--paper-2) shrink-0 mt-0.5" />
       <div className="flex-1 space-y-2 pt-1">
         <div className="h-3.5 w-48 bg-(--paper-2) rounded" />
         <div className="h-3 w-64 bg-(--paper-2) rounded" />
@@ -112,18 +92,16 @@ function SkeletonRow() {
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────
-
-export default function PainterInboxPage() {
+export default function AdminInboxPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const muted = useNotificationUiStore((s) => s.muted);
-  const toggleMute = useNotificationUiStore((s) => s.toggleMute);
+  const muted       = useNotificationUiStore((s) => s.muted);
+  const toggleMute  = useNotificationUiStore((s) => s.toggleMute);
 
   const { data, isLoading } = useGetNotificationsQuery(
     { limit: 50 },
     { skip: !isAuthenticated, pollingInterval: 30_000 },
   );
-  const [markRead] = useMarkReadMutation();
+  const [markRead]    = useMarkReadMutation();
   const [markAllRead] = useMarkAllReadMutation();
 
   const notifications = data?.notifications ?? [];
@@ -132,25 +110,20 @@ export default function PainterInboxPage() {
 
   function Header({ desktop = false }: { desktop?: boolean }) {
     return (
-      <div
-        className={[
-          'flex items-center justify-between border-b border-(--border)',
-          desktop
-            ? 'pb-5'
-            : 'px-4 pt-3.5 pb-3 bg-(--paper) sticky top-0 z-10',
-        ].join(' ')}
-      >
+      <div className={[
+        'flex items-center justify-between border-b border-(--border)',
+        desktop ? 'pb-5' : 'px-4 pt-[14px] pb-3 bg-(--paper) sticky top-0 z-10',
+      ].join(' ')}>
         <div className="flex items-center gap-2.5">
-          <span className={['font-bold tracking-tight text-(--ink)', desktop ? 'text-[28px]' : 'text-[22px]'].join(' ')}>
+          <span className={['font-bold tracking-[-0.025em] text-(--ink)', desktop ? 'text-[28px]' : 'text-[22px]'].join(' ')}>
             Inbox
           </span>
           {unreadCount > 0 && (
-            <span className="h-5 min-w-5 px-1.5 bg-(--accent) text-white rounded-full text-[11px] font-bold inline-flex items-center justify-center">
+            <span className="h-5 min-w-[20px] px-1.5 bg-(--accent) text-white rounded-full text-[11px] font-bold inline-flex items-center justify-center font-(--mono)">
               {unreadCount}
             </span>
           )}
         </div>
-
         <div className="flex items-center gap-2">
           {unreadCount > 0 && (
             <button
@@ -184,10 +157,9 @@ export default function PainterInboxPage() {
         </div>
       );
     }
-
     if (notifications.length === 0) {
       return (
-        <div className="py-18 px-6 text-center">
+        <div className="py-[72px] px-6 text-center">
           <div className="w-12 h-12 rounded-[14px] bg-(--paper-2) border border-(--border) flex items-center justify-center text-(--ink-3) mx-auto mb-4">
             <Bell size={22} />
           </div>
@@ -196,18 +168,15 @@ export default function PainterInboxPage() {
         </div>
       );
     }
-
     return (
       <div className="space-y-4">
         {groups.map(({ label, items }) => (
           <div key={label}>
-            <div className="text-[11px] font-bold tracking-wider uppercase mb-2" style={{ color: 'var(--ink-3)' }}>
+            <div className="text-[11px] font-bold tracking-[.05em] uppercase mb-0 pb-0" style={{ color: 'var(--ink-3)' }}>
               {label}
             </div>
-            <div className="overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
-              {items.map((n) => (
-                <NotifRow key={n._id} notif={n} onRead={(id) => markRead(id)} />
-              ))}
+            <div className="mt-2 overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
+              {items.map((n) => <NotifRow key={n._id} notif={n} onRead={(id) => markRead(id)} />)}
             </div>
           </div>
         ))}
@@ -217,21 +186,16 @@ export default function PainterInboxPage() {
 
   return (
     <>
-      {/* ── MOBILE ──────────────────────────────────────────────────── */}
+      {/* Mobile */}
       <div className="lg:hidden bg-(--paper) min-h-screen">
         <Header />
-        <div className="px-4 py-4">
-          <Body />
-        </div>
+        <div className="px-4 py-4"><Body /></div>
       </div>
-
-      {/* ── DESKTOP ─────────────────────────────────────────────────── */}
+      {/* Desktop */}
       <div className="hidden lg:flex justify-center px-8 py-8">
-        <div className="w-full max-w-180">
+        <div className="w-full max-w-[720px]">
           <Header desktop />
-          <div className="mt-5">
-            <Body />
-          </div>
+          <div className="mt-5"><Body /></div>
         </div>
       </div>
     </>

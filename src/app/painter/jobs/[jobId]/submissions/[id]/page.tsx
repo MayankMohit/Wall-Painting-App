@@ -38,7 +38,7 @@ export default function SubmissionDetailPage({
       (error as { data?: { error?: { message?: string } } })?.data?.error?.message ??
       'Submission not found';
     return (
-      <div className="m-6 p-4 rounded-(--r) bg-(--rejected-soft) text-(--rejected) text-[13px] font-medium border border-[oklch(0.55_0.17_25_/_0.2)]">
+      <div className="m-6 p-4 rounded-(--r) bg-(--rejected-soft) text-(--rejected) text-[13px] font-medium border border-[oklch(0.55_0.17_25/0.2)]">
         {msg}
       </div>
     );
@@ -55,7 +55,7 @@ export default function SubmissionDetailPage({
   return (
     <>
       {/* ── MOBILE ──────────────────────────────────────────────────────── */}
-      <div className={['lg:hidden bg-(--paper)', canEdit ? 'pb-[164px]' : 'pb-4'].join(' ')}>
+      <div className={['lg:hidden bg-(--paper)', canEdit ? 'pb-41' : 'pb-4'].join(' ')}>
 
         <div className="sticky top-0 z-10 bg-(--paper) border-b border-(--border) flex items-center px-4 py-2.5">
           <Link
@@ -91,14 +91,14 @@ export default function SubmissionDetailPage({
           <SizesTable sizes={sub.sizes} totalArea={viewArea} />
         </div>
 
-        <div className="px-4 pt-[14px] grid grid-cols-2 gap-2">
+        <div className="px-4 pt-3.5 grid grid-cols-2 gap-2">
           {[
             { label: 'Photo number', value: String(sub.photoNo).padStart(2, '0') },
             { label: 'Photos',       value: String(photos.length)                },
           ].map(({ label, value }) => (
             <div key={label} className="bg-(--surface) border border-(--border) rounded-(--r) p-3">
-              <div className="text-[10px] font-semibold text-(--ink-3) uppercase tracking-[.05em]">{label}</div>
-              <div className="font-(--mono) text-[20px] font-semibold mt-1 text-(--ink)">{value}</div>
+              <div className="text-[10px] font-semibold text-(--ink-3) uppercase tracking-wider">{label}</div>
+              <div className="font-(--mono) text-[20px] mt-1 text-(--ink)">{value}</div>
             </div>
           ))}
         </div>
@@ -106,16 +106,16 @@ export default function SubmissionDetailPage({
         {sub.notes && (
           <>
             <SectionHdr title="Notes" />
-            <div className="px-4 pb-2 text-[13px] text-(--ink-2) leading-[1.5]">{sub.notes}</div>
+            <div className="px-4 pb-2 text-[13px] text-(--ink-2) leading-normal">{sub.notes}</div>
           </>
         )}
       </div>
 
       {canEdit && (
-        <div className="lg:hidden fixed bottom-17.5 left-0 right-0 z-[51] px-4 py-3 bg-(--paper) border-t border-(--border)">
+        <div className="lg:hidden fixed bottom-17.5 left-0 right-0 z-51 px-4 py-3 bg-(--paper) border-t border-(--border)">
           <button
             onClick={() => router.push(editHref)}
-            className="w-full h-[52px] rounded-full border-0 bg-(--ink) text-white text-[16px] cursor-pointer flex items-center justify-center gap-2 font-(--font)"
+            className="w-full h-13 rounded-full border-0 bg-(--ink) text-white text-[16px] cursor-pointer flex items-center justify-center gap-2 font-(--font)"
           >
             <Brush size={18} weight={2} />
             Edit submission
@@ -229,15 +229,15 @@ export default function SubmissionDetailPage({
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-(--surface) border border-(--border) rounded-(--r) px-4 py-3">
                     <div className="text-[10px] font-semibold text-(--ink-3) uppercase tracking-wider">{label}</div>
-                    <div className="font-(--mono) text-[22px] font-semibold mt-1 text-(--ink)">{value}</div>
+                    <div className="font-(--mono) text-[22px] mt-1 text-(--ink)">{value}</div>
                   </div>
                 ))}
               </div>
 
               {/* Rejection reason */}
               {sub.status === 'rejected' && sub.rejectionReason && (
-                <div className="rounded-(--r) p-3.5 bg-(--rejected-soft) border border-[oklch(0.55_0.17_25_/_0.2)]">
-                  <div className="text-[10px] font-bold uppercase tracking-[.05em] mb-1.5 text-(--rejected)">Rejection reason</div>
+                <div className="rounded-(--r) p-3.5 bg-(--rejected-soft) border border-[oklch(0.55_0.17_25/0.2)]">
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5 text-(--rejected)">Rejection reason</div>
                   <div className="text-[13px] text-(--ink) leading-[1.45]">{sub.rejectionReason}</div>
                 </div>
               )}

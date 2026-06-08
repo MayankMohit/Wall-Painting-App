@@ -37,6 +37,10 @@ export const GET = withRole(['admin'], { audit: 'ADMIN_STORAGE_VIEW' })(
       ])
     );
 
+    // R2's S3-compatible API doesn't report total bucket size reliably,
+    // so derive it from our GeneratedFile records which track fileSize on write.
+    const r2TotalFromDB = fileAgg.reduce((sum, f) => sum + (f.totalBytes as number), 0);
+
     return ok({
       cloudinary:
         cdRes.status === 'fulfilled'
@@ -54,8 +58,12 @@ export const GET = withRole(['admin'], { audit: 'ADMIN_STORAGE_VIEW' })(
 
       r2:
         r2Res.status === 'fulfilled'
-          ? { ...r2Res.value, breakdown: r2Breakdown }
-          : { error: 'unavailable' },
+          ? {
+              totalBytes:  r2Res.value.usedBytes || r2TotalFromDB,
+              objectCount: r2Res.value.fileCount,
+              breakdown:   r2Breakdown,
+            }
+          : { totalBytes: r2TotalFromDB, breakdown: r2Breakdown },
 
       mongodb:
         dbRes.status === 'fulfilled'

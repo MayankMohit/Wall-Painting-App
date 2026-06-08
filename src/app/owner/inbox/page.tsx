@@ -69,7 +69,7 @@ function NotifRow({
     >
       {/* Icon circle */}
       <div
-        className="w-[34px] h-[34px] rounded-full shrink-0 flex items-center justify-center text-white mt-0.5"
+        className="w-8.5 h-8.5 rounded-full shrink-0 flex items-center justify-center text-white mt-0.5"
         style={{ background: KIND_COLOR[kind] }}
       >
         <KindIcon kind={kind} size={14} />
@@ -105,7 +105,7 @@ function NotifRow({
 function SkeletonRow() {
   return (
     <div className="flex items-start gap-3.5 px-5 py-3.5 border-b border-(--border) last:border-0 animate-pulse">
-      <div className="w-[34px] h-[34px] rounded-full bg-(--paper-2) shrink-0 mt-0.5" />
+      <div className="w-8.5 h-8.5 rounded-full bg-(--paper-2) shrink-0 mt-0.5" />
       <div className="flex-1 space-y-2 pt-1">
         <div className="h-3.5 w-48 bg-(--paper-2) rounded" />
         <div className="h-3 w-64 bg-(--paper-2) rounded" />
@@ -140,17 +140,17 @@ export default function OwnerInboxPage() {
           'flex items-center justify-between border-b border-(--border)',
           desktop
             ? 'pb-5'
-            : 'px-4 pt-[14px] pb-3 bg-(--paper) sticky top-0 z-10',
+            : 'px-4 pt-3.5 pb-3 bg-(--paper) sticky top-0 z-10',
         ].join(' ')}
       >
         <div className="flex items-center gap-2.5">
           <span
-            className={['font-bold tracking-[-0.025em] text-(--ink)', desktop ? 'text-[28px]' : 'text-[22px]'].join(' ')}
+            className={['font-bold tracking-tight text-(--ink)', desktop ? 'text-[28px]' : 'text-[22px]'].join(' ')}
           >
             Inbox
           </span>
           {unreadCount > 0 && (
-            <span className="h-5 min-w-[20px] px-1.5 bg-(--accent) text-white rounded-full text-[11px] font-bold inline-flex items-center justify-center font-(--mono)">
+            <span className="h-5 min-w-5 px-1.5 bg-(--accent) text-white rounded-full text-[11px] font-bold inline-flex items-center justify-center">
               {unreadCount}
             </span>
           )}
@@ -196,7 +196,7 @@ export default function OwnerInboxPage() {
 
     if (notifications.length === 0) {
       return (
-        <div className="py-[72px] px-6 text-center">
+        <div className="py-18 px-6 text-center">
           <div className="w-12 h-12 rounded-[14px] bg-(--paper-2) border border-(--border) flex items-center justify-center text-(--ink-3) mx-auto mb-4">
             <Bell size={22} />
           </div>
@@ -211,7 +211,7 @@ export default function OwnerInboxPage() {
         {groups.map(({ label, items }) => (
           <div key={label}>
             {/* Date group header */}
-            <div className="text-[11px] font-bold tracking-[.05em] uppercase mb-0 px-0 pt-0 pb-0" style={{ color: 'var(--ink-3)' }}>
+            <div className="text-[11px] font-bold tracking-wider uppercase mb-0 px-0 pt-0 pb-0" style={{ color: 'var(--ink-3)' }}>
               {label}
             </div>
             <div
@@ -240,7 +240,7 @@ export default function OwnerInboxPage() {
 
       {/* ── DESKTOP ─────────────────────────────────────────────────── */}
       <div className="hidden lg:flex justify-center px-8 py-8">
-        <div className="w-full max-w-[720px]">
+        <div className="w-full max-w-180">
           <Header desktop />
           <div className="mt-5">
             <Body />

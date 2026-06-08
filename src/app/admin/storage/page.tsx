@@ -177,14 +177,10 @@ function BandwidthSection({ usage, limit }: { usage: number; limit: number }) {
 
 function UnavailableCard({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm opacity-60">
-      <p className="text-xs font-mono font-bold tracking-wider text-slate-400 uppercase">{subtitle}</p>
-      <h3 className="text-xl font-black text-slate-900 mt-1">{title}</h3>
+    <div className="bg-(--surface) p-5 rounded-(--r-md) border border-(--border) opacity-60">
+      <p className="text-[10px] font-(--mono) font-bold tracking-wider text-(--ink-3) uppercase">{subtitle}</p>
+      <h3 className="text-[18px] font-bold text-(--ink) mt-1">{title}</h3>
       <div className="mt-6 flex items-center gap-2 text-slate-400 text-sm">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M18.364 5.636a9 9 0 010 12.728M5.636 5.636a9 9 0 000 12.728M12 2v2m0 16v2" />
-        </svg>
         Service unavailable — credentials not configured
       </div>
     </div>
@@ -232,13 +228,13 @@ export default function AdminStoragePage() {
   const mgShare = totalUsed > 0 ? (mgUsed / totalUsed) * 100 : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 px-4 py-6 lg:px-8 lg:py-8 bg-(--paper) min-h-screen">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-(--border) pb-5">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Storage</h1>
-          <p className="text-slate-500 mt-1">
+          <h1 className="text-[24px] font-bold tracking-[-0.025em] text-(--ink)">Storage</h1>
+          <p className="text-[13px] text-(--ink-3) mt-1">
             {lastFetched
               ? `Live data · last refreshed ${lastFetched.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })} IST`
               : 'Querying storage providers…'}
@@ -247,19 +243,19 @@ export default function AdminStoragePage() {
         <button
           onClick={fetchStorage}
           disabled={isLoading}
-          className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+          className="h-9 px-4 rounded-full border border-(--border-2) bg-(--surface) text-[13px] font-semibold text-(--ink-2) hover:border-(--border-3) disabled:opacity-50 transition-[border-color] cursor-pointer"
         >
           {isLoading ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
 
       {isLoading && !data ? (
-        <div className="py-24 text-center text-slate-400 animate-pulse">Querying storage providers…</div>
+        <div className="py-24 text-center text-[13px] text-(--ink-4) animate-pulse">Querying storage providers…</div>
       ) : (
         <>
           {/* ── Summary dark card ── */}
           {data && (
-            <div className="bg-slate-900 rounded-xl p-6 text-white">
+            <div className="bg-(--ink) rounded-(--r-md) p-6 text-white">
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4">
                 Total Across Backends
               </p>
@@ -304,13 +300,13 @@ export default function AdminStoragePage() {
           )}
 
           {/* ── Service cards ── */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
             {/* Cloudinary */}
             {cd?.error ? (
               <UnavailableCard title="Cloudinary" subtitle="Image CDN" />
             ) : (
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-0">
+              <div className="bg-(--surface) p-5 rounded-(--r-md) border border-(--border) shadow-(--shadow-sm) flex flex-col gap-0">
 
                 {/* Card header */}
                 <div className="flex items-start justify-between">
@@ -322,12 +318,12 @@ export default function AdminStoragePage() {
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-base font-black text-slate-900 leading-tight">Cloudinary</h3>
-                      <p className="text-xs text-slate-400">Painter &amp; submission photos</p>
+                      <h3 className="text-[15px] font-bold text-(--ink) leading-tight">Cloudinary</h3>
+                      <p className="text-[11px] text-(--ink-3)">Painter &amp; submission photos</p>
                     </div>
                   </div>
                   {cd?.plan && (
-                    <span className="text-[10px] font-bold px-2 py-1 bg-slate-100 text-slate-500 rounded-full uppercase tracking-wide">
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-(--paper-2) text-(--ink-3) rounded-full uppercase tracking-wide">
                       {cd.plan}
                     </span>
                   )}
@@ -394,7 +390,7 @@ export default function AdminStoragePage() {
             {r2?.error ? (
               <UnavailableCard title="Cloudflare R2" subtitle="Object Storage" />
             ) : (
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-0">
+              <div className="bg-(--surface) p-5 rounded-(--r-md) border border-(--border) shadow-(--shadow-sm) flex flex-col gap-0">
 
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -405,34 +401,48 @@ export default function AdminStoragePage() {
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-base font-black text-slate-900 leading-tight">Cloudflare R2</h3>
-                      <p className="text-xs text-slate-400">Generated files</p>
+                      <h3 className="text-[15px] font-bold text-(--ink) leading-tight">Cloudflare R2</h3>
+                      <p className="text-[11px] text-(--ink-3)">Generated files</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-1 bg-slate-100 text-slate-500 rounded-full uppercase tracking-wide">
-                    Pay-as-you-go
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-(--paper-2) text-(--ink-3) rounded-full uppercase tracking-wide">
+                    Free 10 GB
                   </span>
                 </div>
 
-                <div className="flex items-baseline justify-between mt-4">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-slate-900">{fmtGBVal(r2?.totalBytes)}</span>
-                    <span className="text-sm text-slate-400">GB stored</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-400">{fmtNum(r2?.objectCount)} objects</span>
-                </div>
+                {(() => {
+                  const R2_FREE_LIMIT = 10 * 1e9; // 10 GB free tier
+                  const used    = r2?.totalBytes ?? 0;
+                  const r2Pct   = Math.min(100, (used / R2_FREE_LIMIT) * 100);
+                  const r2Color = r2Pct >= 80 ? 'text-red-500' : r2Pct >= 60 ? 'text-yellow-500' : 'text-orange-500';
+                  const barColor = r2Pct >= 80 ? 'bg-red-500' : r2Pct >= 60 ? 'bg-yellow-500' : 'bg-orange-400';
+                  const { value: usedVal, unit: usedUnit } = fmtStorageParts(used);
+                  return (
+                    <>
+                      <div className="flex items-baseline justify-between mt-4">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-3xl font-black text-(--ink)">{usedVal}</span>
+                          <span className="text-sm text-(--ink-3)">{usedUnit} / 10 GB</span>
+                        </div>
+                        <span className={`text-sm font-bold ${r2Color}`}>
+                          {r2Pct.toFixed(1)}% used
+                        </span>
+                      </div>
 
-                {/* No limit bar — show as a dim full bar */}
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden my-3">
-                  {(r2?.totalBytes ?? 0) > 0 && (
-                    <div className="h-1.5 bg-orange-400 opacity-40 rounded-full w-full" />
-                  )}
-                </div>
+                      <div className="h-1.5 bg-(--paper-2) rounded-full overflow-hidden my-3">
+                        <div
+                          className={`h-1.5 rounded-full transition-all duration-700 ${barColor}`}
+                          style={{ width: `${r2Pct}%` }}
+                        />
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {/* File type breakdown */}
                 {r2?.breakdown && Object.keys(r2.breakdown).length > 0 && (
                   <div className="mb-4">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-(--ink-3) mb-1">
                       Excel · Photo PDF · File PDF
                     </p>
                     {r2.breakdown.excel && (
@@ -450,13 +460,17 @@ export default function AdminStoragePage() {
                   </div>
                 )}
 
-                <div className="mt-auto pt-4 border-t border-slate-100 space-y-1.5">
+                <div className="mt-auto pt-4 border-t border-(--border) space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-xs text-slate-400">Bucket</span>
-                    <span className="text-xs font-bold text-slate-700">{r2?.bucket ?? '—'}</span>
+                    <span className="text-xs text-(--ink-3)">Bucket</span>
+                    <span className="text-xs font-bold text-(--ink)">{r2?.bucket ?? '—'}</span>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
-                    No hard storage limit — billed per GB stored and per-operation.
+                  <div className="flex justify-between">
+                    <span className="text-xs text-(--ink-3)">Objects</span>
+                    <span className="text-xs font-bold text-(--ink)">{fmtNum(r2?.objectCount)}</span>
+                  </div>
+                  <p className="text-[10px] text-(--ink-4) mt-1 leading-relaxed">
+                    Free tier: 10 GB storage · 10M Class A ops / month
                   </p>
                 </div>
               </div>
@@ -466,7 +480,7 @@ export default function AdminStoragePage() {
             {mg?.error ? (
               <UnavailableCard title="MongoDB Atlas" subtitle="Document Database" />
             ) : (
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-0">
+              <div className="bg-(--surface) p-5 rounded-(--r-md) border border-(--border) shadow-(--shadow-sm) flex flex-col gap-0">
 
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -477,8 +491,8 @@ export default function AdminStoragePage() {
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-base font-black text-slate-900 leading-tight">MongoDB Atlas</h3>
-                      <p className="text-xs text-slate-400">Application data</p>
+                      <h3 className="text-[15px] font-bold text-(--ink) leading-tight">MongoDB Atlas</h3>
+                      <p className="text-[11px] text-(--ink-3)">Application data</p>
                     </div>
                   </div>
                   <span className="text-[10px] font-bold px-2 py-1 bg-slate-100 text-slate-500 rounded-full uppercase tracking-wide">

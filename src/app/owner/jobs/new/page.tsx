@@ -70,7 +70,7 @@ export default function CreateJobPage() {
       {/* ══ Desktop header ════════════════════════════════════════════ */}
       <div className="hidden lg:flex items-center gap-3 px-8 pt-7 pb-5 border-b border-(--border) sticky top-0 z-10 bg-(--paper)">
         <div className="mr-auto">
-          <h1 className="text-[22px] font-bold text-(--ink) tracking-[-0.025em] leading-tight">
+          <h1 className="text-[22px] font-bold text-(--ink) tracking-tight leading-tight">
             Create new job
           </h1>
           <p className="text-[13px] text-(--ink-3) mt-0.5">
@@ -107,7 +107,7 @@ export default function CreateJobPage() {
       <div className="hidden lg:block px-8 pt-7 pb-10">
         <div className="grid grid-cols-2 gap-6">
           <div>
-            <div className="text-[11px] font-bold text-(--ink-2) uppercase tracking-[.05em] mb-3.5">
+            <div className="text-[11px] font-bold text-(--ink-2) uppercase tracking-wider mb-3.5">
               Job details
             </div>
             <div className="flex flex-col gap-4">
@@ -118,7 +118,7 @@ export default function CreateJobPage() {
                   onChange={(e) => setCompanyName(e.target.value)}
                   placeholder="e.g. Brightline Properties"
                   autoFocus
-                  className="w-full h-[46px] px-3.5 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] placeholder:text-(--ink-4)"
+                  className="w-full h-11.5 px-3.5 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] placeholder:text-(--ink-4)"
                 />
               </div>
               <div>
@@ -128,14 +128,14 @@ export default function CreateJobPage() {
                   onChange={(e) => setDescription(e.target.value)}
                   rows={5}
                   placeholder="Floors 8–12 hallways, suites and stairwells…"
-                  className="w-full px-3.5 py-3 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] placeholder:text-(--ink-4) resize-none leading-[1.5]"
+                  className="w-full px-3.5 py-3 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] placeholder:text-(--ink-4) resize-none leading-normal"
                 />
               </div>
             </div>
           </div>
 
           <div>
-            <div className="text-[11px] font-bold text-(--ink-2) uppercase tracking-[.05em] mb-3.5">
+            <div className="text-[11px] font-bold text-(--ink-2) uppercase tracking-wider mb-3.5">
               Assign painters{' '}
               <span className="text-(--ink-4) font-medium normal-case tracking-normal">
                 · {selectedIds.length} selected
@@ -161,7 +161,7 @@ export default function CreateJobPage() {
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
             placeholder="e.g. Brightline Properties"
-            className="w-full h-[46px] px-3.5 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] placeholder:text-(--ink-4)"
+            className="w-full h-11.5 px-3.5 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] placeholder:text-(--ink-4)"
           />
         </div>
 
@@ -172,7 +172,7 @@ export default function CreateJobPage() {
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
             placeholder="Floors 8–12 hallways, suites and stairwells…"
-            className="w-full px-3.5 py-3 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] placeholder:text-(--ink-4) resize-none leading-[1.5]"
+            className="w-full px-3.5 py-3 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] placeholder:text-(--ink-4) resize-none leading-normal"
           />
         </div>
 

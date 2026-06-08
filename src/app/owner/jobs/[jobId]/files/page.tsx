@@ -74,7 +74,7 @@ function GeneratingHero({ done, total }: { done: number; total: number }) {
   return (
     <div className="rounded-(--r-md) p-5 text-white" style={{ background: 'var(--ink)' }}>
       <div className="flex items-center gap-4">
-        <div className="w-[46px] h-[46px] rounded-[12px] flex items-center justify-center shrink-0"
+        <div className="w-11.5 h-11.5 rounded-xl flex items-center justify-center shrink-0"
           style={{ background: 'rgba(255,255,255,.1)', color: 'var(--accent)' }}>
           <Spark size={24} weight={2} />
         </div>
@@ -84,7 +84,7 @@ function GeneratingHero({ done, total }: { done: number; total: number }) {
             {done} of {total} complete
           </div>
         </div>
-        <div className="font-(--mono) text-[26px] font-bold tracking-[-0.02em]">{pct}%</div>
+        <div className="text-[26px] font-bold tracking-[-0.02em]">{pct}%</div>
       </div>
       <div className="mt-4 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,.12)' }}>
         <div className="h-full rounded-full transition-[width_1s_ease]" style={{ width: `${Math.max(pct, 4)}%`, background: 'var(--accent)' }} />
@@ -117,14 +117,14 @@ function FileProgressCard({ file, fakeProgress }: { file: GeneratedFile; fakePro
         </div>
         {isDone && (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.03em]" style={{ color: 'var(--approved)' }}>
-            <span className="w-[18px] h-[18px] rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--approved)', color: '#fff' }}>
+            <span className="w-4.5 h-4.5 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--approved)', color: '#fff' }}>
               <Check size={10} weight={3} />
             </span>
             Done
           </span>
         )}
         {isRun && (
-          <span className="font-(--mono) text-[15px] font-bold shrink-0" style={{ color: 'var(--accent-deep)' }}>
+          <span className="font-(--mono) text-[15px] shrink-0" style={{ color: 'var(--accent-deep)' }}>
             {fakeProgress}%
           </span>
         )}
@@ -273,7 +273,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
             <ArrowLeft size={20} />
           </Link>
           <div className="flex-1 min-w-0">
-            <div className="text-[18px] font-bold text-(--ink) tracking-[-0.025em]">Files</div>
+            <div className="text-[18px] font-bold text-(--ink) tracking-tight">Files</div>
             {job && (
               <div className="text-[11px] text-(--ink-3) truncate">
                 {job.companyName}{totalSize > 0 ? ` · ${formatSize(totalSize)}` : ''}
@@ -290,7 +290,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
           <ArrowLeft size={17} />
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="text-[22px] font-bold text-(--ink) tracking-[-0.025em]">Files</h1>
+          <h1 className="text-[22px] font-bold text-(--ink) tracking-tight">Files</h1>
           {job && (
             <p className="text-[13px] text-(--ink-3) mt-0.5">
               {job.companyName}{totalSize > 0 ? ` · ${formatSize(totalSize)}` : ''}
@@ -307,13 +307,13 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
         {hasGenerating && (
           <div className="space-y-3">
             <GeneratingHero done={readyFiles.length} total={allActive.length} />
-            <div className="text-[11px] font-bold tracking-[.05em] uppercase text-(--ink-3) pt-1">Building</div>
+            <div className="text-[11px] font-bold tracking-wider uppercase text-(--ink-3) pt-1">Building</div>
             {generatingFiles.map((f) => (
               <FileProgressCard key={f._id} file={f} fakeProgress={Math.round(fakeProgress[f._id] ?? 6)} />
             ))}
             <div className="flex items-start gap-2.5 p-3 rounded-(--r) border border-(--border)" style={{ background: 'var(--paper-2)' }}>
               <Bell size={14} style={{ color: 'var(--ink-3)', marginTop: 1, flexShrink: 0 }} />
-              <p className="text-[12px] text-(--ink-2) leading-[1.5]">
+              <p className="text-[12px] text-(--ink-2) leading-normal">
                 You can leave this page — files keep generating in the background and appear below when ready.
               </p>
             </div>
@@ -322,7 +322,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
 
         {/* Ready section header label */}
         {hasGenerating && displayedFiles.length > 0 && (
-          <div className="text-[11px] font-bold tracking-[.05em] uppercase text-(--ink-3) pt-1">Ready</div>
+          <div className="text-[11px] font-bold tracking-wider uppercase text-(--ink-3) pt-1">Ready</div>
         )}
 
         {/* Mobile list */}
@@ -332,11 +332,11 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
               const meta = FILE_META[f.fileType];
               return (
                 <div key={f._id} className="flex items-center gap-3 px-4 py-3 border-b border-(--border) last:border-0">
-                  <div className="w-10 h-10 rounded-[8px] flex items-center justify-center text-white shrink-0" style={{ background: meta.color }}>
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: meta.color }}>
                     <FileTypeIcon type={f.fileType} size={18} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-(--ink) truncate font-(--mono)">{f.fileName}</div>
+                    <div className="text-[13px] font-semibold text-(--ink) truncate">{f.fileName}</div>
                     <div className="text-[11px] text-(--ink-3) mt-0.5">
                       <span className="font-(--mono)">{formatSize(f.fileSize)}</span> · {formatDate(f.createdAt)}
                     </div>
@@ -367,7 +367,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
         {displayedFiles.length > 0 && (
           <div className="hidden lg:block overflow-hidden rounded-(--r-md) border border-(--border)" style={{ background: 'var(--surface)' }}>
             <div
-              className="grid px-5 py-3 border-b border-(--border) text-[11px] font-bold uppercase tracking-[.05em] text-(--ink-3)"
+              className="grid px-5 py-3 border-b border-(--border) text-[11px] font-bold uppercase tracking-wider text-(--ink-3)"
               style={{ gridTemplateColumns: '52px 2fr 110px 160px 130px', background: 'var(--paper-2)' }}
             >
               <div /><div>Name</div><div>Size</div><div>Generated</div><div className="text-right">Actions</div>
@@ -380,17 +380,17 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
                   className="grid items-center px-5 py-3 border-b border-(--border) last:border-0"
                   style={{ gridTemplateColumns: '52px 2fr 110px 160px 130px' }}
                 >
-                  <div className="w-[38px] h-[38px] rounded-[8px] flex items-center justify-center text-white" style={{ background: meta.color }}>
+                  <div className="w-9.5 h-9.5 rounded-lg flex items-center justify-center text-white" style={{ background: meta.color }}>
                     <FileTypeIcon type={f.fileType} size={18} />
                   </div>
-                  <div className="text-[13px] font-semibold text-(--ink) truncate font-(--mono) pr-4">{f.fileName}</div>
+                  <div className="text-[13px] font-semibold text-(--ink) truncate pr-4">{f.fileName}</div>
                   <div className="text-[13px] text-(--ink-2) font-(--mono)">{formatSize(f.fileSize)}</div>
                   <div className="text-[13px] text-(--ink-3)">{formatDate(f.createdAt)}</div>
                   <div className="flex items-center gap-1.5 justify-end">
                     <button
                       onClick={() => handleDownload(f)}
                       disabled={!!downloadingId}
-                      className="w-[34px] h-[34px] flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40"
+                      className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40"
                     >
                       {downloadingId === f._id
                         ? <span className="w-3 h-3 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
@@ -398,7 +398,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
                     </button>
                     <button
                       onClick={() => setDeleteConfirmId(f._id)}
-                      className="w-[34px] h-[34px] flex items-center justify-center rounded-full border border-(--border-2) hover:border-(--border-3) transition-colors cursor-pointer"
+                      className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) hover:border-(--border-3) transition-colors cursor-pointer"
                       style={{ color: 'var(--rejected)' }}
                     >
                       <Trash size={15} />
@@ -456,7 +456,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
           <div className="w-full max-w-sm rounded-(--r-lg) overflow-hidden shadow-(--shadow)" style={{ background: 'var(--paper)' }}>
             <div className="px-5 pt-5 pb-4">
               <div className="text-[16px] font-bold text-(--ink) mb-1.5">Delete file?</div>
-              <div className="text-[14px] text-(--ink-3) leading-[1.5]">
+              <div className="text-[14px] text-(--ink-3) leading-normal">
                 This file will be permanently deleted and cannot be recovered.
               </div>
             </div>

@@ -192,7 +192,7 @@ export default function LoginPage() {
       <div className="px-6 pt-16 pb-12 lg:pt-0 lg:pb-0 lg:px-0">
         {/* App icon — mobile only */}
         <div className="lg:hidden mb-8">
-          <div className="w-[38px] h-[38px] rounded-[10px] overflow-hidden">
+          <div className="w-9.5 h-9.5 rounded-[10px] overflow-hidden">
             <Image
               src="/app-icon.png"
               alt="Wallo"
@@ -204,7 +204,7 @@ export default function LoginPage() {
         </div>
 
         {/* Heading */}
-        <h1 className="text-[30px] font-bold tracking-[-0.025em] text-(--ink) leading-[1.1]">
+        <h1 className="text-[30px] font-bold tracking-tight text-(--ink) leading-[1.1]">
           Welcome back
         </h1>
         <p className="text-[14px] text-(--ink-3) mt-1.5">
@@ -212,7 +212,7 @@ export default function LoginPage() {
         </p>
 
         {/* Tab switcher */}
-        <div className="mt-[22px]">
+        <div className="mt-5.5">
           <Segmented
             items={["Password", "One‑time code"]}
             active={tab === "password" ? 0 : 1}
@@ -222,12 +222,12 @@ export default function LoginPage() {
 
         {/* Error */}
         {(error || sendError) && (
-          <div className="mt-3.5 px-[14px] py-[10px] bg-(--rejected-soft) border border-(--rejected) rounded-(--r) text-[13px] text-(--rejected)">
+          <div className="mt-3.5 px-3.5 py-2.5 bg-(--rejected-soft) border border-(--rejected) rounded-(--r) text-[13px] text-(--rejected)">
             {error || sendError}
           </div>
         )}
 
-        <div className="mt-[18px] flex flex-col gap-3.5">
+        <div className="mt-4.5 flex flex-col gap-3.5">
           {/* Identifier field — both tabs */}
           <AuthField
             label="Email or phone"
@@ -262,7 +262,7 @@ export default function LoginPage() {
               {/* Stay signed in + Forgot password */}
               <div className="flex justify-between items-center mt-0.5">
                 <label className="flex gap-2 items-center text-[13px] text-(--ink-2) cursor-pointer">
-                  <span className="w-[18px] h-[18px] rounded-[5px] bg-(--ink) inline-flex items-center justify-center text-white shrink-0">
+                  <span className="w-4.5 h-4.5 rounded-[5px] bg-(--ink) inline-flex items-center justify-center text-white shrink-0">
                     <Check size={12} weight={2.6} />
                   </span>
                   Stay signed in
@@ -342,7 +342,7 @@ export default function LoginPage() {
                       resetOtpState();
                       handleSendOtp();
                     }}
-                    className="text-(--accent-deep) font-semibold bg-none border-none cursor-pointer text-[11px] font-(--font)"
+                    className="text-(--accent-deep) font-semibold bg-none border-none cursor-pointer text-[11px]"
                   >
                     Resend
                   </button>
