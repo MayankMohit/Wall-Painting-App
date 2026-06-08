@@ -26,7 +26,13 @@ const SubmissionSchema = new Schema<ISubmission>(
     photoNo: { type: Number, required: true },
     location: { type: String, required: true, trim: true },
     sizes: { type: [[Number]], required: true },
-    images: [{ type: Schema.Types.ObjectId, ref: 'Photo' }],
+    images: {
+      type: [{ type: Schema.Types.ObjectId, ref: 'Photo' }],
+      validate: {
+        validator: (arr: unknown[]) => arr.length >= 1,
+        message: 'A submission must have at least one photo',
+      },
+    },
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
     submittedAt: { type: Date, default: Date.now },
     approvedAt: { type: Date },

@@ -25,7 +25,7 @@ const NotificationSchema = new Schema<INotification>(
 
 NotificationSchema.index({ userId: 1, createdAt: -1 });
 NotificationSchema.index({ userId: 1, readAt: 1, createdAt: -1 });
-NotificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7_776_000 }); // 90-day TTL
+NotificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 }); // 30-day TTL
 
 if (process.env.NODE_ENV === 'development') {
   delete mongoose.models['Notification'];

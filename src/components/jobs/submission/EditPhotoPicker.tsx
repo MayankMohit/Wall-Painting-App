@@ -20,6 +20,7 @@ export function EditPhotoPicker({
   onDropNew,
   onDeleteExisting,
 }: EditPhotoPickerProps) {
+  const canDeletePhoto = exPhotos.length + newPrevs.length > 1;
   return (
     <div className="grid grid-cols-4 lg:grid-cols-5 gap-2">
       <label
@@ -51,7 +52,7 @@ export function EditPhotoPicker({
             alt=""
             className="w-full h-full object-cover"
           />
-          {!busy && (
+          {!busy && canDeletePhoto && (
             <button
               type="button"
               onClick={() => onDeleteExisting(photo._id)}
@@ -70,7 +71,7 @@ export function EditPhotoPicker({
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={url} alt="" className="w-full h-full object-cover" />
-          {!busy && (
+          {!busy && canDeletePhoto && (
             <button
               type="button"
               onClick={() => onDropNew(i)}

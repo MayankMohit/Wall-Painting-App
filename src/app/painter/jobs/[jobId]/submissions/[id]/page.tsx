@@ -48,6 +48,8 @@ export default function SubmissionDetailPage({
   const editHref = `/painter/jobs/${jobId}/submissions/${submissionId}/edit`;
   const viewArea = sub.sizes.reduce((s, sz) => s + sz[0] * sz[1], 0).toFixed(1);
   const photos   = sub.images ?? [];
+  const safeIdx  = Math.min(activePhoto, Math.max(0, photos.length - 1));
+  const curPhoto = photos[safeIdx];
   const { date: dateStr, time: timeStr } = formatSubmissionDate(sub.submittedAt || sub.createdAt || '');
 
   return (
@@ -121,67 +123,148 @@ export default function SubmissionDetailPage({
         </div>
       )}
 
-      {/* ── DESKTOP ─────────────────────────────────────────────────────── */}
-      <div className="hidden lg:block px-10 py-11 max-w-[800px] mx-auto">
+      {/* ── DESKTOP — light two-column ───────────────────────────────────── */}
+      <div className="hidden lg:flex flex-col h-screen bg-(--paper)">
 
-        <div className="flex items-start justify-between mb-7">
-          <div>
-            <Link
-              href={`/painter/jobs/${jobId}`}
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-(--ink-3) no-underline mb-3"
-            >
-              <ArrowL size={16} weight={2} />
-              Back to job
-            </Link>
-            <div className="flex items-center gap-2.5 mb-1">
-              <StatusPill status={sub.status} useLabel size="md" />
-            </div>
-            <div className="text-[24px] font-bold tracking-tight text-(--ink)">{sub.location}</div>
-            <div className="text-[13px] text-(--ink-3) mt-1">Submitted {dateStr} · {timeStr}</div>
+        {/* Header */}
+        <div className="flex items-center gap-4 px-7 py-4 border-b border-(--border) shrink-0 bg-(--paper)">
+          <Link
+            href={`/painter/jobs/${jobId}`}
+            className="w-8 h-8 rounded-full flex items-center justify-center border border-(--border-2) text-(--ink-2) no-underline hover:bg-(--surface) transition-colors shrink-0"
+          >
+            <ArrowL size={17} weight={1.8} />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <div className="text-[19px] font-bold tracking-[-0.02em] text-(--ink) truncate">{sub.location}</div>
+            <div className="text-[12px] text-(--ink-3) mt-0.5">Submitted {dateStr} · {timeStr}</div>
           </div>
-          {canEdit && (
-            <Link
-              href={editHref}
-              className="inline-flex items-center gap-2 h-11 px-5 rounded-full bg-(--ink) text-white text-[14px] font-semibold no-underline shrink-0"
-            >
-              <Brush size={16} weight={2} />
-              Edit submission
-            </Link>
-          )}
-        </div>
-
-        <PhotoViewer
-          photos={photos}
-          activeIndex={activePhoto}
-          onSelect={setActivePhoto}
-          mainClass="h-80"
-          thumbSize="w-16 h-16"
-          thumbGap="gap-2"
-        />
-
-        <div className="mt-7 mb-1.5 text-[11px] font-bold text-(--ink-3) tracking-[.06em] uppercase">
-          Wall sizes
-        </div>
-        <SizesTable sizes={sub.sizes} totalArea={viewArea} />
-
-        <div className="grid grid-cols-2 gap-2.5 mt-3.5">
-          {[
-            { label: 'Photo number', value: String(sub.photoNo).padStart(2, '0') },
-            { label: 'Photos',       value: String(photos.length)                },
-          ].map(({ label, value }) => (
-            <div key={label} className="bg-(--surface) border border-(--border) rounded-(--r) px-4 py-3.5">
-              <div className="text-[10px] font-semibold text-(--ink-3) uppercase tracking-wider">{label}</div>
-              <div className="font-(--mono) text-[22px] mt-1.5 text-(--ink)">{value}</div>
-            </div>
-          ))}
-        </div>
-
-        {sub.notes && (
-          <div className="mt-6">
-            <div className="text-[11px] font-bold text-(--ink-3) tracking-[.06em] uppercase mb-2">Notes</div>
-            <div className="text-[14px] text-(--ink-2) leading-[1.6]">{sub.notes}</div>
+          <div className="flex items-center gap-3 shrink-0">
+            <StatusPill status={sub.status} useLabel size="md" />
+            {canEdit && (
+              <Link
+                href={editHref}
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-full bg-(--ink) text-white text-[13px] font-semibold no-underline shrink-0"
+              >
+                <Brush size={15} weight={2} />
+                Edit
+              </Link>
+            )}
           </div>
-        )}
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 grid overflow-hidden" style={{ gridTemplateColumns: '1fr 380px' }}>
+
+          {/* Left: photo */}
+          <div className="p-6 flex flex-col gap-3 overflow-hidden border-r border-(--border)">
+            <div className="flex-1 min-h-0 relative rounded-(--r-md) overflow-hidden bg-(--surface) border border-(--border)">
+              {curPhoto ? (
+                <img
+                  src={curPhoto.cloudinaryUrl}
+                  alt=""
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-(--ink-4) text-[13px]">No photos</div>
+              )}
+              {photos.length > 0 && (
+                <div className="absolute bottom-3 left-3 h-6 px-2.5 rounded-full flex items-center font-mono font-semibold text-[11px] text-white"
+                  style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
+                  {String(safeIdx + 1).padStart(2, '0')} / {String(photos.length).padStart(2, '0')}
+                </div>
+              )}
+            </div>
+
+            {photos.length > 1 && (
+              <div className="flex gap-2 shrink-0">
+                {photos.map((p, i) => (
+                  <button
+                    key={p._id}
+                    onClick={() => setActivePhoto(i)}
+                    className="relative rounded-(--r) overflow-hidden cursor-pointer shrink-0 border-2 p-0 transition-[border-color]"
+                    style={{
+                      width: 72, height: 72,
+                      borderColor: i === safeIdx ? 'var(--ink)' : 'transparent',
+                    }}
+                  >
+                    <img src={p.previewCloudinaryUrl || p.cloudinaryUrl} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right: details */}
+          <div className="flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+
+              {/* Ref + timestamp */}
+              <div className="font-mono text-[11px] text-(--ink-3)">
+                #{String(sub.photoNo).padStart(4, '0')} · {dateStr} · {timeStr}
+              </div>
+
+              {/* Wall sizes */}
+              <div className="rounded-(--r-md) border border-(--border) overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-(--border) bg-(--surface)">
+                  <span className="text-[10px] font-bold text-(--ink-3) uppercase tracking-[.06em]">Wall sizes</span>
+                </div>
+                {sub.sizes.map((sz, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b border-(--border) last:border-0">
+                    <div className="font-mono text-[11px] text-(--ink-4) w-5">{String(i + 1).padStart(2, '0')}</div>
+                    <div className="font-mono text-[14px] font-semibold text-(--ink) flex-1">{sz[0].toFixed(1)} × {sz[1].toFixed(1)} ft</div>
+                    <div className="font-mono text-[12px] text-(--ink-3)">{(sz[0] * sz[1]).toFixed(1)} ft²</div>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center px-4 py-2.5 bg-(--surface) border-t border-(--border)">
+                  <span className="text-[12px] font-semibold text-(--ink-2)">Total</span>
+                  <span className="font-mono text-[15px] font-bold text-(--ink)">{viewArea} ft²</span>
+                </div>
+              </div>
+
+              {/* Meta grid */}
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Photo number', value: String(sub.photoNo).padStart(2, '0') },
+                  { label: 'Photos',       value: String(photos.length)                },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-(--surface) border border-(--border) rounded-(--r) px-4 py-3">
+                    <div className="text-[10px] font-semibold text-(--ink-3) uppercase tracking-wider">{label}</div>
+                    <div className="font-(--mono) text-[22px] font-semibold mt-1 text-(--ink)">{value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Rejection reason */}
+              {sub.status === 'rejected' && sub.rejectionReason && (
+                <div className="rounded-(--r) p-3.5 bg-(--rejected-soft) border border-[oklch(0.55_0.17_25_/_0.2)]">
+                  <div className="text-[10px] font-bold uppercase tracking-[.05em] mb-1.5 text-(--rejected)">Rejection reason</div>
+                  <div className="text-[13px] text-(--ink) leading-[1.45]">{sub.rejectionReason}</div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {sub.notes && (
+                <div>
+                  <div className="text-[10px] font-bold text-(--ink-3) uppercase tracking-[.06em] mb-1.5">Notes</div>
+                  <div className="text-[13px] text-(--ink-2) leading-[1.6]">{sub.notes}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Edit button */}
+            {canEdit && (
+              <div className="px-6 pb-6 pt-4 shrink-0 border-t border-(--border)">
+                <Link
+                  href={editHref}
+                  className="w-full h-11 rounded-full bg-(--ink) text-white text-[14px] font-semibold flex items-center justify-center gap-2 no-underline"
+                >
+                  <Brush size={16} weight={2} />
+                  Edit submission
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </>
   );

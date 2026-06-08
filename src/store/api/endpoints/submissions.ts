@@ -1,4 +1,5 @@
 import { api } from '../api';
+import type { UploadedImage } from '@/components/jobs/submission/uploadHelpers';
 
 export interface Submission {
   _id: string;
@@ -6,9 +7,11 @@ export interface Submission {
   imageCount?: number;
   previewUrl?: string;
   location: string;
+  sizes?: number[][];
   status: 'pending' | 'approved' | 'rejected';
   submittedAt: string;
   createdAt?: string;
+  painterId?: string;
 }
 
 export interface ExPhoto {
@@ -26,15 +29,11 @@ export interface SubmissionDetail {
   submittedAt: string;
   createdAt?: string;
   notes?: string;
+  rejectionReason?: string;
   images: ExPhoto[];
 }
 
-export interface UploadedImage {
-  cloudinaryId: string;
-  cloudinaryUrl: string;
-  previewCloudinaryId: string;
-  previewCloudinaryUrl: string;
-}
+export type { UploadedImage };
 
 export interface CreateSubmissionBody {
   photoNo: number;
@@ -91,6 +90,60 @@ const submissionsEndpoints = api.injectEndpoints({
         url: `/jobs/${jobId}/submissions/${subId}/photos/${photoId}`,
         method: 'DELETE',
       }),
+      invalidatesTags: (_, __, { jobId, subId }) => [
+        { type: 'SubmissionDetail', id: subId },
+        { type: 'Submission', id: jobId },
+      ],
+    }),
+    approveSubmission: builder.mutation<void, { jobId: string; subId: string; selectedImageIds: string[] }>({
+      query: ({ jobId, subId, selectedImageIds }) => ({
+        url: `/jobs/${jobId}/submissions/${subId}/approve`,
+        method: 'PUT',
+        body: { selectedImageIds },
+      }),
+      invalidatesTags: (_, __, { jobId, subId }) => [
+        { type: 'SubmissionDetail', id: subId },
+        { type: 'Submission', id: jobId },
+        { type: 'JobDetail', id: jobId },
+        'Job',
+      ],
+    }),
+    rejectSubmission: builder.mutation<void, { jobId: string; subId: string; rejectionReason: string }>({
+      query: ({ jobId, subId, rejectionReason }) => ({
+        url: `/jobs/${jobId}/submissions/${subId}/reject`,
+        method: 'PUT',
+        body: { rejectionReason },
+      }),
+      invalidatesTags: (_, __, { jobId, subId }) => [
+        { type: 'SubmissionDetail', id: subId },
+        { type: 'Submission', id: jobId },
+        { type: 'JobDetail', id: jobId },
+        'Job',
+      ],
+    }),
+    revokeSubmission: builder.mutation<void, { jobId: string; subId: string; revokeNote?: string }>({
+      query: ({ jobId, subId, revokeNote }) => ({
+        url: `/jobs/${jobId}/submissions/${subId}/revoke`,
+        method: 'PUT',
+        body: { revokeNote },
+      }),
+      invalidatesTags: (_, __, { jobId, subId }) => [
+        { type: 'SubmissionDetail', id: subId },
+        { type: 'Submission', id: jobId },
+        { type: 'JobDetail', id: jobId },
+        'Job',
+      ],
+    }),
+    deleteSubmission: builder.mutation<void, { jobId: string; subId: string }>({
+      query: ({ jobId, subId }) => ({
+        url: `/jobs/${jobId}/submissions/${subId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_, __, { jobId }) => [
+        { type: 'Submission', id: jobId },
+        { type: 'JobDetail', id: jobId },
+        'Job',
+      ],
     }),
   }),
 });
@@ -101,4 +154,8 @@ export const {
   useCreateSubmissionMutation,
   useUpdateSubmissionMutation,
   useDeletePhotoMutation,
+  useApproveSubmissionMutation,
+  useRejectSubmissionMutation,
+  useRevokeSubmissionMutation,
+  useDeleteSubmissionMutation,
 } = submissionsEndpoints;

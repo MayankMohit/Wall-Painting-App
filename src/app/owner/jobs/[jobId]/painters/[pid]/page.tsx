@@ -1,207 +1,360 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useState, use, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useGetPainterQueueQuery, useGetJobQuery, useRemovePainterFromJobMutation } from '@/store/api/endpoints/jobs';
+import { useGetSubmissionsQuery } from '@/store/api/endpoints/submissions';
+import { StatusPill } from '@/components/jobs/shared/StatusPill';
+import { PhotoThumb } from '@/components/jobs/detail/PhotoThumb';
+import { SubmissionRow } from '@/components/jobs/detail/SubmissionRow';
+import { relativeTime } from '@/components/jobs/shared/submissionHelpers';
+import { ArrowLeft, ArrowRight, Trash, X } from '@/components/owner/icons';
 
-interface Submission {
-  _id: string;
-  location: string;
-  photoNo: number;
-  sizes: [number, number][];
-  status: 'pending' | 'approved' | 'rejected';
-  submittedAt: string;
+type Filter = 'all' | 'pending' | 'approved' | 'rejected';
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+function Avatar({ name, size = 48 }: { name: string; size?: number }) {
+  const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  return (
+    <div
+      className="rounded-full flex items-center justify-center font-semibold text-white shrink-0 select-none"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.35), background: 'var(--ink-2)' }}
+    >
+      {initials}
+    </div>
+  );
 }
 
-interface PainterData {
-  job: { companyName: string };
-  painter: { name: string };
-  stats: {
-    pending: number;
-    approved: number;
-    rejected: number;
+// ── page ─────────────────────────────────────────────────────────────────────
+export default function PainterQueuePage({
+  params,
+}: {
+  params: Promise<{ jobId: string; pid: string }>;
+}) {
+  const { jobId, pid } = use(params);
+  const router = useRouter();
+
+  const [filter, setFilter] = useState<Filter>('all');
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const { data: queue, isLoading: qLoading, isError: qError } = useGetPainterQueueQuery({ jobId, painterId: pid });
+  const { data: job } = useGetJobQuery(jobId);
+  const { data: allSubs = [], isLoading: sLoading } = useGetSubmissionsQuery(jobId);
+  const [removePainter, { isLoading: removing }] = useRemovePainterFromJobMutation();
+
+  // Phone from job detail (already in cache if coming from job detail page)
+  const painterPhone = useMemo(
+    () => job?.painters.find((p) => p._id === pid)?.phone,
+    [job, pid],
+  );
+
+  const painterSubs = useMemo(
+    () => allSubs.filter((s) => s.painterId === pid),
+    [allSubs, pid],
+  );
+
+  const filtered = useMemo(
+    () => filter === 'all' ? painterSubs : painterSubs.filter((s) => s.status === filter),
+    [painterSubs, filter],
+  );
+
+  const isLoading = qLoading || sLoading;
+
+  const handleCopyPhone = () => {
+    if (!painterPhone) return;
+    navigator.clipboard.writeText(painterPhone).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
   };
-  submissions: Submission[];
-}
 
-// Helper: Calculate total area from sizes array [[w,h], [w,h]]
-const calculateArea = (sizes: [number, number][]) => {
-  return sizes.reduce((total, [w, h]) => total + (w * h), 0).toFixed(1);
-};
+  const handleRemove = async () => {
+    await removePainter({ jobId, painterId: pid }).unwrap();
+    router.push(`/owner/jobs/${jobId}`);
+  };
 
-// Helper: Format relative time
-const getRelativeTime = (dateString: string) => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-  
-  if (diffInSeconds < 60) return 'Just now';
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
-  if (diffInSeconds < 86400) {
-    const hrs = Math.floor(diffInSeconds / 3600);
-    return hrs === 1 ? '1 hr ago' : `${hrs} hrs ago`;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-7 h-7 rounded-full border-2 border-(--border-3) border-t-(--ink) animate-spin" />
+      </div>
+    );
   }
-  if (diffInSeconds < 172800) return 'Yesterday';
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-};
 
-export default function PainterReviewQueuePage({ params }: { params: Promise<{ jobId: string, pid: string }> }) {
-  const resolvedParams = use(params);
-  const { jobId, pid } = resolvedParams;
+  if (qError || !queue) {
+    return (
+      <div className="m-6 px-4 py-3 rounded-(--r) text-[13px] font-medium"
+        style={{ background: 'var(--rejected-soft)', color: 'var(--rejected)' }}>
+        Failed to load painter data.
+      </div>
+    );
+  }
 
-  const [data, setData] = useState<PainterData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { stats } = queue;
+  const total = stats.pending + stats.approved + stats.rejected;
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchPainterData = async () => {
-      try {
-        const token = localStorage.getItem('wallpainter_token');
-        if (!token) throw new Error('Authentication token missing.');
+  const FILTER_TABS: { key: Filter; label: string; count: number }[] = [
+    { key: 'all',      label: 'All',      count: total },
+    { key: 'pending',  label: 'Pending',  count: stats.pending },
+    { key: 'approved', label: 'Approved', count: stats.approved },
+    { key: 'rejected', label: 'Rejected', count: stats.rejected },
+  ];
 
-        const res = await fetch(`/api/jobs/${jobId}/painters/${pid}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (!res.ok) throw new Error('Failed to load painter data');
-        const json = await res.json();
-        
-        if (isMounted) {
-          setData(json.data);
-          setIsLoading(false);
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setError(err.message);
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetchPainterData();
-    return () => { isMounted = false; };
-  }, [jobId, pid]);
-
-  if (isLoading) return <div className="py-20 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>;
-  if (error || !data) return <div className="text-red-500 p-6 text-center">{error || 'Data not found'}</div>;
+  const STAT_TILES = [
+    { key: 'pending'  as Filter, label: 'Pending',  value: stats.pending,  color: 'var(--accent-deep)', accent: 'var(--accent)'   },
+    { key: 'approved' as Filter, label: 'Approved', value: stats.approved, color: 'var(--approved)',    accent: 'var(--approved)' },
+    { key: 'rejected' as Filter, label: 'Rejected', value: stats.rejected, color: stats.rejected > 0 ? 'var(--rejected)' : 'var(--ink-3)', accent: stats.rejected > 0 ? 'var(--rejected)' : 'var(--border-3)' },
+  ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 mt-4 pb-12">
-      
-      {/* Back Button */}
-      <div className="mb-2">
-        <Link href={`/owner/jobs/${jobId}`} className="text-gray-500 hover:text-gray-900 text-sm font-bold transition-colors">
-          ← Back to Command Center
+    <>
+      {/* ══ Mobile top bar ════════════════════════════════════════════ */}
+      <div className="lg:hidden sticky top-0 z-20 bg-(--paper) border-b border-(--border)">
+        <div className="flex items-center h-14 px-4 gap-2">
+          <Link href={`/owner/jobs/${jobId}`} className="w-9 h-9 flex items-center justify-center rounded-full text-(--ink-2) hover:bg-(--paper-2) transition-colors no-underline">
+            <ArrowLeft size={20} />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <div className="text-[16px] font-bold text-(--ink) truncate leading-tight">{queue.painter.name}</div>
+            <div className="text-[11px] text-(--ink-3) truncate">{queue.job.companyName}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ══ Desktop header ════════════════════════════════════════════ */}
+      <div className="hidden lg:flex items-center gap-4 px-8 pt-7 pb-5 border-b border-(--border) sticky top-0 z-10 bg-(--paper)">
+        <Link href={`/owner/jobs/${jobId}`} className="w-8 h-8 flex items-center justify-center rounded-full text-(--ink-3) hover:bg-(--paper-2) transition-colors no-underline shrink-0">
+          <ArrowLeft size={17} />
         </Link>
+        <div className="mr-auto min-w-0">
+          <h1 className="text-[22px] font-bold text-(--ink) tracking-[-0.025em] leading-tight truncate">
+            {queue.painter.name}
+          </h1>
+          <p className="text-[13px] text-(--ink-3) mt-0.5">
+            {queue.job.companyName} · review queue
+          </p>
+        </div>
+        <button
+          onClick={() => setRemoveOpen(true)}
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[13px] font-semibold cursor-pointer transition-colors hover:opacity-88"
+          style={{ background: 'var(--rejected-soft)', color: 'var(--rejected)' }}
+        >
+          <Trash size={14} />
+          Remove painter
+        </button>
       </div>
 
-      {/* Header */}
-      <div>
-        <h1 className="text-4xl font-black text-gray-900 tracking-tight">{data.painter.name}</h1>
-        <p className="text-gray-500 mt-1 text-sm font-medium">
-          {data.job.companyName} · review queue
-        </p>
-      </div>
+      {/* ══ Mobile body ═══════════════════════════════════════════════ */}
+      <div className="lg:hidden px-4 pt-4 pb-8">
 
-      {/* Stat Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* PENDING */}
-        <div className="bg-white p-5 rounded-2xl border-y border-r border-gray-200 border-l-4 border-l-[#EA580C] shadow-sm flex flex-col justify-between h-32">
-          <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">PENDING</div>
-          <div className="text-5xl font-black text-[#EA580C]">{data.stats.pending}</div>
-          <div className="text-xs font-bold text-gray-400 mt-2 hover:text-[#EA580C] cursor-pointer flex items-center gap-1 transition-colors w-max">
-            Open <span className="text-[10px]">❯</span>
+        {/* Painter header card */}
+        <div className="flex items-center gap-3 p-3.5 bg-(--surface) border border-(--border) rounded-(--r-md) shadow-(--shadow-sm)">
+          <Avatar name={queue.painter.name} size={46} />
+          <div className="flex-1 min-w-0">
+            <div className="text-[15px] font-semibold text-(--ink) truncate">{queue.painter.name}</div>
+
+            {/* Phone + copy */}
+            {painterPhone ? (
+              <div className="mt-0.5 flex items-center gap-1.5">
+                <span className="text-[11px] text-(--ink-3) font-(--mono)">{painterPhone}</span>
+                <button
+                  onClick={handleCopyPhone}
+                  className="h-[18px] px-1.5 rounded text-[10px] font-semibold cursor-pointer transition-colors"
+                  style={{
+                    background: copied ? 'var(--approved-soft)' : 'var(--paper-2)',
+                    color: copied ? 'var(--approved)' : 'var(--ink-3)',
+                  }}
+                >
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            ) : null}
+
+            <div className="text-[11px] text-(--ink-3) font-(--mono) mt-0.5">
+              {total} submission{total !== 1 ? 's' : ''}
+            </div>
           </div>
+
+          {/* Remove button */}
+          <button
+            onClick={() => setRemoveOpen(true)}
+            className="w-8 h-8 flex items-center justify-center rounded-full shrink-0 cursor-pointer transition-colors hover:opacity-80"
+            style={{ background: 'var(--rejected-soft)', color: 'var(--rejected)' }}
+          >
+            <Trash size={15} />
+          </button>
         </div>
 
-        {/* APPROVED */}
-        <div className="bg-white p-5 rounded-2xl border-y border-r border-gray-200 border-l-4 border-l-emerald-600 shadow-sm flex flex-col justify-between h-32">
-          <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">APPROVED</div>
-          <div className="text-5xl font-black text-emerald-600">{data.stats.approved}</div>
-          <div className="text-xs font-bold text-gray-400 mt-2 hover:text-emerald-600 cursor-pointer flex items-center gap-1 transition-colors w-max">
-            Open <span className="text-[10px]">❯</span>
-          </div>
+        {/* Stat tiles */}
+        <div className="mt-3 flex gap-2">
+          {STAT_TILES.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setFilter(t.key)}
+              className="flex-1 flex flex-col items-center gap-1 py-3 rounded-(--r-md) bg-(--surface) border border-(--border) cursor-pointer transition-[border-color] hover:border-(--border-2)"
+              style={{ borderTop: `3px solid ${t.accent}` }}
+            >
+              <span className="font-(--mono) text-[26px] font-bold leading-none tabular-nums" style={{ color: t.color, letterSpacing: '-0.02em' }}>
+                {t.value}
+              </span>
+              <span className="text-[10px] font-bold text-(--ink-3) uppercase tracking-[.06em]">{t.label}</span>
+            </button>
+          ))}
         </div>
 
-        {/* REJECTED */}
-        <div className="bg-white p-5 rounded-2xl border-y border-r border-gray-200 border-l-4 border-l-red-600 shadow-sm flex flex-col justify-between h-32">
-          <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">REJECTED</div>
-          <div className="text-5xl font-black text-red-600">{data.stats.rejected}</div>
-          <div className="text-xs font-bold text-gray-400 mt-2 hover:text-red-600 cursor-pointer flex items-center gap-1 transition-colors w-max">
-            Open <span className="text-[10px]">❯</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Submissions Table */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-bold text-gray-900">All submissions</h2>
-        
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          {/* Table Header */}
-          <div className="grid grid-cols-12 gap-4 p-4 border-b border-gray-200 text-xs font-bold text-gray-400 uppercase tracking-widest bg-[#f9f9f8]">
-            <div className="col-span-2">ID</div>
-            <div className="col-span-4">LOCATION</div>
-            <div className="col-span-2">PHOTO NO.</div>
-            <div className="col-span-2">AREA</div>
-            <div className="col-span-2">STATUS</div>
-          </div>
-
-          {/* Table Body */}
-          <div className="divide-y divide-gray-100">
-            {data.submissions.map((sub) => (
-              <Link 
-                href={`/owner/jobs/${jobId}/submissions/${sub._id}`} 
-                key={sub._id} 
-                className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-50 transition-colors group cursor-pointer"
+        {/* Filter chips */}
+        <div className="mt-4 flex gap-1.5">
+          {FILTER_TABS.map((t) => {
+            const on = filter === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setFilter(t.key)}
+                className="flex-1 flex items-center justify-center gap-1 py-2 rounded-full border cursor-pointer transition-[background,border-color] duration-100"
+                style={{
+                  background: on ? 'var(--ink)' : 'var(--surface)',
+                  borderColor: on ? 'var(--ink)' : 'var(--border-2)',
+                }}
               >
-                {/* ID with Image Placeholder */}
-                <div className="col-span-2 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center shrink-0 border border-gray-300">
-                    <span className="text-[10px] font-bold text-gray-400">JPG</span>
-                  </div>
-                  <span className="text-sm font-mono text-gray-500">
-                    #{sub._id.slice(-4)}-{sub.photoNo.toString().padStart(3, '0')}
-                  </span>
-                </div>
+                <span className="text-[12px] font-semibold" style={{ color: on ? '#fff' : 'var(--ink-2)' }}>
+                  {t.label}
+                </span>
+                <span className="font-(--mono) text-[10px] font-bold" style={{ color: on ? 'rgba(255,255,255,.6)' : 'var(--ink-4)' }}>
+                  {t.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
-                {/* Location */}
-                <div className="col-span-4 font-bold text-gray-900 text-sm group-hover:text-indigo-600 transition-colors">
-                  {sub.location}
-                </div>
-
-                {/* Photo No */}
-                <div className="col-span-2 font-black text-gray-900 text-sm">
-                  {sub.photoNo.toString().padStart(2, '0')}
-                </div>
-
-                {/* Area */}
-                <div className="col-span-2 font-mono text-gray-500 text-sm">
-                  {calculateArea(sub.sizes)} ft²
-                </div>
-
-                {/* Status & Time */}
-                <div className="col-span-2 flex items-center justify-between pr-2">
-                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                    sub.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
-                    sub.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                    'bg-[#F3E8E3] text-[#A68A7E]' // Exact beige/brown from your mockup
-                  }`}>
-                    • {sub.status}
-                  </span>
-                  <span className="text-xs text-gray-400 font-medium">
-                    {getRelativeTime(sub.submittedAt)}
-                  </span>
-                </div>
-              </Link>
-            ))}
-
-            {data.submissions.length === 0 && (
-              <div className="p-10 text-center text-gray-500 font-medium">No submissions yet from this painter.</div>
-            )}
-          </div>
+        {/* Submission cards */}
+        <div className="mt-3 flex flex-col gap-2">
+          {filtered.length === 0 ? (
+            <div className="py-10 text-center text-[13px] text-(--ink-3)">
+              No {filter === 'all' ? '' : filter + ' '}submissions.
+            </div>
+          ) : (
+            filtered.map((sub) => (
+              <SubmissionRow
+                key={sub._id}
+                sub={sub}
+                href={`/owner/jobs/${jobId}/submissions/${sub._id}`}
+              />
+            ))
+          )}
         </div>
       </div>
-    </div>
+
+      {/* ══ Desktop content ═══════════════════════════════════════════ */}
+      <div className="hidden lg:block px-8 pt-7 pb-10">
+
+        {/* Stat tiles */}
+        <div className="grid grid-cols-3 gap-3 mb-7">
+          {STAT_TILES.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setFilter(filter === t.key ? 'all' : t.key)}
+              className="flex flex-col p-4 bg-(--surface) border border-(--border) rounded-(--r-md) text-left cursor-pointer hover:border-(--border-2) transition-[border-color]"
+              style={{ borderLeft: `4px solid ${t.accent}` }}
+            >
+              <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-[.05em]">{t.label}</div>
+              <div className="font-(--mono) text-[36px] font-bold mt-1 leading-none tabular-nums" style={{ color: t.color, letterSpacing: '-0.02em' }}>
+                {t.value}
+              </div>
+              <div className="flex items-center gap-1 mt-1.5 text-[11px] font-semibold" style={{ color: t.color }}>
+                {filter === t.key ? 'Filtered' : 'Filter'}
+                <ArrowRight size={11} />
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Filter chips */}
+        <div className="flex gap-2 mb-4">
+          {FILTER_TABS.map((t) => {
+            const on = filter === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setFilter(t.key)}
+                className="inline-flex items-center gap-1.5 h-8 px-4 rounded-full border text-[13px] font-semibold cursor-pointer transition-[background,border-color] duration-100"
+                style={{
+                  background: on ? 'var(--ink)' : 'var(--surface)',
+                  borderColor: on ? 'var(--ink)' : 'var(--border)',
+                  color: on ? '#fff' : 'var(--ink-2)',
+                }}
+              >
+                {t.label}
+                <span className="font-(--mono) text-[11px] font-bold" style={{ color: on ? 'rgba(255,255,255,.5)' : 'var(--ink-4)' }}>
+                  · {t.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Submission cards */}
+        <div className="flex flex-col gap-2">
+          {filtered.length === 0 ? (
+            <div className="py-12 text-center text-[13px] text-(--ink-3)">
+              No {filter === 'all' ? '' : filter + ' '}submissions.
+            </div>
+          ) : (
+            filtered.map((sub) => (
+              <SubmissionRow
+                key={sub._id}
+                sub={sub}
+                href={`/owner/jobs/${jobId}/submissions/${sub._id}`}
+              />
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* ══ Remove painter modal ══════════════════════════════════════ */}
+      {removeOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setRemoveOpen(false); }}
+        >
+          <div className="w-full max-w-sm bg-(--paper) rounded-(--r-lg) overflow-hidden shadow-(--shadow)">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-(--border)">
+              <div className="text-[16px] font-bold text-(--ink)">Remove painter</div>
+              <button onClick={() => setRemoveOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full text-(--ink-3) hover:bg-(--paper-2) cursor-pointer">
+                <X size={17} />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-2.5">
+              <p className="text-[14px] text-(--ink) leading-[1.5]">
+                <span className="font-semibold">{queue.painter.name}</span> will be removed from{' '}
+                <span className="font-semibold">{queue.job.companyName}</span>.
+              </p>
+              <p className="text-[13px] text-(--ink-3) leading-[1.5]">
+                All their submissions and photos on this job will be permanently deleted. This cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-2 px-5 pb-5">
+              <button
+                onClick={() => setRemoveOpen(false)}
+                className="flex-1 h-10 rounded-full text-[13px] font-semibold text-(--ink-2) bg-(--surface) border border-(--border-2) hover:border-(--border-3) transition-[border-color] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemove}
+                disabled={removing}
+                className="flex-1 h-10 rounded-full text-[13px] font-semibold text-white cursor-pointer transition-opacity hover:opacity-88 disabled:opacity-50"
+                style={{ background: 'var(--rejected)' }}
+              >
+                {removing ? 'Removing…' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -69,7 +69,17 @@ export const notificationsApi = createApi({
     updatePreferences: builder.mutation<NotificationPrefs, Partial<NotificationPrefs>>({
       query: (body) => ({ url: '/users/me/notification-preferences', method: 'PUT', body }),
       transformResponse: (res: { data: NotificationPrefs }) => res.data,
-      invalidatesTags: ['NotifPrefs'],
+      async onQueryStarted(patch, { dispatch, queryFulfilled }) {
+        const undo = dispatch(
+          notificationsApi.util.updateQueryData('getPreferences', undefined, (draft) => {
+            if (patch.push)  Object.assign(draft.push, patch.push);
+            if (patch.email) Object.assign(draft.email, patch.email);
+            if ('quietHours' in patch) draft.quietHours = patch.quietHours ?? null;
+            if (patch.digest !== undefined) draft.digest = patch.digest;
+          }),
+        ).undo;
+        try { await queryFulfilled; } catch { undo(); }
+      },
     }),
   }),
 });

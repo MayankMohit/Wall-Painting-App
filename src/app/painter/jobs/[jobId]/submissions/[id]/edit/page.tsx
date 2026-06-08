@@ -3,7 +3,6 @@
 import { useState, useEffect, use, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { useRouter } from "next/navigation";
-import imageCompression from "browser-image-compression";
 import {
   useGetSubmissionQuery,
   useUpdateSubmissionMutation,
@@ -15,7 +14,7 @@ import { SizesField } from "@/components/jobs/submission/SizesField";
 import { EditPhotoPicker } from "@/components/jobs/submission/EditPhotoPicker";
 import { SubmitButton } from "@/components/jobs/submission/SubmitButton";
 import { inputBox, innerInput } from "@/components/jobs/submission/formStyles";
-import { uploadToCloudinary } from "@/components/jobs/submission/uploadHelpers";
+import { usePhotoUpload } from "@/hooks/usePhotoUpload";
 import type { EditFV } from "@/components/jobs/submission/submissionTypes";
 
 export default function EditSubmissionPage({
@@ -39,16 +38,18 @@ export default function EditSubmissionPage({
     defaultValues: { location: "", sizes: [{ width: "", height: "" }] },
   });
   const { fields, append, remove } = useFieldArray({ control, name: "sizes" });
+  const loc  = watch("location");
   const ws   = watch("sizes");
   const area = ws
     .reduce((s, sz) => s + (Number(sz.width) || 0) * (Number(sz.height) || 0), 0)
     .toFixed(1);
 
+  const { uploadFiles, step, setStep } = usePhotoUpload();
+
   const [exPhotos, setExPhotos] = useState<ExPhoto[]>([]);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [newPrevs, setNewPrevs] = useState<string[]>([]);
   const [busy, setBusy]         = useState(false);
-  const [step, setStep]         = useState("");
   const urlsRef                 = useRef<string[]>([]);
 
   useEffect(() => () => { urlsRef.current.forEach(URL.revokeObjectURL); }, []);
@@ -98,49 +99,7 @@ export default function EditSubmissionPage({
   const onSubmit = async (d: EditFV) => {
     setBusy(true);
     try {
-      const tok   = localStorage.getItem("wallpainter_token")!;
-      const cloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME!;
-      const key   = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY!;
-      let uploadedImages: {
-        cloudinaryId: string;
-        cloudinaryUrl: string;
-        previewCloudinaryId: string;
-        previewCloudinaryUrl: string;
-      }[] = [];
-
-      if (newFiles.length) {
-        setStep("Getting signature…");
-        const sr = await fetch("/api/uploads/sign", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ folder: `jobs/${jobId}` }),
-        });
-        if (!sr.ok) throw new Error("Signature failed");
-        const sig = (await sr.json()).data;
-
-        setStep(`Uploading ${newFiles.length} photo${newFiles.length > 1 ? "s" : ""}…`);
-        uploadedImages = await Promise.all(
-          newFiles.map(async (f) => {
-            const [full, preview] = await Promise.all([
-              uploadToCloudinary(
-                await imageCompression(f, { maxSizeMB: 2, maxWidthOrHeight: 2000, initialQuality: 0.85 }),
-                sig, key, cloud,
-              ),
-              uploadToCloudinary(
-                await imageCompression(f, { maxSizeMB: 0.3, maxWidthOrHeight: 800, initialQuality: 0.6 }),
-                sig, key, cloud,
-              ),
-            ]);
-            return {
-              cloudinaryId:         full.public_id,
-              cloudinaryUrl:        full.secure_url,
-              previewCloudinaryId:  preview.public_id,
-              previewCloudinaryUrl: preview.secure_url,
-            };
-          }),
-        );
-      }
-
+      const uploadedImages = newFiles.length ? await uploadFiles(newFiles, jobId) : [];
       setStep("Saving…");
       await updateSubmission({
         jobId,
@@ -215,14 +174,19 @@ export default function EditSubmissionPage({
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Wall location</div>
             <div className={[inputBox, errors.location ? "border-(--rejected)" : ""].join(" ")}>
               <input
-                {...register("location", { required: true })}
+                {...register("location", { required: true, maxLength: 100 })}
                 placeholder="Hallway 8A — north wall"
                 disabled={busy}
                 className={innerInput}
               />
             </div>
-            <div className={["text-[11px] mt-1.5", errors.location ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
-              {errors.location ? "Location is required." : "Where is this wall on the job site? Be specific."}
+            <div className="flex justify-between items-center mt-1.5">
+              <span className={["text-[11px]", errors.location ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
+                {errors.location?.type === "maxLength" ? "100 character limit reached." : errors.location ? "Location is required." : "Where is this wall on the job site? Be specific."}
+              </span>
+              <span className={["text-[11px] font-(--mono) tabular-nums shrink-0 ml-2", (loc?.length ?? 0) > 100 ? "text-(--rejected)" : (loc?.length ?? 0) > 80 ? "text-amber-500" : "text-(--ink-4)"].join(" ")}>
+                {loc?.length ?? 0} / 100
+              </span>
             </div>
           </div>
 

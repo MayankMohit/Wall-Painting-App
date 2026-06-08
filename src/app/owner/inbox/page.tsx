@@ -10,6 +10,7 @@ import {
 } from '@/store/api/notificationsApi';
 import { groupByDate } from '@/components/notifications/notifHelpers';
 import { Bell, SpeakerOn, SpeakerOff } from '@/components/notifications/icons';
+import { Check, Clock, X } from '@/components/owner/icons';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -31,18 +32,10 @@ const KIND_COLOR: Record<NotifKind, string> = {
 };
 
 function KindIcon({ kind, size = 14 }: { kind: NotifKind; size?: number }) {
-  const strokeWidth = kind === 'approved' || kind === 'rejected' ? 2.4 : 1.6;
-  const paths: Record<NotifKind, React.ReactNode> = {
-    approved: <path d="m5 12 5 5 9-11" />,
-    rejected: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
-    pending:  <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-    info:     <><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2H4.5z" /><path d="M10 20a2 2 0 0 0 4 0" /></>,
-  };
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-      {paths[kind]}
-    </svg>
-  );
+  if (kind === 'approved') return <Check size={size} weight={2.4} />;
+  if (kind === 'rejected') return <X size={size} weight={2.4} />;
+  if (kind === 'pending')  return <Clock size={size} />;
+  return <Bell size={size} />;
 }
 
 function relativeTime(iso: string): string {
@@ -56,9 +49,15 @@ function relativeTime(iso: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-// ── Row ────────────────────────────────────────────────────────────────────
+// ── Row component ──────────────────────────────────────────────────────────
 
-function NotifRow({ notif, onRead }: { notif: AppNotification; onRead: (id: string) => void }) {
+function NotifRow({
+  notif,
+  onRead,
+}: {
+  notif: AppNotification;
+  onRead: (id: string) => void;
+}) {
   const unread = notif.readAt === null;
   const kind = getKind(notif.eventId);
 
@@ -68,6 +67,7 @@ function NotifRow({ notif, onRead }: { notif: AppNotification; onRead: (id: stri
       className="flex items-start gap-3.5 w-full px-5 py-3.5 text-left border-b border-(--border) last:border-0 font-(--font) transition-colors"
       style={{ background: unread ? 'oklch(0.97 0.012 60 / .6)' : 'transparent', cursor: unread ? 'pointer' : 'default' }}
     >
+      {/* Icon circle */}
       <div
         className="w-[34px] h-[34px] rounded-full shrink-0 flex items-center justify-center text-white mt-0.5"
         style={{ background: KIND_COLOR[kind] }}
@@ -75,6 +75,7 @@ function NotifRow({ notif, onRead }: { notif: AppNotification; onRead: (id: stri
         <KindIcon kind={kind} size={14} />
       </div>
 
+      {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="text-[14px] leading-[1.35] text-(--ink)" style={{ fontWeight: unread ? 600 : 500 }}>
           {notif.title}
@@ -86,6 +87,7 @@ function NotifRow({ notif, onRead }: { notif: AppNotification; onRead: (id: stri
         )}
       </div>
 
+      {/* Right: unread dot + time */}
       <div className="flex items-center gap-2 shrink-0 mt-0.5">
         {unread && (
           <div className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--accent)' }} />
@@ -114,7 +116,7 @@ function SkeletonRow() {
 
 // ── Page ──────────────────────────────────────────────────────────────────
 
-export default function PainterInboxPage() {
+export default function OwnerInboxPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const muted = useNotificationUiStore((s) => s.muted);
   const toggleMute = useNotificationUiStore((s) => s.toggleMute);
@@ -130,6 +132,7 @@ export default function PainterInboxPage() {
   const unreadCount   = data?.unreadCount ?? 0;
   const groups        = groupByDate(notifications);
 
+  // ── Shared header ─────────────────────────────────────────────────────────
   function Header({ desktop = false }: { desktop?: boolean }) {
     return (
       <div
@@ -141,7 +144,9 @@ export default function PainterInboxPage() {
         ].join(' ')}
       >
         <div className="flex items-center gap-2.5">
-          <span className={['font-bold tracking-[-0.025em] text-(--ink)', desktop ? 'text-[28px]' : 'text-[22px]'].join(' ')}>
+          <span
+            className={['font-bold tracking-[-0.025em] text-(--ink)', desktop ? 'text-[28px]' : 'text-[22px]'].join(' ')}
+          >
             Inbox
           </span>
           {unreadCount > 0 && (
@@ -176,10 +181,14 @@ export default function PainterInboxPage() {
     );
   }
 
+  // ── Shared body ───────────────────────────────────────────────────────────
   function Body() {
     if (isLoading) {
       return (
-        <div className="overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
+        <div
+          className="overflow-hidden"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}
+        >
           {Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
         </div>
       );
@@ -201,10 +210,14 @@ export default function PainterInboxPage() {
       <div className="space-y-4">
         {groups.map(({ label, items }) => (
           <div key={label}>
-            <div className="text-[11px] font-bold tracking-[.05em] uppercase mb-2" style={{ color: 'var(--ink-3)' }}>
+            {/* Date group header */}
+            <div className="text-[11px] font-bold tracking-[.05em] uppercase mb-0 px-0 pt-0 pb-0" style={{ color: 'var(--ink-3)' }}>
               {label}
             </div>
-            <div className="overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
+            <div
+              className="mt-2 overflow-hidden"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}
+            >
               {items.map((n) => (
                 <NotifRow key={n._id} notif={n} onRead={(id) => markRead(id)} />
               ))}

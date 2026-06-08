@@ -29,6 +29,10 @@ export const DELETE = withAuth({ access: requireSubmissionAccess, audit: 'PHOTO_
       ctx.fail(404, 'NOT_FOUND', 'Photo not found in this submission');
     }
 
+    if (submission.images.length <= 1) {
+      ctx.fail(400, 'LAST_PHOTO', 'Cannot remove the only photo from a submission');
+    }
+
     await connectDB();
 
     const photo = await Photo.findById(photoObjId)

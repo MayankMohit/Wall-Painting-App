@@ -77,7 +77,7 @@ export const UpdateJobSchema = z.object({
 
 export const CreateSubmissionSchema = z.object({
   photoNo: z.number().int().positive({ error: 'Photo number must be a positive integer' }),
-  location: z.string().min(1, { error: 'Location is required' }).trim(),
+  location: z.string().min(1, { error: 'Location is required' }).max(100, { error: 'Location must be 100 characters or fewer' }).trim(),
   sizes: z
     .array(z.tuple([z.number().positive(), z.number().positive()]))
     .min(1, { error: 'At least one size is required' }),
@@ -93,7 +93,7 @@ export const CreateSubmissionSchema = z.object({
 });
 
 export const UpdateSubmissionSchema = z.object({
-  location: z.string().min(1).trim().optional(),
+  location: z.string().min(1).max(100, { error: 'Location must be 100 characters or fewer' }).trim().optional(),
   sizes: z.array(z.tuple([z.number().positive(), z.number().positive()])).optional(),
   uploadedImages: z.array(
     z.object({
@@ -110,7 +110,7 @@ export const ApproveSubmissionSchema = z.object({
 });
 
 export const RejectSubmissionSchema = z.object({
-  rejectionReason: z.string().min(1, { error: 'Rejection reason is required' }),
+  rejectionReason: z.string().optional().default(''),
 });
 
 export const RevokeSubmissionSchema = z.object({

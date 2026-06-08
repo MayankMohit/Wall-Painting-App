@@ -26,7 +26,7 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
 
     // Fast path: no new images — nothing in Cloudinary to clean up, so fail fast is safe.
     if (!uploadedImages?.length) {
-      if (submission.status === 'approved') {
+      if (submission.status === 'approved' && ctx.user!.role !== 'owner') {
         ctx.fail(400, 'SUBMISSION_APPROVED', 'Cannot edit an approved submission');
       }
 
@@ -64,7 +64,7 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
     let wasRejected = false;
     let session: mongoose.ClientSession | null = null;
     try {
-      if (submission.status === 'approved') {
+      if (submission.status === 'approved' && ctx.user!.role !== 'owner') {
         ctx.fail(400, 'SUBMISSION_APPROVED', 'Cannot edit an approved submission');
       }
 

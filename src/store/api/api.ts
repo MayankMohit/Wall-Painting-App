@@ -21,6 +21,7 @@ export const api = createApi({
     'JobDetail',
     'Submission',
     'SubmissionDetail',
+    'File',
   ],
   endpoints: () => ({}),
 });

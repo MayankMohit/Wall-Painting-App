@@ -14,23 +14,21 @@ const INPUT_CLS = 'w-full h-10 rounded-(--r) border border-(--border-2) bg-(--pa
 export function PainterNotifications() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { data: prefs, isLoading } = useGetPreferencesQuery(undefined, { skip: !isAuthenticated });
-  const [updatePreferences, { isLoading: isSaving }] = useUpdatePreferencesMutation();
+  const [updatePreferences] = useUpdatePreferencesMutation();
 
-  const [quietEnabled, setQuietEnabled] = useState(false);
-  const qhStartFromPrefs = prefs?.quietHours?.start;
-  const qhEndFromPrefs   = prefs?.quietHours?.end;
-  const [qhStart, setQhStart] = useState(qhStartFromPrefs ?? '22:00');
-  const [qhEnd,   setQhEnd]   = useState(qhEndFromPrefs   ?? '08:00');
+  // Local state only for time inputs (avoid firing mutation on every keystroke)
+  const [qhStart, setQhStart] = useState('22:00');
+  const [qhEnd,   setQhEnd]   = useState('08:00');
 
-  useEffect(() => { if (qhStartFromPrefs) setQhStart(qhStartFromPrefs); }, [qhStartFromPrefs]);
-  useEffect(() => { if (qhEndFromPrefs)   setQhEnd(qhEndFromPrefs);     }, [qhEndFromPrefs]);
+  useEffect(() => { if (prefs?.quietHours?.start) setQhStart(prefs.quietHours.start); }, [prefs?.quietHours?.start]);
+  useEffect(() => { if (prefs?.quietHours?.end)   setQhEnd(prefs.quietHours.end);     }, [prefs?.quietHours?.end]);
 
   if (!isAuthenticated || isLoading || !prefs) return null;
 
   const pushEnabled  = prefs.push['*']  ?? true;
   const emailEnabled = prefs.email['*'] ?? true;
-  const qh           = prefs.quietHours;
-  const showQH       = qh !== null || quietEnabled;
+  const qhOn         = prefs.quietHours !== null;
+  const tz           = prefs.quietHours?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   function save(patch: Partial<NotificationPrefs>) { updatePreferences(patch); }
 
@@ -41,7 +39,7 @@ export function PainterNotifications() {
           <div className="text-[14px] font-medium text-(--ink)">Push notifications</div>
           <div className="text-[11px] text-(--ink-3) mt-px">On-device alerts for job activity</div>
         </div>
-        <Toggle checked={pushEnabled} onChange={(v) => save({ push: { '*': v } })} disabled={isSaving} />
+        <Toggle checked={pushEnabled} onChange={(v) => save({ push: { '*': v } })} />
       </div>
 
       <div className="px-3.5 py-3 flex items-center gap-3 border-b border-(--border)">
@@ -49,7 +47,7 @@ export function PainterNotifications() {
           <div className="text-[14px] font-medium text-(--ink)">Email notifications</div>
           <div className="text-[11px] text-(--ink-3) mt-px">Updates sent to your email address</div>
         </div>
-        <Toggle checked={emailEnabled} onChange={(v) => save({ email: { '*': v } })} disabled={isSaving} />
+        <Toggle checked={emailEnabled} onChange={(v) => save({ email: { '*': v } })} />
       </div>
 
       <div className="px-3.5 py-3">
@@ -59,41 +57,42 @@ export function PainterNotifications() {
             <div className="text-[11px] text-(--ink-3) mt-px">Silence notifications during these hours</div>
           </div>
           <Toggle
-            checked={showQH}
-            disabled={isSaving}
+            checked={qhOn}
             onChange={(v) => {
-              setQuietEnabled(v);
-              if (v && !qh) {
-                save({ quietHours: { start: qhStart, end: qhEnd, tz: Intl.DateTimeFormat().resolvedOptions().timeZone } });
-              } else if (!v) {
-                save({ quietHours: null });
-              }
+              if (v) save({ quietHours: { start: qhStart, end: qhEnd, tz } });
+              else   save({ quietHours: null });
             }}
           />
         </div>
 
-        {showQH && (
+        {qhOn && (
           <div className="mt-3 grid grid-cols-2 gap-2.5">
             <div>
               <div className="text-[11px] font-semibold text-(--ink-3) mb-1.5">From</div>
-              <input type="time" value={qhStart} className={INPUT_CLS}
+              <input
+                type="time"
+                value={qhStart}
+                className={INPUT_CLS}
                 onChange={(e) => {
                   setQhStart(e.target.value);
-                  save({ quietHours: { start: e.target.value, end: qhEnd, tz: qh?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone } });
+                  save({ quietHours: { start: e.target.value, end: qhEnd, tz } });
                 }}
               />
             </div>
             <div>
               <div className="text-[11px] font-semibold text-(--ink-3) mb-1.5">Until</div>
-              <input type="time" value={qhEnd} className={INPUT_CLS}
+              <input
+                type="time"
+                value={qhEnd}
+                className={INPUT_CLS}
                 onChange={(e) => {
                   setQhEnd(e.target.value);
-                  save({ quietHours: { start: qhStart, end: e.target.value, tz: qh?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone } });
+                  save({ quietHours: { start: qhStart, end: e.target.value, tz } });
                 }}
               />
             </div>
             <div className="col-span-2 text-[11px] text-(--ink-4)">
-              Timezone: {qh?.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone}
+              Timezone: {tz}
             </div>
           </div>
         )}

@@ -49,7 +49,7 @@ export function PhotoPicker({ files, prevs, photoErr, busy, onPick, onDrop }: Ph
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={url} alt="" className="w-full h-full object-cover" />
-          {!busy && (
+          {!busy && prevs.length > 1 && (
             <button
               type="button"
               onClick={() => onDrop(i)}

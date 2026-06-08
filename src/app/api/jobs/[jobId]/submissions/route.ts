@@ -36,7 +36,7 @@ export const GET = withAuth({ access: requireJobAccess })(
       },
       {
         $project: {
-          photoNo: 1, location: 1, status: 1, submittedAt: 1, painterId: 1,
+          photoNo: 1, location: 1, sizes: 1, status: 1, submittedAt: 1, painterId: 1,
           imageCount: 1,
           previewUrl: { $arrayElemAt: ['$firstPhoto.previewCloudinaryUrl', 0] },
         },
