@@ -70,7 +70,11 @@ export function buildMasterSheet(
       top: { style: 'thin' }, bottom: { style: 'thin' },
       left: { style: 'thin' }, right: { style: 'thin' },
     };
-    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.alignment = { 
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: c === 3
+    };
   };
 
   // Apply formatting continuously from Row 3 down to the last data row

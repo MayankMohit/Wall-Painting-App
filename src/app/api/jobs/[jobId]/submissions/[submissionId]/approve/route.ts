@@ -9,7 +9,7 @@ import { cloudinary } from '@/lib/cloudinary';
 import type { z } from 'zod';
 import { notify } from '@/lib/notify/emit';
 
-// PUT — Approve a submission: drop unselected images from DB, mint sequential watermark numbers
+// PUT — Approve a submission: drop unselected images from DB, mint sequential numbers
 //       on kept images, and mark the submission approved. Owner/admin only.
 export const PUT = withRole(['owner', 'admin'], {
   schema: ApproveSubmissionSchema,
@@ -31,16 +31,13 @@ export const PUT = withRole(['owner', 'admin'], {
   const rejectedPhotos = currentPhotos.filter(p => !selectedImageIds.includes(p._id.toString()));
   const keptPhotoIds   = keptPhotos.map(p => p._id);
   const rejectedPhotoIds = rejectedPhotos.map(p => p._id);
+  
   if (keptPhotos.length === 0) {
     ctx.fail(400, 'NO_VALID_IMAGES', 'None of the selected image IDs match photos in this submission');
   }
 
   const photosToMint   = keptPhotos.filter(p => !p.generatedNumber);
-
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-
-  // Populated inside the transaction; used after commit for eager cache warming.
-  let mintingData: Array<{ cloudinaryId: string; transform: string }> = [];
 
   let session: mongoose.ClientSession | null = null;
   try {
@@ -65,11 +62,9 @@ export const PUT = withRole(['owner', 'admin'], {
       const bulkOps = photosToMint.map((photo, i) => {
         const rawCode      = String(startNumber + i).padStart(4, '0');
         const displayCode  = `#${rawCode}`;
-        const urlCode      = `%23${rawCode}`;
-        const transform    = `l_text:Arial_60_bold:${urlCode},co_white,bo_3px_solid_rgb:00000099,g_south_east,x_24,y_24`;
-        const watermarkedUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${transform}/${photo.cloudinaryId}`;
-
-        mintingData.push({ cloudinaryId: photo.cloudinaryId, transform });
+        
+        // Removed text overlay. Just using a basic auto-quality optimization for the saved URL.
+        const watermarkedUrl = `https://res.cloudinary.com/${cloudName}/image/upload/q_auto,f_auto/${photo.cloudinaryId}`;
 
         return {
           updateOne: {
@@ -82,9 +77,9 @@ export const PUT = withRole(['owner', 'admin'], {
       await Photo.bulkWrite(bulkOps, { session });
     }
 
-    submission.status    = 'approved';
+    submission.status     = 'approved';
     submission.approvedAt = new Date();
-    submission.images    = keptPhotoIds;
+    submission.images     = keptPhotoIds;
     await submission.save({ session });
 
     await session.commitTransaction();
@@ -102,8 +97,7 @@ export const PUT = withRole(['owner', 'admin'], {
     data: { code: submission.photoNo, count: keptPhotos.length },
   }).catch(() => {});
 
-  // Cloudinary cleanup runs after the DB commit so a Cloudinary failure never rolls back
-  // an already-approved submission. allSettled ensures all assets are attempted.
+  // Cloudinary cleanup runs after the DB commit
   if (rejectedPhotos.length > 0) {
     const destroys = rejectedPhotos.flatMap(p => {
       const ops: Promise<unknown>[] = [cloudinary.uploader.destroy(p.cloudinaryId)];
@@ -111,15 +105,6 @@ export const PUT = withRole(['owner', 'admin'], {
       return ops;
     });
     await Promise.allSettled(destroys);
-  }
-
-  // Fire-and-forget: warm Cloudinary's CDN for each newly watermarked image.
-  for (const { cloudinaryId, transform } of mintingData) {
-    cloudinary.uploader.explicit(cloudinaryId, {
-      type       : 'upload',
-      eager      : [{ raw_transformation: transform }],
-      eager_async: true,
-    }).catch(() => {});
   }
 
   return ok({ message: 'Submission approved and watermarks generated successfully' });

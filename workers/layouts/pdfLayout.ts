@@ -9,39 +9,28 @@ export function drawPdfPage(
   topSection: any,
   bottomSection: any
 ) {
-  // Establish the absolute maximum width allowed for any text
   const maxW = A4.w - 2 * MARGIN;
 
   // ---- DYNAMIC LETTERHEAD ----
   doc.font('Times-Bold').fontSize(32);
   
-  // Calculate the underline width (cap it at maxW so it never goes off-page)
   const rawTitleWidth = doc.widthOfString(letterhead.companyName);
   const titleLineW = Math.min(rawTitleWidth, maxW);
   const titleLineX = (A4.w - titleLineW) / 2;
-  
   const titleY = doc.y; 
   
-  // Draw the text using the `width` property. This forces it to wrap to the next line if it's too long!
   doc.text(letterhead.companyName, MARGIN, titleY, { width: maxW, align: 'center' });
   
-  // doc.y is automatically updated by PDFKit to be at the bottom of the newly drawn text block.
-  // We place the underline right below whatever the final line of text was.
   const underlineY = doc.y - 2; 
-  
   doc.lineWidth(2).moveTo(titleLineX, underlineY).lineTo(titleLineX + titleLineW, underlineY).stroke();
   doc.lineWidth(1); 
   
-  // Add a clean gap before the address
   doc.y = underlineY + 8;
   
   doc.font('Helvetica').fontSize(10);
-  // Do the same wrapping protection for the address
   doc.text(letterhead.address, MARGIN, doc.y, { width: maxW, align: 'center' });
   doc.moveDown(1.5);
   
-  // Because doc.y is pushed down dynamically if the header wrapped, 
-  // this math perfectly shrinks the photo boxes so nothing overflows!
   const contentStartY = doc.y; 
   const sectionHeight = (A4.h - contentStartY - MARGIN) / 2; 
 
@@ -58,67 +47,67 @@ function drawSectionBox(doc: typeof PDFDocument, sec: any, yStart: number, secti
   const x = MARGIN;
   const w = A4.w - 2 * MARGIN;
   
-  // Push right column further right (was 130, now 90) to give photo box more width
   const rightColumnWidth = 90; 
   const gap = 15;
   const boxW = w - rightColumnWidth - gap;
   const rightX = x + boxW + gap;
   let y = yStart + 10; 
 
-  const lineHeight = 30; 
-  const boxTopGap = 20; 
-
   const fullLeftColumnWidth = w - (rightColumnWidth + gap);
-
-  // Magic number to make lines sit at the bottom of the letters
   const baselineOffset = 11;
 
-  // 1. LOCATION LINE
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#000');
-  const locationLabel = "LOCATION"; 
-  const locationLabelWidth = doc.widthOfString(locationLabel);
-  doc.text(locationLabel, x, y, { lineBreak: false });
+  function drawFormField(label: string, value: string, currentY: number) {
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#000');
+    const labelW = doc.widthOfString(label);
+    doc.text(label, x, currentY, { lineBreak: false });
 
-  const labelLineGapLocation = 10; 
-  const lineStartXLocation = x + locationLabelWidth + labelLineGapLocation;
-  const lineWLocation = fullLeftColumnWidth - (locationLabelWidth + labelLineGapLocation);
-  
-  // Draw solid line at the baseline
-  doc.lineWidth(1).moveTo(lineStartXLocation, y + baselineOffset).lineTo(lineStartXLocation + lineWLocation, y + baselineOffset).stroke();
+    const lineStartX = x + labelW + 10;
+    const lineW = fullLeftColumnWidth - labelW - 10;
 
-  // Draw value text at top Y so it sits naturally ON the line
-  doc.font('Helvetica');
-  doc.text(sec.location || '', lineStartXLocation + 5, y, { lineBreak: false });
+    doc.font('Helvetica');
+    
+    // Explicitly set a 6pt gap between lines of text so it breathes
+    const textOptions = { width: lineW - 10, align: 'left' as const, lineGap: 6 };
+    
+    // Calculate exact height of one line + the gap
+    const singleLineH = doc.currentLineHeight() + 6; 
+    const textH = doc.heightOfString(value || ' ', textOptions);
+    const lines = Math.max(1, Math.round(textH / singleLineH));
 
-  y += lineHeight;
+    // Position the physical line right at the bottom of the text's bounding box
+    const baselineOffset = singleLineH - 4; 
 
-  // 2. SIZE LINE
-  doc.font('Helvetica-Bold');
-  const sizeLabel = "SIZE :- "; 
-  const sizeLabelWidth = doc.widthOfString(sizeLabel);
-  doc.text(sizeLabel, x, y, { lineBreak: false });
+    // Draw the underlines
+    for (let i = 0; i < lines; i++) {
+       const lineY = currentY + (i * singleLineH) + baselineOffset;
+       doc.lineWidth(1).moveTo(lineStartX, lineY).lineTo(lineStartX + lineW, lineY).stroke();
+    }
 
-  const labelLineGapSize = 10; 
-  const lineStartXSize = x + sizeLabelWidth + labelLineGapSize;
-  const lineWSize = fullLeftColumnWidth - (sizeLabelWidth + labelLineGapSize);
-  
-  // Draw solid line at the baseline
-  doc.lineWidth(1).moveTo(lineStartXSize, y + baselineOffset).lineTo(lineStartXSize + lineWSize, y + baselineOffset).stroke();
+    // Draw the text
+    doc.text(value || '', lineStartX + 5, currentY, textOptions);
 
-  doc.font('Helvetica');
-  const sizeString = sec.sizes.map((s: number[]) => `${s[0]}×${s[1]}`).join(', ') || '';
-  doc.text(sizeString, lineStartXSize + 5, y, { lineBreak: false });
+    // Return the new Y coordinate (pushed down, plus a little extra padding)
+    return currentY + (lines * singleLineH) + 5; 
+  }
 
-  y += boxTopGap; 
+  // 1. LOCATION LINE (Now protected against long addresses)
+  y = drawFormField("LOCATION", sec.location || '', y);
+  y += 15; // Vertical gap between Location and Size
 
-  // 3. THE MAIN BOX
+  // 2. SIZE LINE (Now protected against massive lists of sizes)
+  // Added optional chaining (?.) just in case sizes is missing
+  const sizeString = sec.sizes?.map((s: number[]) => `${s[0]} x ${s[1]}`).join('  -  ') || '';
+  y = drawFormField("SIZE :- ", sizeString, y);
+  y += 20; // Vertical gap before the main photo paste box
+
+  // 3. THE MAIN BOX (Height shrinks automatically if the text above it wrapped!)
   const boxY = y;
   const boxH = sectionHeight - (boxY - yStart) - 20; 
   doc.lineWidth(1).rect(x, boxY, boxW, boxH).stroke();
 
   // 4. RIGHT COLUMN
   doc.fillColor('#000'); 
-  let rightY = boxY + 10; // Push down slightly inside the column
+  let rightY = boxY + 10; // Aligns perfectly with the new, dynamically pushed boxY
 
   // Photo Label
   doc.font('Helvetica-Bold').fontSize(11);
@@ -132,11 +121,10 @@ function drawSectionBox(doc: typeof PDFDocument, sec: any, yStart: number, secti
   
   // Line at baseline
   doc.lineWidth(1).moveTo(lineStartXPhoto, rightY + baselineOffset).lineTo(lineStartXPhoto + lineWPhoto, rightY + baselineOffset).stroke();
-  // Text ON the line
   doc.font('Helvetica');
   doc.text(`${sec.photoNo}`, lineStartXPhoto + 5, rightY, { lineBreak: false });
 
-  rightY += 40; // Big vertical space between photo and serial
+  rightY += 40; 
   
   // Serial Label
   doc.font('Helvetica-Bold');
@@ -150,33 +138,23 @@ function drawSectionBox(doc: typeof PDFDocument, sec: any, yStart: number, secti
   
   // Line at baseline
   doc.lineWidth(1).moveTo(lineStartXSerial, rightY + baselineOffset).lineTo(lineStartXSerial + lineWSerial, rightY + baselineOffset).stroke();
-  // Text ON the line
   doc.font('Helvetica');
   doc.text(`${sec.serialRange}`, lineStartXSerial + 5, rightY, { lineBreak: false });
 
-  // 5. CENTERED WATERMARKS (Forced 4 items per line)
+  // 5. CENTERED WATERMARKS
   if (sec.codes && sec.codes.length > 0) {
-    // UPDATED: Changed from #9ca3af to #6b7280 for a darker, crisper watermark
     doc.font('Helvetica-Bold').fontSize(16).fillColor('#6b7280'); 
     
-    // Chunk the codes array into groups of 4
     const chunkedCodes = [];
     for (let i = 0; i < sec.codes.length; i += 4) {
       chunkedCodes.push(sec.codes.slice(i, i + 4).join('   '));
     }
     
-    // Join the chunks with a hard line break (\n)
     const formattedCodeText = chunkedCodes.join('\n');
-    
     const textOptions = { width: boxW, align: 'center' as const };
-    
-    // doc.heightOfString will account for the \n line breaks
     const textHeight = doc.heightOfString(formattedCodeText, textOptions);
-    
-    // Calculate perfect vertical center based on the multi-line height
     const textY = boxY + (boxH / 2) - (textHeight / 2); 
 
-    // Draw the final block
     doc.text(formattedCodeText, x, textY, textOptions);
   }
 
