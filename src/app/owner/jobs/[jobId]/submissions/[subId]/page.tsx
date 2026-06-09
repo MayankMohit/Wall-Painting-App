@@ -468,13 +468,21 @@ export default function OwnerSubmissionReviewPage({
             #{String(s.photoNo).padStart(4, '0')} · {statusTimestamp}
           </div>
           <div className="hidden lg:flex items-center gap-2 shrink-0">
-            <button
-              onClick={openEdit}
-              className="w-7 h-7 rounded-full flex items-center justify-center border border-white/25 text-white/70 cursor-pointer hover:bg-white/10 transition-colors"
-              title="Edit submission"
-            >
-              <PencilIcon size={13} />
-            </button>
+            <div className="relative group">
+              <button
+                onClick={s.status !== 'approved' ? openEdit : undefined}
+                disabled={s.status === 'approved'}
+                className={`w-7 h-7 rounded-full flex items-center justify-center border transition-colors ${s.status === 'approved' ? 'border-white/10 text-white/20 cursor-not-allowed' : 'border-white/25 text-white/70 cursor-pointer hover:bg-white/10'}`}
+              >
+                <PencilIcon size={13} />
+              </button>
+              {s.status === 'approved' && (
+                <div className="absolute top-full right-0 mt-2 px-2.5 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  style={{ background: 'rgba(30,30,30,0.92)', color: 'rgba(255,255,255,0.75)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  Revoke to make changes
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setDeleteSubOpen(true)}
               className="flex items-center gap-1.5 h-7 px-3 rounded-full border text-[11px] font-semibold cursor-pointer"
@@ -611,13 +619,22 @@ export default function OwnerSubmissionReviewPage({
             {/* Status + edit button */}
             <div className="flex items-center justify-between">
               <StatusPill status={s.status} />
-              <button
-                onClick={openEdit}
-                className="flex items-center gap-1.5 h-7 px-3 rounded-full border border-white/25 text-white/70 text-[11px] font-semibold cursor-pointer hover:bg-white/10 transition-colors"
-              >
-                <PencilIcon size={12} />
-                Edit
-              </button>
+              <div className="relative group">
+                <button
+                  onClick={s.status !== 'approved' ? openEdit : undefined}
+                  disabled={s.status === 'approved'}
+                  className={`flex items-center gap-1.5 h-7 px-3 rounded-full border text-[11px] font-semibold transition-colors ${s.status === 'approved' ? 'border-white/10 text-white/20 cursor-not-allowed' : 'border-white/25 text-white/70 cursor-pointer hover:bg-white/10'}`}
+                >
+                  <PencilIcon size={12} />
+                  Edit
+                </button>
+                {s.status === 'approved' && (
+                  <div className="absolute top-full right-0 mt-2 px-2.5 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    style={{ background: 'rgba(30,30,30,0.92)', color: 'rgba(255,255,255,0.75)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    Revoke to make changes
+                  </div>
+                )}
+              </div>
             </div>
             <h1 className="text-[22px] font-semibold tracking-[-0.02em] -mt-1">{s.location}</h1>
             {Details()}

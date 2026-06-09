@@ -37,6 +37,8 @@ function formatDate(iso: string): string {
 
 type FileFilter = 'all' | 'excel' | 'pdf_photos' | 'pdf_file';
 
+const EMPTY_FILES: GeneratedFile[] = [];
+
 // ── icons ─────────────────────────────────────────────────────────────────────
 
 function ExcelIcon({ size = 20 }: { size?: number }) {
@@ -238,7 +240,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
   const [previewData, setPreviewData]     = useState<{ url: string; fileType: string; fileName: string } | null>(null);
 
   const { data: job }                      = useGetJobQuery(jobId);
-  const { data: files = [], isLoading }    = useGetFilesQuery(jobId, {
+  const { data: files = EMPTY_FILES, isLoading } = useGetFilesQuery(jobId, {
     pollingInterval: 3000,
   });
 
@@ -259,11 +261,12 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
   useEffect(() => {
     setFakeProgress((prev) => {
       const next = { ...prev };
+      let changed = false;
       for (const f of files) {
-        if (f.status === 'generating' && next[f._id] === undefined) next[f._id] = 6;
-        if (f.status === 'ready') next[f._id] = 100;
+        if (f.status === 'generating' && next[f._id] === undefined) { next[f._id] = 6; changed = true; }
+        if (f.status === 'ready' && next[f._id] !== 100)            { next[f._id] = 100; changed = true; }
       }
-      return next;
+      return changed ? next : prev;
     });
   }, [files]);
 
