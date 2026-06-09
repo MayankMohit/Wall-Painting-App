@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 export type TokenPayload = {
   userId: string;
   role: 'painter' | 'owner' | 'admin';
+  name?: string;
 };
 
 const JWT_SECRET = process.env.JWT_SECRET!;

@@ -60,6 +60,8 @@ export const DELETE = withRole(['owner', 'admin'], { access: requireJobOwner, au
       { $pull: { painters: new Types.ObjectId(painterId) } }
     );
 
+    ctx.setAudit('JOB_PAINTER_REMOVE', { type: 'Job', id: ctx.job!._id.toString() }, { companyName: ctx.job!.companyName, painterId });
+
     notify.emit('job.painter_removed', {
       actorId: ctx.user!.userId,
       recipientId: painterId,

@@ -32,7 +32,7 @@ export const POST = withMiddleware({ rateLimit: 'standard', schema: LoginSchema,
     const valid = await comparePassword(password, user.password);
     if (!valid) ctx.fail(401, ErrorCodes.INVALID_CREDENTIALS, 'Invalid credentials');
 
-    const token = signToken({ userId: user._id.toString(), role: user.role });
+    const token = signToken({ userId: user._id.toString(), role: user.role, name: user.name });
     ctx.setAudit('AUTH_LOGIN', undefined, { userId: user._id.toString(), role: user.role });
 
     return Response.json({

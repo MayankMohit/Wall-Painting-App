@@ -6,6 +6,7 @@ export interface AuditOptions {
   action    : string;
   requestId : string;
   userId?   : string;
+  userName? : string;
   userRole? : 'painter' | 'owner' | 'admin';
   ip        : string;
   userAgent?: string;

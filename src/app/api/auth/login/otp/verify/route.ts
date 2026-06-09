@@ -34,7 +34,7 @@ export const POST = withMiddleware({ rateLimit: 'standard', schema: LoginOtpVeri
       user.emailVerified = true;
     }
 
-    const token = signToken({ userId: user._id.toString(), role: user.role });
+    const token = signToken({ userId: user._id.toString(), role: user.role, name: user.name });
     ctx.setAudit('AUTH_LOGIN_OTP', undefined, { userId: user._id.toString(), role: user.role });
 
     return Response.json({

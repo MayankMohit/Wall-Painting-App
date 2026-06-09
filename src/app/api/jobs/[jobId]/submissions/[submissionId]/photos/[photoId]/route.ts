@@ -66,6 +66,7 @@ export const DELETE = withAuth({ access: requireSubmissionAccess, audit: 'PHOTO_
     if (photo!.previewCloudinaryId) destroys.push(cloudinary.uploader.destroy(photo!.previewCloudinaryId));
     await Promise.allSettled(destroys);
 
+    ctx.setAudit('PHOTO_DELETE', { type: 'Photo', id: photoId }, { jobId: submission.jobId.toString(), submissionId: ctx.params.submissionId });
     return ok({ message: 'Photo removed successfully' });
   }
 );

@@ -19,6 +19,21 @@ interface StatsResponse {
   };
 }
 
+interface ServiceCheck {
+  ok: boolean;
+  latencyMs: number;
+  error?: string;
+}
+
+interface HealthResponse {
+  status: 'ok' | 'degraded';
+  timestamp: string;
+  services: {
+    mongo: ServiceCheck;
+    redis: ServiceCheck;
+  };
+}
+
 interface PendingOwner {
   _id: string;
   name: string;
@@ -160,6 +175,8 @@ export default function AdminDashboard() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectingId,   setRejectingId]   = useState<string | null>(null);
   const [rejectReason,  setRejectReason]  = useState('');
+  const [health,        setHealth]        = useState<HealthResponse | null>(null);
+  const [healthLoading, setHealthLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   useEffect(() => {
@@ -182,6 +199,19 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const loadHealth = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const res  = await fetch('/api/health');
+      const json = await res.json();
+      setHealth(json as HealthResponse);
+    } catch {
+      setHealth(null);
+    } finally {
+      setHealthLoading(false);
+    }
+  }, []);
+
   const loadPending = useCallback(async () => {
     setPendingLoading(true);
     try {
@@ -193,7 +223,7 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  useEffect(() => { loadStats(); loadPending(); }, [loadStats, loadPending]);
+  useEffect(() => { loadStats(); loadPending(); loadHealth(); }, [loadStats, loadPending, loadHealth]);
 
   const handleApprove = async (owner: PendingOwner) => {
     setActionLoading(owner._id);
@@ -305,18 +335,28 @@ export default function AdminDashboard() {
         <div className="sticky top-0 z-10 bg-(--paper) border-b border-(--border) px-4 py-3 flex items-center justify-between">
           <div>
             <div className="text-[22px] font-bold tracking-[-0.025em] text-(--ink)">System</div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <div
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ background: operational ? 'oklch(0.65 0.18 145)' : 'var(--rejected)' }}
-              />
+            <div className="flex items-center gap-2.5 mt-0.5 flex-wrap">
+              {(['mongo', 'redis'] as const).map((svc) => {
+                const s = health?.services[svc];
+                const ok = s?.ok ?? null;
+                return (
+                  <div key={svc} className="flex items-center gap-1">
+                    <div
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ background: ok === null ? 'var(--ink-4)' : ok ? 'oklch(0.65 0.18 145)' : 'var(--rejected)' }}
+                    />
+                    <span className="text-[11px] text-(--ink-3) capitalize">{svc}</span>
+                  </div>
+                );
+              })}
+              <div className="w-px h-3 bg-(--border)" />
               <div className="text-[11px] text-(--ink-3)">
-                {statsLoading ? 'Loading…' : operational ? 'All systems nominal' : `${totalFailed} failed task${totalFailed !== 1 ? 's' : ''}`}
+                {statsLoading ? 'Loading…' : operational ? 'Queues nominal' : `${totalFailed} failed`}
               </div>
             </div>
           </div>
           <button
-            onClick={() => { loadStats(); loadPending(); }}
+            onClick={() => { loadStats(); loadPending(); loadHealth(); }}
             className="w-9 h-9 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) cursor-pointer hover:border-(--border-3) transition-[border-color]"
           >
             <Refresh size={16} weight={1.8} />
@@ -431,8 +471,40 @@ export default function AdminDashboard() {
                   : 'All services nominal'}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            {/* System status pill */}
+          <div className="flex items-center gap-2">
+            {/* Per-service health chips */}
+            {(['mongo', 'redis'] as const).map((svc) => {
+              const s = health?.services[svc];
+              const ok = s?.ok ?? null;
+              const label = svc === 'mongo' ? 'MongoDB' : 'Redis';
+              return (
+                <div
+                  key={svc}
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-full border"
+                  style={{
+                    borderColor: ok === null ? 'var(--border-2)' : ok ? 'oklch(0.8 0.1 145)' : 'oklch(0.8 0.1 25)',
+                    background:  ok === null ? 'var(--paper-2)'  : ok ? 'var(--approved-soft)' : 'var(--rejected-soft)',
+                  }}
+                >
+                  <div
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ background: ok === null ? 'var(--ink-4)' : ok ? 'oklch(0.65 0.18 145)' : 'var(--rejected)' }}
+                  />
+                  <span
+                    className="text-[12px] font-semibold"
+                    style={{ color: ok === null ? 'var(--ink-3)' : ok ? 'var(--approved)' : 'var(--rejected)' }}
+                  >
+                    {label}
+                  </span>
+                  {s?.ok && (
+                    <span className="font-(--mono) text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                      {s.latencyMs}ms
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+            {/* Queue status pill */}
             <div
               className="flex items-center gap-2 h-9 px-3.5 rounded-full border"
               style={{
@@ -441,18 +513,18 @@ export default function AdminDashboard() {
               }}
             >
               <div
-                className="w-2 h-2 rounded-full"
+                className="w-1.5 h-1.5 rounded-full"
                 style={{ background: operational ? 'oklch(0.65 0.18 145)' : 'var(--rejected)' }}
               />
               <span
                 className="text-[12px] font-semibold"
                 style={{ color: operational ? 'var(--approved)' : 'var(--rejected)' }}
               >
-                {operational ? 'Operational' : 'Degraded'}
+                {operational ? 'Queues' : 'Degraded'}
               </span>
             </div>
             <button
-              onClick={() => { loadStats(); loadPending(); }}
+              onClick={() => { loadStats(); loadPending(); loadHealth(); }}
               className="flex items-center gap-1.5 h-9 px-4 rounded-full border border-(--border-2) bg-(--surface) text-[13px] font-semibold text-(--ink-2) cursor-pointer hover:border-(--border-3) transition-[border-color]"
             >
               <Refresh size={14} weight={2} /> Refresh
@@ -601,6 +673,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
+
             </div>
           </div>
         </div>

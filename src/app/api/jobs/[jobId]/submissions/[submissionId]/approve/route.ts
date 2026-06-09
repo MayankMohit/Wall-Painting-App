@@ -91,6 +91,13 @@ export const PUT = withRole(['owner', 'admin'], {
     if (session) await session.endSession();
   }
 
+  ctx.setAudit('SUBMISSION_APPROVE', { type: 'Submission', id: submission._id.toString() }, {
+    jobId: submission.jobId.toString(),
+    painterId: submission.painterId.toString(),
+    photoNo: submission.photoNo,
+    keptCount: keptPhotos.length,
+  });
+
   notify.emit('submission.approve', {
     actorId: ctx.user!.userId,
     recipientId: submission.painterId.toString(),

@@ -120,6 +120,8 @@ export const POST = withRole(['owner'], { schema: CreateJobSchema, audit: 'JOB_C
       status : 'active',
     });
 
+    ctx.setAudit('JOB_CREATE', { type: 'Job', id: job._id.toString() }, { companyName: job.companyName });
+
     if (painters.length > 0) {
       notify.emit('job.created', {
         actorId: ctx.user!.userId,

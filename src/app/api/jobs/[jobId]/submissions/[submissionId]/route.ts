@@ -57,6 +57,7 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
         }).catch(() => {});
       }
 
+      ctx.setAudit('SUBMISSION_UPDATE', { type: 'Submission', id: submission._id.toString() }, { jobId: submission.jobId.toString(), photoNo: submission.photoNo });
       return ok({ message: 'Submission updated successfully' });
     }
 
@@ -119,6 +120,7 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
         }).catch(() => {});
       }
 
+      ctx.setAudit('SUBMISSION_UPDATE', { type: 'Submission', id: submission._id.toString() }, { jobId: submission.jobId.toString(), photoNo: submission.photoNo });
       return ok({ message: 'Submission updated successfully' });
 
     } catch (e) {
@@ -179,6 +181,7 @@ export const DELETE = withRole(['owner', 'admin'], { access: requireSubmissionAc
     });
     await Promise.allSettled(destroys);
 
+    ctx.setAudit('SUBMISSION_DELETE', { type: 'Submission', id: submission._id.toString() }, { jobId: submission.jobId.toString(), photoNo: submission.photoNo, painterId: submission.painterId.toString() });
     return ok({ message: 'Submission deleted successfully' });
   }
 );

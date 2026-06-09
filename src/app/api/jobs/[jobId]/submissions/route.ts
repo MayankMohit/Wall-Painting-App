@@ -96,6 +96,14 @@ export const POST = withRole(['painter'], { schema: CreateSubmissionSchema, acce
 
       await session.commitTransaction();
 
+      ctx.setAudit('SUBMISSION_CREATE', { type: 'Submission', id: newSubmission._id.toString() }, {
+        jobId: ctx.job!._id.toString(),
+        companyName: ctx.job!.companyName,
+        painterId: ctx.user!.userId,
+        photoNo,
+        photoCount: savedPhotos.length,
+      });
+
       User.findById(ctx.user!.userId, 'name').lean().then((painterDoc) => {
         notify.emit('submission.create', {
           actorId: ctx.user!.userId,

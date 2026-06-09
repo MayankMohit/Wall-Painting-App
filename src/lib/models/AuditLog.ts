@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IAuditLog extends Document {
   requestId  : string;
   userId?    : string;
+  userName?  : string;
   userRole?  : 'painter' | 'owner' | 'admin';
   action     : string;
   resource?  : { type: string; id: string };
@@ -17,6 +18,7 @@ export interface IAuditLog extends Document {
 const AuditLogSchema = new Schema<IAuditLog>({
   requestId : { type: String, required: true, index: true },
   userId    : { type: String, index: true, sparse: true },
+  userName  : String,
   userRole  : { type: String, enum: ['painter', 'owner', 'admin'] },
   action    : { type: String, required: true },
   resource  : { type: { type: String }, id: String },

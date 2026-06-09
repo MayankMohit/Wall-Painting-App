@@ -2,10 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
 interface IAuditLog {
   _id: string;
   requestId: string;
   userId?: string;
+  userName?: string;
   userRole?: string;
   action: string;
   resource?: { type: string; id: string };
@@ -19,6 +22,9 @@ interface IAuditLog {
 
 type Severity  = 'INFO' | 'WARN' | 'ERROR';
 type SevFilter = 'ALL' | Severity;
+type Category  = 'all' | 'auth' | 'jobs' | 'submissions' | 'admin' | 'user' | 'photos';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getSeverity(code: number): Severity {
   if (code >= 500) return 'ERROR';
@@ -26,165 +32,215 @@ function getSeverity(code: number): Severity {
   return 'INFO';
 }
 
-// ---------- helpers ----------
-
 function cap(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
 function parseUA(ua?: string): string {
   if (!ua) return '';
-  if (ua.includes('curl'))           return 'curl';
-  if (ua.includes('Postman'))        return 'Postman';
-  if (ua.includes('Edg'))            return 'Edge';
-  if (ua.includes('Firefox'))        return 'Firefox';
-  if (ua.includes('Chrome'))         return 'Chrome';
-  if (ua.includes('Safari'))         return 'Safari';
+  if (ua.includes('curl'))    return 'curl';
+  if (ua.includes('Postman')) return 'Postman';
+  if (ua.includes('Edg'))     return 'Edge';
+  if (ua.includes('Firefox')) return 'Firefox';
+  if (ua.includes('Chrome'))  return 'Chrome';
+  if (ua.includes('Safari'))  return 'Safari';
   return 'Browser';
 }
 
-const ACTION_SOURCE: Record<string, string> = {
-  AUTH_LOGIN:                'auth.signin',
-  AUTH_LOGIN_OTP:            'auth.otp',
-  AUTH_LOGIN_PHONE:          'auth.phone',
-  AUTH_REGISTER:             'auth.register',
-  AUTH_FORGOT_PASSWORD:      'auth.forgot',
-  AUTH_RESET_PASSWORD:       'auth.reset',
-  AUTH_LOGOUT:               'auth.logout',
-  AUTH_VERIFY_EMAIL_SEND:    'auth.email.verify',
-  AUTH_VERIFY_EMAIL_CONFIRM: 'auth.email.confirm',
-  AUTH_CHANGE_EMAIL_SEND:    'auth.email.change',
-  AUTH_CHANGE_EMAIL_CONFIRM: 'auth.email.changed',
-  AUTH_CHANGE_PASSWORD:      'auth.passwd',
-  ADMIN_STATS_VIEW:          'admin.stats',
-  ADMIN_LOGS_VIEW:           'admin.logs',
-  ADMIN_JOBS_VIEW:           'admin.jobs',
-  ADMIN_JOB_RETRY:           'admin.jobs.retry',
-  ADMIN_STORAGE_VIEW:        'admin.storage',
-  ADMIN_QUEUE_STATS_VIEW:    'admin.queue',
-  ADMIN_QUEUE_ACTION:        'admin.queue.ctrl',
-  ADMIN_USER_APPROVE:        'admin.user.approve',
-  ADMIN_USER_REJECT:         'admin.user.reject',
-  ADMIN_USER_SUSPEND:        'admin.user.suspend',
-  ADMIN_USER_UPDATE:         'admin.user.update',
-};
+function actionCategory(action: string): Category {
+  if (action.startsWith('AUTH_'))       return 'auth';
+  if (action.startsWith('JOB_'))        return 'jobs';
+  if (action.startsWith('SUBMISSION_')) return 'submissions';
+  if (action.startsWith('ADMIN_'))      return 'admin';
+  if (action.startsWith('USER_'))       return 'user';
+  if (action.startsWith('PHOTO_'))      return 'photos';
+  return 'all';
+}
 
-function source(action: string): string {
-  return ACTION_SOURCE[action] ?? action.toLowerCase().replace(/_/g, '.').slice(0, 24);
+function actionLabel(action: string): string {
+  return action.split('_').map(cap).join(' ');
 }
 
 function buildMessage(log: IAuditLog): string {
-  const m      = log.metadata ?? {};
-  const role   = log.userRole ?? 'user';
-  const failed = log.statusCode >= 400;
-  const ua     = parseUA(log.userAgent);
-  const uid    = log.resource?.id ?? (m.userId as string) ?? '';
+  const m       = log.metadata ?? {};
+  const role    = log.userRole ?? 'user';
+  const failed  = log.statusCode >= 400;
+  const ua      = parseUA(log.userAgent);
+  const company = (m.companyName as string) ?? '';
+  const photoNo = (m.photoNo as string | number) ?? '';
 
   switch (log.action) {
     case 'AUTH_LOGIN':
       return failed
-        ? `Login failed — invalid credentials · via ${ua || 'unknown client'}`
-        : `${cap(role)} signed in via password · ${ua}`;
+        ? `Login failed — invalid credentials${ua ? ` · ${ua}` : ''}`
+        : `${cap(role)} signed in via password${ua ? ` · ${ua}` : ''}`;
     case 'AUTH_LOGIN_OTP':
       return failed
-        ? `Email OTP login failed — invalid or expired code`
-        : `${cap(role)} signed in via email OTP · ${ua}`;
+        ? 'Email OTP login failed — invalid or expired code'
+        : `${cap(role)} signed in via email OTP${ua ? ` · ${ua}` : ''}`;
     case 'AUTH_LOGIN_PHONE':
       return failed
-        ? `Phone OTP login failed — Firebase token rejected`
-        : `${cap(role)} signed in via phone OTP · ${ua}`;
+        ? 'Phone OTP login failed — Firebase token rejected'
+        : `${cap(role)} signed in via phone OTP${ua ? ` · ${ua}` : ''}`;
     case 'AUTH_REGISTER':
-      return `New ${cap((m.role as string) ?? role)} account created · email verified: ${m.role === 'owner' ? 'yes (OTP)' : 'no'} · phone verified: yes`;
+      return `New ${cap((m.role as string) ?? role)} account registered`;
     case 'AUTH_FORGOT_PASSWORD':
-      return `Password reset link emailed to account`;
+      return 'Password reset link sent';
     case 'AUTH_RESET_PASSWORD':
-      return failed
-        ? `Password reset failed — token invalid or expired`
-        : `Password reset successfully`;
+      return failed ? 'Password reset failed — token invalid or expired' : 'Password reset successfully';
     case 'AUTH_CHANGE_PASSWORD':
-      return `Password changed by ${cap(role)}`;
+    case 'USER_CHANGE_PASSWORD':
+      return 'Password changed';
     case 'AUTH_VERIFY_EMAIL_SEND':
-      return `Email verification OTP sent`;
     case 'AUTH_VERIFY_EMAIL_CONFIRM':
-      return `Email address verified via OTP`;
+    case 'USER_VERIFY_EMAIL':
+      return 'Email address verified';
     case 'AUTH_CHANGE_EMAIL_SEND':
-      return `Email change OTP sent to new address`;
+    case 'USER_CHANGE_EMAIL_REQUEST':
+      return 'Email change OTP sent to new address';
     case 'AUTH_CHANGE_EMAIL_CONFIRM':
-      return `Email address updated successfully`;
+    case 'USER_CHANGE_EMAIL_CONFIRM':
+      return 'Email address updated';
+    case 'AUTH_LOGOUT':
+      return `${cap(role)} signed out`;
+    case 'USER_UPDATE_PROFILE':
+      return 'Profile updated';
+    case 'USER_UPDATE_NOTIFICATION_PREFS':
+      return 'Notification preferences updated';
     case 'ADMIN_USER_APPROVE':
-      return `Owner account approved${uid ? ` · user ${uid.slice(-6)}` : ''}`;
+      return `Owner account approved${log.resource?.id ? ` · …${log.resource.id.slice(-6)}` : ''}`;
     case 'ADMIN_USER_REJECT':
       return `Owner account rejected · reason: ${(m.reason as string) || 'not specified'}`;
     case 'ADMIN_USER_SUSPEND':
       return `Account suspended · reason: ${(m.reason as string) || 'not specified'}`;
+    case 'ADMIN_USER_ACTIVATE':
+      return 'Account re-activated';
     case 'ADMIN_USER_UPDATE':
-      return `User account updated${uid ? ` · ID …${uid.slice(-6)}` : ''}`;
+    case 'ADMIN_UPDATE_USER':
+      return 'User account updated';
+    case 'ADMIN_USER_VIEW':
+    case 'ADMIN_USERS_VIEW':
+      return 'User directory accessed';
+    case 'ADMIN_DEACTIVATE_USER':
+      return 'User account deactivated';
     case 'ADMIN_JOB_RETRY':
-      return `Background job manually retried · queue: ${m.queue ?? '—'} · job: ${log.resource?.id?.slice(0, 12) ?? '—'}`;
+      return `Background job retried · queue: ${m.queue ?? '—'}`;
     case 'ADMIN_QUEUE_ACTION':
       return `Queue "${m.queue ?? '—'}" ${m.action ?? 'action'} by admin`;
-    case 'ADMIN_STATS_VIEW':
-      return 'Admin dashboard stats viewed';
-    case 'ADMIN_LOGS_VIEW':
-      return 'Audit log viewer opened';
-    case 'ADMIN_STORAGE_VIEW':
-      return 'Storage & CDN report accessed';
-    case 'ADMIN_QUEUE_STATS_VIEW':
-      return 'BullMQ queue stats accessed';
-    default: {
+    case 'ADMIN_STATS_VIEW':         return 'Dashboard stats viewed';
+    case 'ADMIN_LOGS_VIEW':          return 'Audit log viewer opened';
+    case 'ADMIN_STORAGE_VIEW':       return 'Storage report accessed';
+    case 'ADMIN_QUEUE_STATS_VIEW':   return 'Queue stats accessed';
+    case 'ADMIN_JOBS_VIEW':          return 'Background jobs viewed';
+    case 'JOB_CREATE':
+      return `Job created${company ? ` · ${company}` : ''}`;
+    case 'JOB_UPDATE':
+      return `Job updated${company ? ` · ${company}` : ''}`;
+    case 'JOB_DELETE':
+      return `Job deleted${company ? ` · ${company}` : ''}`;
+    case 'JOB_PAINTER_ADD':
+      return `Painter assigned to job${company ? ` · ${company}` : ''}`;
+    case 'JOB_PAINTER_REMOVE':
+      return `Painter removed from job${company ? ` · ${company}` : ''}`;
+    case 'SUBMISSION_CREATE':
+      return `Submission created${company ? ` · ${company}` : ''}${photoNo ? ` · #${photoNo}` : ''}`;
+    case 'SUBMISSION_UPDATE':
+      return `Submission updated${photoNo ? ` · #${photoNo}` : ''}`;
+    case 'SUBMISSION_DELETE':
+      return `Submission deleted${photoNo ? ` · #${photoNo}` : ''}`;
+    case 'SUBMISSION_APPROVE':
+      return `Submission approved${photoNo ? ` · #${photoNo}` : ''}${m.keptCount ? ` · ${m.keptCount} photo(s) kept` : ''}`;
+    case 'SUBMISSION_REJECT':
+      return `Submission rejected${photoNo ? ` · #${photoNo}` : ''}${m.reason ? ` · ${m.reason}` : ''}`;
+    case 'SUBMISSION_REVOKE':
+      return `Submission approval revoked${photoNo ? ` · #${photoNo}` : ''}`;
+    case 'PHOTO_DELETE':
+      return 'Photo deleted from submission';
+    case 'NOTIFICATION_READ_ALL':
+      return 'All notifications marked as read';
+    default:
       return log.action.split('_').map(cap).join(' ');
-    }
   }
 }
 
-// ---------- style maps ----------
-
-const SEV_STYLE: Record<Severity, { badge: string; row: string }> = {
-  INFO:  { badge: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',       row: '' },
-  WARN:  { badge: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30', row: 'bg-yellow-500/[0.03]' },
-  ERROR: { badge: 'bg-red-500/20 text-red-400 border border-red-500/30',          row: 'bg-red-500/[0.04]' },
-};
-
-const ROLE_STYLE: Record<string, string> = {
-  admin:   'text-teal-400   bg-teal-500/10   border border-teal-500/30',
-  owner:   'text-purple-400 bg-purple-500/10 border border-purple-500/30',
-  painter: 'text-sky-400    bg-sky-500/10    border border-sky-500/30',
-};
-
-// ---------- utils ----------
-
 function fmtTs(ts: string) {
   return new Date(ts).toLocaleString('en-IN', {
-    timeZone:  'Asia/Kolkata',
-    day:       '2-digit',
-    month:     'short',
-    year:      'numeric',
-    hour:      '2-digit',
-    minute:    '2-digit',
-    second:    '2-digit',
-    hour12:    true,
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: true,
+  });
+}
+
+function fmtTsShort(ts: string) {
+  return new Date(ts).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit', month: 'short',
+    hour: '2-digit', minute: '2-digit',
+    hour12: true,
   });
 }
 
 function exportCSV(rows: IAuditLog[]) {
-  const cols = ['timestamp_ist', 'severity', 'action', 'source', 'description', 'userId', 'userRole', 'statusCode', 'duration_ms', 'ip', 'requestId'];
+  const cols = ['timestamp_ist', 'severity', 'action', 'description', 'userName', 'userId', 'userRole', 'statusCode', 'duration_ms', 'ip', 'requestId'];
   const csv  = [
     cols.join(','),
     ...rows.map(l =>
-      [fmtTs(l.timestamp), getSeverity(l.statusCode), l.action, source(l.action),
-       buildMessage(l), l.userId ?? '', l.userRole ?? '', l.statusCode, l.duration, l.ip, l.requestId]
+      [fmtTs(l.timestamp), getSeverity(l.statusCode), l.action,
+       buildMessage(l), l.userName ?? '', l.userId ?? '', l.userRole ?? '',
+       l.statusCode, l.duration, l.ip, l.requestId]
         .map(v => `"${String(v).replace(/"/g, '""')}"`)
         .join(',')
     ),
   ].join('\n');
   const a = Object.assign(document.createElement('a'), {
-    href:     URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
+    href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
     download: `audit-logs-${Date.now()}.csv`,
   });
   a.click();
 }
 
-// ---------- component ----------
+// ── Style maps ────────────────────────────────────────────────────────────────
+
+const SEV_DOT: Record<Severity, string> = {
+  INFO:  'oklch(0.65 0.18 145)',
+  WARN:  'oklch(0.7 0.16 80)',
+  ERROR: 'var(--rejected)',
+};
+
+const SEV_BADGE: Record<Severity, string> = {
+  INFO:  'bg-(--approved-soft) text-(--approved)',
+  WARN:  'bg-(--pending-soft) text-(--pending)',
+  ERROR: 'bg-(--rejected-soft) text-(--rejected)',
+};
+
+const CAT_COLOR: Record<string, string> = {
+  auth:        'oklch(0.5 0.14 240)',
+  jobs:        'var(--accent)',
+  submissions: 'oklch(0.55 0.16 145)',
+  admin:       'oklch(0.5 0.13 295)',
+  user:        'oklch(0.55 0.12 50)',
+  photos:      'oklch(0.55 0.14 20)',
+  all:         'var(--ink-3)',
+};
+
+const ROLE_BADGE: Record<string, string> = {
+  admin:   'bg-(--approved-soft) text-(--approved)',
+  owner:   'text-purple-500 bg-purple-500/10',
+  painter: 'text-sky-500 bg-sky-500/10',
+};
+
+const CATEGORIES: { value: Category; label: string }[] = [
+  { value: 'all',         label: 'All' },
+  { value: 'auth',        label: 'Auth' },
+  { value: 'jobs',        label: 'Jobs' },
+  { value: 'submissions', label: 'Submissions' },
+  { value: 'admin',       label: 'Admin' },
+  { value: 'user',        label: 'User' },
+  { value: 'photos',      label: 'Photos' },
+];
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AdminLogsPage() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('wallpainter_token') : null;
@@ -196,13 +252,19 @@ export default function AdminLogsPage() {
   const [isLoading,   setIsLoading]   = useState(true);
   const [search,      setSearch]      = useState('');
   const [sevFilter,   setSevFilter]   = useState<SevFilter>('ALL');
+  const [category,    setCategory]    = useState<Category>('all');
+  const [fromDate,    setFromDate]    = useState('');
+  const [toDate,      setToDate]      = useState('');
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
-  const fetchLogs = useCallback(async (pg: number) => {
+  const fetchLogs = useCallback(async (pg: number, cat: Category, from: string, to: string) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({ page: String(pg), limit: '50' });
-      const res    = await fetch(`/api/admin/logs?${params}`, {
+      if (cat !== 'all') params.set('category', cat);
+      if (from) params.set('from', new Date(from).toISOString());
+      if (to)   params.set('to',   new Date(to + 'T23:59:59').toISOString());
+      const res  = await fetch(`/api/admin/logs?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
@@ -218,17 +280,17 @@ export default function AdminLogsPage() {
     }
   }, [token]);
 
-  useEffect(() => { fetchLogs(1); }, [fetchLogs]);
+  useEffect(() => { fetchLogs(1, category, fromDate, toDate); }, [fetchLogs, category, fromDate, toDate]);
 
-  const q         = search.trim().toLowerCase();
+  const q = search.trim().toLowerCase();
   const displayed = logs.filter(l => {
     const matchSev = sevFilter === 'ALL' || getSeverity(l.statusCode) === sevFilter;
     const matchQ   = !q ||
       l.action.toLowerCase().includes(q) ||
-      source(l.action).includes(q) ||
       buildMessage(l).toLowerCase().includes(q) ||
       (l.ip ?? '').includes(q) ||
-      (l.userRole ?? '').includes(q);
+      (l.userRole ?? '').includes(q) ||
+      (l.userName ?? '').toLowerCase().includes(q);
     return matchSev && matchQ;
   });
 
@@ -240,171 +302,271 @@ export default function AdminLogsPage() {
 
   const tabs: [SevFilter, string, number | string][] = [
     ['ALL',   'All',   total],
-    ['INFO',  'INFO',  counts.info],
-    ['WARN',  'WARN',  counts.warn],
-    ['ERROR', 'ERROR', counts.error],
+    ['INFO',  'Info',  counts.info],
+    ['WARN',  'Warn',  counts.warn],
+    ['ERROR', 'Error', counts.error],
   ];
 
   return (
-    <div className="space-y-4 px-4 py-6 lg:px-8 lg:py-8 bg-(--paper) min-h-screen">
+    <div className="bg-(--paper) min-h-screen px-4 py-6 lg:px-8 lg:py-8">
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-(--border) pb-5">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-(--border) pb-5 mb-5">
         <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.025em] text-(--ink)">Logs</h1>
+          <h1 className="text-[24px] font-bold tracking-[-0.025em] text-(--ink)">Audit Logs</h1>
           <p className="text-[13px] text-(--ink-3) mt-1">
             {lastFetched
-              ? `Last fetched ${lastFetched.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })} IST · ${total.toLocaleString()} total records`
+              ? `${total.toLocaleString()} records · last fetched ${lastFetched.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })}`
               : 'Loading…'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-10 bg-(--surface) border border-(--border-2) rounded-(--r) flex items-center gap-2 px-3">
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8} style={{ color: 'var(--ink-3)' }}>
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search action, IP, role…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-44 bg-transparent border-0 outline-none text-[13px] text-(--ink) placeholder:text-(--ink-4)"
-            />
-          </div>
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => fetchLogs(page)}
+            onClick={() => fetchLogs(page, category, fromDate, toDate)}
             disabled={isLoading}
-            className="flex items-center gap-1.5 h-10 px-4 rounded-full border border-(--border-2) bg-(--surface) text-[13px] font-semibold text-(--ink-2) hover:border-(--border-3) disabled:opacity-50 transition-[border-color] cursor-pointer"
+            className="flex items-center gap-1.5 h-9 px-4 rounded-full border border-(--border-2) bg-(--surface) text-[13px] font-semibold text-(--ink-2) hover:border-(--border-3) disabled:opacity-50 transition-[border-color] cursor-pointer"
           >
             <svg className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0 1 15.7-3.7M20 15a9 9 0 0 1-15.7 3.7" />
             </svg>
-            {isLoading && logs.length > 0 ? 'Refreshing…' : 'Refresh'}
+            Refresh
           </button>
           <button
             onClick={() => exportCSV(logs)}
             disabled={logs.length === 0}
-            className="flex items-center gap-1.5 h-10 px-4 rounded-full bg-(--ink) text-white text-[13px] font-semibold hover:opacity-88 disabled:opacity-40 transition-opacity cursor-pointer"
+            className="flex items-center gap-1.5 h-9 px-4 rounded-full bg-(--ink) text-white text-[13px] font-semibold hover:opacity-85 disabled:opacity-40 transition-opacity cursor-pointer"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            Export CSV
+            Export
           </button>
         </div>
       </div>
 
-      {/* Severity filter tabs */}
-      <div className="flex gap-2 flex-wrap">
-        {tabs.map(([sev, label, count]) => {
-          const activeStyle =
-            sev === 'ALL'   ? { background: 'var(--ink)',      color: '#fff'              } :
-            sev === 'INFO'  ? { background: 'var(--info)',     color: '#fff'              } :
-            sev === 'WARN'  ? { background: 'oklch(0.65 0.16 80)', color: '#fff'          } :
-                              { background: 'var(--rejected)', color: '#fff'              };
-          const inactiveStyle = { background: 'var(--paper-2)', color: 'var(--ink-2)' };
-          return (
+      {/* Filters */}
+      <div className="bg-(--surface) border border-(--border) rounded-(--r-md) p-4 mb-5 space-y-3">
+        {/* Category pills + search */}
+        <div className="flex flex-wrap gap-2">
+          {CATEGORIES.map(c => (
             <button
-              key={sev}
-              onClick={() => setSevFilter(sev)}
-              className="px-3.5 py-1.5 rounded-full text-[12px] font-bold transition-colors cursor-pointer"
-              style={sevFilter === sev ? activeStyle : inactiveStyle}
+              key={c.value}
+              onClick={() => { setCategory(c.value); setPage(1); }}
+              className="px-3 py-1.5 rounded-full text-[12px] font-semibold transition-colors cursor-pointer"
+              style={
+                category === c.value
+                  ? { background: CAT_COLOR[c.value], color: '#fff' }
+                  : { background: 'var(--paper-2)', color: 'var(--ink-2)' }
+              }
             >
-              {label}: {count}
+              {c.label}
             </button>
-          );
-        })}
-      </div>
-
-      {/* Log panel */}
-      <div className="bg-slate-950 rounded-xl overflow-hidden border border-slate-800 shadow-2xl">
-
-        {/* Column header */}
-        <div className="flex items-center gap-8 px-6 py-2.5 border-b border-slate-700/80 bg-slate-900">
-          <span className="w-14 shrink-0 text-slate-500 font-mono text-[10px] uppercase tracking-widest">Level</span>
-          <span className="w-48 shrink-0 text-slate-500 font-mono text-[10px] uppercase tracking-widest">Timestamp (IST)</span>
-          <span className="w-44 shrink-0 text-slate-500 font-mono text-[10px] uppercase tracking-widest">Source</span>
-          <span className="flex-1   text-slate-500 font-mono text-[10px] uppercase tracking-widest">Description</span>
-          <span className="w-20 shrink-0 text-slate-500 font-mono text-[10px] uppercase tracking-widest">Role</span>
-          <span className="w-28 shrink-0 text-slate-500 font-mono text-[10px] uppercase tracking-widest">IP Address</span>
-          <span className="w-16 shrink-0 text-right text-slate-500 font-mono text-[10px] uppercase tracking-widest">Latency</span>
+          ))}
+          <div className="flex-1 min-w-[160px] h-9 bg-(--paper-2) border border-(--border) rounded-(--r) flex items-center gap-2 px-3">
+            <svg className="w-3.5 h-3.5 shrink-0 text-(--ink-4)" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search description, user, IP…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="flex-1 bg-transparent border-0 outline-none text-[13px] text-(--ink) placeholder:text-(--ink-4)"
+            />
+          </div>
         </div>
 
-        {isLoading && logs.length === 0 ? (
-          <div className="p-20 text-center text-slate-600 font-mono text-sm animate-pulse">
-            reading audit pipeline…
-          </div>
-        ) : displayed.length === 0 ? (
-          <div className="p-20 text-center text-slate-600 font-mono text-sm">
-            no log entries found
-          </div>
-        ) : (
-          <div className={`divide-y divide-slate-800/60 transition-opacity duration-200 ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
+        {/* Date range */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[12px] font-medium text-(--ink-3)">From</span>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={e => { setFromDate(e.target.value); setPage(1); }}
+            className="h-8 px-2 rounded-(--r) border border-(--border) bg-(--paper-2) text-[12px] text-(--ink) outline-none focus:border-(--ink)"
+          />
+          <span className="text-[12px] font-medium text-(--ink-3)">To</span>
+          <input
+            type="date"
+            value={toDate}
+            onChange={e => { setToDate(e.target.value); setPage(1); }}
+            className="h-8 px-2 rounded-(--r) border border-(--border) bg-(--paper-2) text-[12px] text-(--ink) outline-none focus:border-(--ink)"
+          />
+          {(fromDate || toDate) && (
+            <button
+              onClick={() => { setFromDate(''); setToDate(''); }}
+              className="text-[12px] text-(--ink-3) hover:text-(--rejected) transition-colors cursor-pointer"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Severity tabs */}
+      <div className="flex gap-2 flex-wrap mb-4">
+        {tabs.map(([sev, label, count]) => (
+          <button
+            key={sev}
+            onClick={() => setSevFilter(sev)}
+            className="px-3.5 py-1.5 rounded-full text-[12px] font-bold transition-colors cursor-pointer"
+            style={
+              sevFilter === sev
+                ? { background: 'var(--ink)', color: '#fff' }
+                : { background: 'var(--paper-2)', color: 'var(--ink-2)' }
+            }
+          >
+            {label} · {count}
+          </button>
+        ))}
+      </div>
+
+      {/* Log list */}
+      {isLoading && logs.length === 0 ? (
+        <div className="bg-(--surface) border border-(--border) rounded-(--r-md) p-16 text-center animate-pulse text-[13px] text-(--ink-4)">
+          Loading audit logs…
+        </div>
+      ) : displayed.length === 0 ? (
+        <div className="bg-(--surface) border border-(--border) rounded-(--r-md) p-16 text-center text-[13px] text-(--ink-4)">
+          No log entries match your filters.
+        </div>
+      ) : (
+        <>
+          {/* Desktop table */}
+          <div className={`hidden lg:block bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden shadow-(--shadow-sm) transition-opacity duration-150 ${isLoading ? 'opacity-50' : ''}`}>
+            <div
+              className="grid gap-4 px-5 py-2.5 border-b border-(--border) bg-(--paper-2) text-[10px] font-bold uppercase tracking-[.05em] text-(--ink-3)"
+              style={{ gridTemplateColumns: '72px 148px 1fr 164px 112px' }}
+            >
+              <div>Level</div><div>Timestamp</div><div>Event</div><div>User</div><div>IP</div>
+            </div>
             {displayed.map(log => {
-              const sev   = getSeverity(log.statusCode);
-              const style = SEV_STYLE[sev];
-              const roleStyle = ROLE_STYLE[log.userRole ?? ''] ?? 'text-slate-500 bg-slate-800 border border-slate-700';
+              const sev      = getSeverity(log.statusCode);
+              const cat      = actionCategory(log.action);
+              const catColor = CAT_COLOR[cat];
+              const userName = log.userName ?? (log.userId ? `…${log.userId.slice(-6)}` : null);
               return (
                 <div
                   key={log._id}
-                  className={`flex items-center gap-8 px-6 py-3 hover:bg-slate-800/40 transition-colors ${style.row}`}
+                  className="grid gap-4 px-5 py-3 items-start border-b border-(--border) last:border-0 hover:bg-(--paper-2) transition-colors"
+                  style={{ gridTemplateColumns: '72px 148px 1fr 164px 112px' }}
                 >
                   {/* Severity */}
-                  <span className={`w-14 shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-bold font-mono ${style.badge}`}>
-                    {sev}
-                  </span>
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: SEV_DOT[sev] }} />
+                    <span className={`text-[10px] font-bold font-(--mono) px-1.5 py-0.5 rounded ${SEV_BADGE[sev]}`}>
+                      {sev}
+                    </span>
+                  </div>
 
-                  {/* Timestamp IST */}
-                  <span className="w-48 shrink-0 text-slate-400 font-mono text-xs leading-tight">
+                  {/* Timestamp */}
+                  <div className="font-(--mono) text-[11px] text-(--ink-3) leading-snug pt-0.5">
                     {fmtTs(log.timestamp)}
-                  </span>
+                  </div>
 
-                  {/* Source */}
-                  <span className="w-44 shrink-0 text-slate-300 font-mono text-xs truncate" title={log.action}>
-                    {source(log.action)}
-                  </span>
+                  {/* Event */}
+                  <div className="flex items-start gap-2 min-w-0">
+                    <span
+                      className="shrink-0 font-(--mono) text-[10px] font-bold px-1.5 py-0.5 rounded mt-0.5 whitespace-nowrap"
+                      style={{ background: `color-mix(in oklch, ${catColor} 12%, transparent)`, color: catColor }}
+                    >
+                      {actionLabel(log.action)}
+                    </span>
+                    <span className="text-[13px] text-(--ink) leading-snug min-w-0">
+                      {buildMessage(log)}
+                    </span>
+                  </div>
 
-                  {/* Description */}
-                  <span className="flex-1 text-slate-200 text-sm leading-snug">
-                    {buildMessage(log)}
-                  </span>
-
-                  {/* Role */}
-                  <span className={`w-20 shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-bold font-mono ${roleStyle}`}>
-                    {log.userRole ?? '—'}
-                  </span>
+                  {/* User */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    {userName && (
+                      <span className="text-[12px] font-medium text-(--ink) truncate max-w-[90px]">{userName}</span>
+                    )}
+                    {log.userRole && (
+                      <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded font-(--mono) ${ROLE_BADGE[log.userRole] ?? 'bg-(--paper-2) text-(--ink-3)'}`}>
+                        {log.userRole}
+                      </span>
+                    )}
+                    {!userName && !log.userRole && (
+                      <span className="text-[12px] text-(--ink-4)">—</span>
+                    )}
+                  </div>
 
                   {/* IP */}
-                  <span className="w-28 shrink-0 text-slate-500 font-mono text-xs truncate" title={log.ip}>
+                  <div className="font-(--mono) text-[11px] text-(--ink-4) truncate pt-0.5" title={log.ip}>
                     {log.ip}
-                  </span>
-
-                  {/* Latency */}
-                  <span className="w-16 shrink-0 text-right text-slate-600 font-mono text-xs">
-                    {log.duration}ms
-                  </span>
+                  </div>
                 </div>
               );
             })}
           </div>
-        )}
-      </div>
+
+          {/* Mobile cards */}
+          <div className="lg:hidden space-y-2">
+            {displayed.map(log => {
+              const sev      = getSeverity(log.statusCode);
+              const cat      = actionCategory(log.action);
+              const catColor = CAT_COLOR[cat];
+              const userName = log.userName ?? (log.userId ? `…${log.userId.slice(-6)}` : null);
+              return (
+                <div key={log._id} className="bg-(--surface) border border-(--border) rounded-(--r-md) px-4 py-3">
+                  {/* Top: severity + timestamp */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: SEV_DOT[sev] }} />
+                      <span className={`text-[10px] font-bold font-(--mono) px-1.5 py-0.5 rounded ${SEV_BADGE[sev]}`}>
+                        {sev}
+                      </span>
+                    </div>
+                    <span className="font-(--mono) text-[11px] text-(--ink-3)">{fmtTsShort(log.timestamp)}</span>
+                  </div>
+
+                  {/* Description */}
+                  <div className="text-[13px] text-(--ink) leading-snug mb-2.5">
+                    {buildMessage(log)}
+                  </div>
+
+                  {/* Bottom: action + user + role + ip */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span
+                      className="font-(--mono) text-[10px] font-bold px-1.5 py-0.5 rounded"
+                      style={{ background: `color-mix(in oklch, ${catColor} 12%, transparent)`, color: catColor }}
+                    >
+                      {actionLabel(log.action)}
+                    </span>
+                    {userName && (
+                      <span className="text-[11px] font-medium text-(--ink-3)">{userName}</span>
+                    )}
+                    {log.userRole && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded font-(--mono) ${ROLE_BADGE[log.userRole] ?? 'bg-(--paper-2) text-(--ink-3)'}`}>
+                        {log.userRole}
+                      </span>
+                    )}
+                    <span className="font-(--mono) text-[10px] text-(--ink-4) ml-auto">{log.ip}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {/* Pagination */}
       {pages > 1 && (
-        <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center justify-between mt-4 pt-1">
           <span className="text-[13px] text-(--ink-3)">
             Page {page} of {pages} · {total.toLocaleString()} records
           </span>
           <div className="flex gap-2">
             <button
-              onClick={() => fetchLogs(page - 1)}
+              onClick={() => fetchLogs(page - 1, category, fromDate, toDate)}
               disabled={page <= 1 || isLoading}
               className="h-9 px-4 rounded-full border border-(--border-2) text-[13px] font-semibold text-(--ink-2) hover:border-(--border-3) disabled:opacity-40 transition-[border-color] cursor-pointer"
             >
               Previous
             </button>
             <button
-              onClick={() => fetchLogs(page + 1)}
+              onClick={() => fetchLogs(page + 1, category, fromDate, toDate)}
               disabled={page >= pages || isLoading}
               className="h-9 px-4 rounded-full border border-(--border-2) text-[13px] font-semibold text-(--ink-2) hover:border-(--border-3) disabled:opacity-40 transition-[border-color] cursor-pointer"
             >

@@ -49,6 +49,12 @@ export const PUT = withRole(['owner', 'admin'], {
     if (session) await session.endSession();
   }
 
+  ctx.setAudit('SUBMISSION_REVOKE', { type: 'Submission', id: submission._id.toString() }, {
+    jobId: submission.jobId.toString(),
+    painterId: submission.painterId.toString(),
+    photoNo: submission.photoNo,
+  });
+
   User.findById(submission.painterId, 'name').lean().then((painterDoc) => {
     notify.emit('submission.revoke', {
       actorId: ctx.user!.userId,

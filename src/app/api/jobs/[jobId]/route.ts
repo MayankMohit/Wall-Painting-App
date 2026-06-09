@@ -92,6 +92,8 @@ export const PATCH = withRole(['owner'], { schema: UpdateJobSchema, access: requ
       { returnDocument: 'after' }
     ).lean();
 
+    ctx.setAudit('JOB_UPDATE', { type: 'Job', id: ctx.params.jobId }, { companyName: ctx.job!.companyName });
+
     if (rest.status === 'completed') {
       notify.emit('job.completed', {
         actorId: ctx.user!.userId,
@@ -159,6 +161,8 @@ export const DELETE = withRole(['owner'], { access: requireJobOwner, audit: 'JOB
     r2Paths.forEach(path => cleanupOps.push(r2.delete(path)));
 
     if (cleanupOps.length > 0) await Promise.allSettled(cleanupOps);
+
+    ctx.setAudit('JOB_DELETE', { type: 'Job', id: job._id.toString() }, { companyName: job.companyName });
 
     return ok({ message: 'Job deleted' });
   }

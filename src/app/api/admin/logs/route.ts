@@ -7,14 +7,23 @@ export const GET = withRole(['admin'], { audit: 'ADMIN_LOGS_VIEW' })(
   async (req, ctx) => {
     const { searchParams } = new URL(req.url);
 
+    const CATEGORY_PREFIXES: Record<string, string> = {
+      auth: 'AUTH_', jobs: 'JOB_', submissions: 'SUBMISSION_',
+      admin: 'ADMIN_', user: 'USER_', photos: 'PHOTO_',
+    };
+
     const filter: Record<string, unknown> = {};
-    const userId = searchParams.get('userId');
-    const action = searchParams.get('action');
-    const from   = searchParams.get('from');
-    const to     = searchParams.get('to');
+    const userId   = searchParams.get('userId');
+    const action   = searchParams.get('action');
+    const category = searchParams.get('category');
+    const from     = searchParams.get('from');
+    const to       = searchParams.get('to');
 
     if (userId) filter.userId = userId;
     if (action) filter.action = action;
+    else if (category && CATEGORY_PREFIXES[category]) {
+      filter.action = { $regex: `^${CATEGORY_PREFIXES[category]}`, $options: 'i' };
+    }
     if (from || to) {
       const range: Record<string, Date> = {};
       if (from) range.$gte = new Date(from);

@@ -65,6 +65,8 @@ export const POST = withRole(['owner', 'admin'], { schema: AddPainterSchema, acc
       { $addToSet: { painters: new Types.ObjectId(painterId) } }
     );
 
+    ctx.setAudit('JOB_PAINTER_ADD', { type: 'Job', id: ctx.job!._id.toString() }, { companyName: ctx.job!.companyName, painterId });
+
     notify.emit('job.painter_added', {
       actorId: ctx.user!.userId,
       recipientId: painterId,

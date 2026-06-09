@@ -31,7 +31,7 @@ export const POST = withMiddleware({ rateLimit: 'standard', schema: LoginOtpPhon
       ctx.fail(403, ErrorCodes.ACCOUNT_DISABLED, `Account suspended. Contact ${process.env.ADMIN_CONTACT_EMAIL} if you think this is a mistake.`);
     }
 
-    const token = signToken({ userId: user._id.toString(), role: user.role });
+    const token = signToken({ userId: user._id.toString(), role: user.role, name: user.name });
     ctx.setAudit('AUTH_LOGIN_PHONE', undefined, { userId: user._id.toString(), role: user.role });
 
     return Response.json({

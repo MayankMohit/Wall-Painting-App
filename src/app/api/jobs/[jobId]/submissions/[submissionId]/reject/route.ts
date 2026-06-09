@@ -28,6 +28,13 @@ export const PUT = withRole(['owner', 'admin'], {
   await connectDB();
   await submission.save();
 
+  ctx.setAudit('SUBMISSION_REJECT', { type: 'Submission', id: submission._id.toString() }, {
+    jobId: submission.jobId.toString(),
+    painterId: submission.painterId.toString(),
+    photoNo: submission.photoNo,
+    reason: rejectionReason,
+  });
+
   User.findById(submission.painterId, 'name').lean().then((painterDoc) => {
     notify.emit('submission.reject', {
       actorId: ctx.user!.userId,
