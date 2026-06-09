@@ -45,6 +45,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState('');
 
+  const [genCompanyName, setGenCompanyName] = useState('');
+  const [genAddress, setGenAddress] = useState('');
+
   const { data: job, isLoading, isError } = useGetJobQuery(jobId);
   const [updateJob, { isLoading: saving }] = useUpdateJobMutation();
   const [deleteJob, { isLoading: deleting }] = useDeleteJobMutation();
@@ -94,7 +97,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
       const res = await fetch(`/api/jobs/${jobId}/files/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ types: genTypes, ownerInput: { companyName: job.companyName } }),
+        body: JSON.stringify({
+          types: genTypes,
+          ownerInput: {
+            companyName: genCompanyName || job.companyName,
+            address: genAddress
+          }
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -157,7 +166,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             Files
           </Link>
           <button
-            onClick={() => setGenOpen(true)}
+            onClick={() => {
+              setGenCompanyName('SAHU AD.');
+              setGenAddress('Piska More, Ratu Road, Ranchi, Mobile: 9123232592');
+              setGenOpen(true);
+            }}
             className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[13px] font-semibold text-white cursor-pointer transition-opacity hover:opacity-88"
             style={{ background: 'var(--accent)' }}
           >
@@ -285,7 +298,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
       {/* Mobile sticky bottom CTA — fixed above the bottom nav (bottom nav ≈ 84px) */}
       <div className="lg:hidden fixed bottom-17.5 left-0 right-0 z-30 px-4 py-3 border-t border-(--border) bg-(--paper)">
         <button
-          onClick={() => setGenOpen(true)}
+          onClick={() => {
+            setGenCompanyName('SAHU AD.');
+            setGenAddress('Piska More, Ratu Road, Ranchi, Mobile: 9123232592');
+            setGenOpen(true);
+          }}
           className="w-full h-12 rounded-(--r-md) text-white text-[15px] font-semibold cursor-pointer transition-opacity hover:opacity-88 flex items-center justify-center gap-2"
           style={{ background: 'var(--accent)' }}
         >
@@ -488,6 +505,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
         <Modal onClose={() => { setGenOpen(false); setGenTypes([]); setGenError(''); }}>
           <ModalHeader title="Generate files" onClose={() => { setGenOpen(false); setGenTypes([]); setGenError(''); }} />
           <div className="px-5 py-4 flex flex-col gap-2">
+
+            {/* File Type Toggles */}
             {(['excel', 'pdf_photos', 'pdf_file'] as const).map((t) => {
               const labels: Record<string, string> = { excel: 'Excel Spreadsheet', pdf_photos: 'Photos PDF', pdf_file: 'File PDF' };
               const on = genTypes.includes(t);
@@ -508,6 +527,33 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                 </div>
               );
             })}
+
+            {genTypes.includes('pdf_file') && (
+              <div className="mt-2 pt-4 border-t border-(--border) flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="text-[13px] font-bold text-(--ink-2) mb-1">Letterhead Details</div>
+
+                <div>
+                  <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Header Name</div>
+                  <input
+                    value={genCompanyName}
+                    onChange={(e) => setGenCompanyName(e.target.value)}
+                    placeholder="e.g. SAHU AD."
+                    className="w-full h-11 px-3.5 rounded-full border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color]"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Address</div>
+                  <input
+                    value={genAddress}
+                    onChange={(e) => setGenAddress(e.target.value)}
+                    placeholder="e.g. Piska More, Ratu Road, Ranchi"
+                    className="w-full h-11 px-3.5 rounded-full border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color]"
+                  />
+                </div>
+              </div>
+            )}
+
             {genError && (
               <div className="mt-1 px-3 py-2.5 rounded-full text-[12px] font-medium" style={{ background: 'var(--rejected-soft)', color: 'var(--rejected)' }}>
                 {genError}

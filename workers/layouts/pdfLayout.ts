@@ -12,7 +12,7 @@ export function drawPdfPage(
   const maxW = A4.w - 2 * MARGIN;
 
   // ---- DYNAMIC LETTERHEAD ----
-  doc.font('Times-Bold').fontSize(32);
+  doc.font('Times-Bold').fontSize(32).fillColor('#111827');
   
   const rawTitleWidth = doc.widthOfString(letterhead.companyName);
   const titleLineW = Math.min(rawTitleWidth, maxW);
@@ -21,15 +21,22 @@ export function drawPdfPage(
   
   doc.text(letterhead.companyName, MARGIN, titleY, { width: maxW, align: 'center' });
   
-  const underlineY = doc.y - 2; 
-  doc.lineWidth(2).moveTo(titleLineX, underlineY).lineTo(titleLineX + titleLineW, underlineY).stroke();
-  doc.lineWidth(1); 
+  const underlineY = doc.y - 8; 
   
-  doc.y = underlineY + 8;
+  doc.lineWidth(1.5).strokeColor('#374151')
+     .moveTo(titleLineX, underlineY)
+     .lineTo(titleLineX + titleLineW, underlineY)
+     .stroke();
+     
+  doc.lineWidth(1).strokeColor('#000000'); 
   
-  doc.font('Helvetica').fontSize(10);
+  doc.y = underlineY + 12;
+  
+  doc.font('Helvetica').fontSize(10).fillColor('#4B5563');
   doc.text(letterhead.address, MARGIN, doc.y, { width: maxW, align: 'center' });
-  doc.moveDown(1.5);
+  
+  doc.fillColor('#000000');
+  doc.moveDown(2); 
   
   const contentStartY = doc.y; 
   const sectionHeight = (A4.h - contentStartY - MARGIN) / 2; 
@@ -66,10 +73,8 @@ function drawSectionBox(doc: typeof PDFDocument, sec: any, yStart: number, secti
 
     doc.font('Helvetica');
     
-    // Explicitly set a 6pt gap between lines of text so it breathes
     const textOptions = { width: lineW - 10, align: 'left' as const, lineGap: 6 };
     
-    // Calculate exact height of one line + the gap
     const singleLineH = doc.currentLineHeight() + 6; 
     const textH = doc.heightOfString(value || ' ', textOptions);
     const lines = Math.max(1, Math.round(textH / singleLineH));

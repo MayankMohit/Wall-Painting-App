@@ -12,7 +12,7 @@ export function buildMasterSheet(
   // 1. Header Row (Job Name)
   ws.mergeCells('A1:G1');
   const titleCell = ws.getCell('A1');
-  titleCell.value = `${header.jobName}`.toUpperCase();
+  titleCell.value = `${header.companyName}`.toUpperCase();
   titleCell.font  = { bold: true, size: 13, underline: true };
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
   
