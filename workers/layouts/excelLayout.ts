@@ -5,6 +5,9 @@ export function buildMasterSheet(
   header: { companyName: string; jobName: string }, 
   dataGroups: any[]
 ) {
+
+  console.log("=== INSPECTING HEADER ===", header);
+
   const ws = wb.addWorksheet('Master List'); 
   const flattenedRows: any[] = [];
   let grandTotal = 0; 
@@ -12,7 +15,7 @@ export function buildMasterSheet(
   // 1. Header Row (Job Name)
   ws.mergeCells('A1:G1');
   const titleCell = ws.getCell('A1');
-  titleCell.value = `${header.companyName}`.toUpperCase();
+  titleCell.value = `${header.jobName}`.toUpperCase();
   titleCell.font  = { bold: true, size: 13, underline: true };
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
   
