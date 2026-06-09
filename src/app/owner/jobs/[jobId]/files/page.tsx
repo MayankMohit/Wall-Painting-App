@@ -7,9 +7,10 @@ import {
   useGetFilesQuery,
   useDeleteFileMutation,
   useLazyGetDownloadUrlQuery,
+  useLazyGetPreviewUrlQuery,
   type GeneratedFile,
 } from '@/store/api/endpoints/files';
-import { ArrowLeft, Trash, Spark, Clock, Check, Bell } from '@/components/owner/icons';
+import { ArrowLeft, Trash, Spark, Clock, Check, Bell, X } from '@/components/owner/icons';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -59,6 +60,14 @@ function DownloadIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 3v13M5 14l7 7 7-7" /><path d="M3 21h18" />
+    </svg>
+  );
+}
+
+function EyeIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
@@ -153,6 +162,68 @@ function FileProgressCard({ file, fakeProgress }: { file: GeneratedFile; fakePro
   );
 }
 
+// ── preview modal ─────────────────────────────────────────────────────────────
+
+function PreviewModal({
+  url,
+  fileType,
+  fileName,
+  onClose,
+}: {
+  url: string;
+  fileType: string;
+  fileName: string;
+  onClose: () => void;
+}) {
+  const [loaded, setLoaded] = useState(false);
+
+  const src = fileType === 'excel'
+    ? `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`
+    : url;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col"
+      style={{ background: 'rgba(0,0,0,0.88)' }}
+    >
+      {/* Header bar */}
+      <div className="flex items-center gap-3 px-4 h-13 shrink-0" style={{ background: 'rgba(0,0,0,0.6)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-semibold text-white truncate">{fileName}</p>
+          <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            {fileType === 'excel' ? 'Excel preview via Office Online' : 'PDF preview'}
+          </p>
+        </div>
+        <button
+          onClick={onClose}
+          className="w-8 h-8 flex items-center justify-center rounded-full cursor-pointer shrink-0"
+          style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)' }}
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Iframe area */}
+      <div className="relative flex-1 min-h-0">
+        {!loaded && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <span className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white/80 animate-spin" />
+            <p className="text-[13px]" style={{ color: 'rgba(255,255,255,0.5)' }}>Loading preview…</p>
+          </div>
+        )}
+        <iframe
+          src={src}
+          className="w-full h-full border-0"
+          onLoad={() => setLoaded(true)}
+          title={fileName}
+          // PDFs: allow same-origin; Excel: Office Online handles it
+          sandbox={fileType === 'excel' ? 'allow-scripts allow-same-origin allow-forms allow-popups' : undefined}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── page ─────────────────────────────────────────────────────────────────────
 
 export default function FilesPage({ params }: { params: Promise<{ jobId: string }> }) {
@@ -163,6 +234,8 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [fakeProgress, setFakeProgress]   = useState<Record<string, number>>({});
+  const [previewingId, setPreviewingId]   = useState<string | null>(null);
+  const [previewData, setPreviewData]     = useState<{ url: string; fileType: string; fileName: string } | null>(null);
 
   const { data: job }                      = useGetJobQuery(jobId);
   const { data: files = [], isLoading }    = useGetFilesQuery(jobId, {
@@ -171,6 +244,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
 
   const [deleteFile]     = useDeleteFileMutation();
   const [getDownloadUrl] = useLazyGetDownloadUrlQuery();
+  const [getPreviewUrl]  = useLazyGetPreviewUrlQuery();
 
   const hasGenerating   = files.some((f: GeneratedFile) => f.status === 'generating');
   const generatingFiles = files.filter((f: GeneratedFile) => f.status === 'generating');
@@ -216,6 +290,16 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
       window.open(res.url, '_blank');
     } catch { /* silent */ }
     finally { setDownloadingId(null); }
+  };
+
+  const handlePreview = async (file: GeneratedFile) => {
+    if (previewingId) return;
+    setPreviewingId(file._id);
+    try {
+      const res = await getPreviewUrl({ jobId, fileId: file._id }).unwrap();
+      setPreviewData({ url: res.url, fileType: res.fileType, fileName: file.fileName });
+    } catch { /* silent */ }
+    finally { setPreviewingId(null); }
   };
 
   const handleDelete = async (fileId: string) => {
@@ -345,6 +429,15 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
                     </div>
                   </div>
                   <button
+                    onClick={() => handlePreview(f)}
+                    disabled={!!previewingId}
+                    className="w-9 h-9 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40 shrink-0"
+                  >
+                    {previewingId === f._id
+                      ? <span className="w-3.5 h-3.5 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
+                      : <EyeIcon size={16} />}
+                  </button>
+                  <button
                     onClick={() => handleDownload(f)}
                     disabled={!!downloadingId}
                     className="w-9 h-9 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40 shrink-0"
@@ -390,6 +483,15 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
                   <div className="text-[13px] text-(--ink-2) font-(--mono)">{formatSize(f.fileSize)}</div>
                   <div className="text-[13px] text-(--ink-3)">{formatDate(f.createdAt)}</div>
                   <div className="flex items-center gap-1.5 justify-end">
+                    <button
+                      onClick={() => handlePreview(f)}
+                      disabled={!!previewingId}
+                      className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40"
+                    >
+                      {previewingId === f._id
+                        ? <span className="w-3 h-3 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
+                        : <EyeIcon size={16} />}
+                    </button>
                     <button
                       onClick={() => handleDownload(f)}
                       disabled={!!downloadingId}
@@ -450,6 +552,15 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
       </div>
 
       {/* ══ Delete confirm dialog ════════════════════════════════════ */}
+      {previewData && (
+        <PreviewModal
+          url={previewData.url}
+          fileType={previewData.fileType}
+          fileName={previewData.fileName}
+          onClose={() => setPreviewData(null)}
+        />
+      )}
+
       {deleteConfirmId && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"

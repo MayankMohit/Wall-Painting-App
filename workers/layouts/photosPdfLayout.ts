@@ -1,9 +1,7 @@
 import PDFDocument from 'pdfkit';
 
-// 1 cm = 28.3465 points
 const CM_TO_PTS = 28.3465;
-const PRINT_SHORT_PTS = 9 * CM_TO_PTS;
-const PRINT_LONG_PTS = 13 * CM_TO_PTS;
+const TARGET_WIDTH_PTS = 13 * CM_TO_PTS; // all pages share this width; height varies by aspect ratio
 
 export function drawPhotoPage(
   doc: typeof PDFDocument,
@@ -12,54 +10,38 @@ export function drawPhotoPage(
   imgH: number,
   generatedNumber: string
 ) {
-  // PERMANENTLY LOCKED TO LANDSCAPE FOR PRINTING
-  const pageWidthPts = PRINT_LONG_PTS;
-  const pageHeightPts = PRINT_SHORT_PTS;
+  const pageW = TARGET_WIDTH_PTS;
+  const pageH = pageW * (imgH / imgW); // height derived from aspect ratio — never crops
 
-  // 1. Create the perfectly sized 13x9 landscape page
-  doc.addPage({ size: [pageWidthPts, pageHeightPts], margin: 0 });
+  doc.addPage({ size: [pageW, pageH], margin: 0 });
 
-  // 2. Math for native "cover" scaling (fill the page, crop the overflow)
-  const scale = Math.max(pageWidthPts / imgW, pageHeightPts / imgH);
-  const drawW = imgW * scale;
-  const drawH = imgH * scale;
-  const x = (pageWidthPts - drawW) / 2;
-  const y = (pageHeightPts - drawH) / 2;
+  // Fill page exactly — one-to-one aspect ratio, no overflow, no crop
+  doc.image(imageBuffer, 0, 0, { width: pageW, height: pageH });
 
-  // 3. Draw the image inside a clipping mask so it doesn't bleed off the page
-  doc.save();
-  doc.rect(0, 0, pageWidthPts, pageHeightPts).clip();
-  doc.image(imageBuffer, x, y, { width: drawW, height: drawH });
-  doc.restore();
-
-  // 4. WATERMARK (Always locked to the extreme bottom-right of the landscape paper)
+  // Badge — bottom-right corner
   const text = generatedNumber.startsWith('#') ? generatedNumber : `#${generatedNumber}`;
-  
   const fontSize = 10;
   doc.fontSize(fontSize).font('Helvetica-Bold');
 
   const textW = doc.widthOfString(text);
   const textH = doc.heightOfString(text);
+  const padX = 6;
+  const padY = 4;
+  const boxW = textW + padX * 2;
+  const boxH = textH + padY * 2;
+  const margin = 5;
+  const boxX = pageW - boxW - margin;
+  const boxY = pageH - boxH - margin;
 
-  const padX = 5;
-  const padY = 3;
-  const boxW = textW + (padX * 2);
-  const boxH = textH + (padY * 2);
-
-  // Locked to the extreme corner of the landscape paper
-  const margin = 4;
-  const boxX = pageWidthPts - boxW - margin;
-  const boxY = pageHeightPts - boxH - margin;
-
-  // Semi-transparent black rectangle
+  // Soft semi-transparent backdrop
   doc.save()
      .rect(boxX, boxY, boxW, boxH)
      .fillColor('#000000')
-     .fillOpacity(0.55)
+     .fillOpacity(0.35)
      .fill()
      .restore();
 
-  // Crisp white text
+  // Crisp white label
   doc.save()
      .fillColor('#FFFFFF')
      .fillOpacity(1)

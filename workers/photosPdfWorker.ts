@@ -24,17 +24,10 @@ export async function buildPhotosPdf(jobId: string) {
         const arrayBuffer = await response.arrayBuffer();
         const buf = Buffer.from(arrayBuffer);
 
-        // 1. Fix EXIF orientation first (iPhone safety)
-        let safeBuf = await sharp(buf).rotate().toBuffer();
-        let meta = await sharp(safeBuf).metadata();
+        // Fix EXIF orientation (iPhone photos come in sideways without this)
+        const safeBuf = await sharp(buf).rotate().toBuffer();
+        const meta = await sharp(safeBuf).metadata();
 
-        // 2. THE LANDSCAPE LOCK: If it's a tall portrait photo, flip it 90 degrees sideways
-        if ((meta.height || 0) > (meta.width || 0)) {
-          safeBuf = await sharp(safeBuf).rotate(90).toBuffer();
-          meta = await sharp(safeBuf).metadata();
-        }
-
-        // Delegate all drawing and native scaling to the layout file
         drawPhotoPage(doc, safeBuf, meta.width || 1, meta.height || 1, photo.generatedNumber);
 
       } catch (e) {

@@ -27,7 +27,16 @@ const filesEndpoints = api.injectEndpoints({
       query: ({ jobId, fileId }) => `/jobs/${jobId}/files/${fileId}/download`,
       transformResponse: (res: { url: string }) => res,
     }),
+    getPreviewUrl: builder.query<{ url: string; fileType: string }, { jobId: string; fileId: string }>({
+      query: ({ jobId, fileId }) => `/jobs/${jobId}/files/${fileId}/preview`,
+      transformResponse: (res: { url: string; fileType: string }) => res,
+    }),
   }),
 });
 
-export const { useGetFilesQuery, useDeleteFileMutation, useLazyGetDownloadUrlQuery } = filesEndpoints;
+export const {
+  useGetFilesQuery,
+  useDeleteFileMutation,
+  useLazyGetDownloadUrlQuery,
+  useLazyGetPreviewUrlQuery,
+} = filesEndpoints;

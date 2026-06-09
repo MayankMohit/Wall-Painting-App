@@ -46,6 +46,11 @@ export const r2 = {
     return key;
   },
 
+  getSignedPreviewUrl: async (key: string) => {
+    const command = new GetObjectCommand({ Bucket: BUCKET_NAME, Key: key });
+    return getSignedUrl(s3Client, command, { expiresIn: 3600 });
+  },
+
   getSignedDownloadUrl: async (key: string, customFileName?: string) => {
     // Fallback to the end of the key if no custom name is provided
     const filename = customFileName || key.split('/').pop() || 'download';
