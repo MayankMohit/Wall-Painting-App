@@ -25,8 +25,14 @@ export async function buildPhotosPdf(jobId: string) {
         const buf = Buffer.from(arrayBuffer);
 
         // Fix EXIF orientation (iPhone photos come in sideways without this)
-        const safeBuf = await sharp(buf).rotate().toBuffer();
-        const meta = await sharp(safeBuf).metadata();
+        let safeBuf = await sharp(buf).rotate().toBuffer();
+        let meta = await sharp(safeBuf).metadata();
+
+        // Portrait → rotate anticlockwise 90° so it sits landscape in the PDF
+        if ((meta.height ?? 0) > (meta.width ?? 0)) {
+          safeBuf = await sharp(safeBuf).rotate(-90).toBuffer();
+          meta = await sharp(safeBuf).metadata();
+        }
 
         drawPhotoPage(doc, safeBuf, meta.width || 1, meta.height || 1, photo.generatedNumber);
 

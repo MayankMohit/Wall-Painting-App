@@ -7,6 +7,7 @@ import { withAuth, withRole } from '@/lib/middleware';
 import { requireJobAccess } from '@/lib/middleware/requireJobAccess';
 import { requireJobOwner } from '@/lib/middleware/requireJobOwner';
 import { cloudinary } from '@/lib/cloudinary';
+import { r2 } from '@/lib/r2';
 import type { z } from 'zod';
 import { notify } from '@/lib/notify/emit';
 
@@ -111,16 +112,18 @@ export const DELETE = withRole(['owner'], { access: requireJobOwner, audit: 'JOB
 
     await connectDB();
 
-    // Fetch photo Cloudinary IDs before the transaction — needed for cleanup after commit.
+    // Fetch external asset references before the transaction — needed for cleanup after commit.
     const submissions = await Submission.find({ jobId: job._id }).select('images').lean();
     const photoIds    = submissions.flatMap(s => s.images);
 
-    const photos = photoIds.length > 0
-      ? await Photo.find({ _id: { $in: photoIds } }).select('cloudinaryId previewCloudinaryId').lean()
-      : [];
+    const [photos, generatedFiles] = await Promise.all([
+      photoIds.length > 0
+        ? Photo.find({ _id: { $in: photoIds } }).select('cloudinaryId previewCloudinaryId').lean()
+        : Promise.resolve([]),
+      GeneratedFile.find({ jobId: job._id }).select('r2Path').lean(),
+    ]);
 
-    const generatedFileIds = [job.generatedExcel, job.generatedPDFFile, job.generatedPDFPhotos]
-      .filter(Boolean);
+    const r2Paths = generatedFiles.map(f => f.r2Path).filter(Boolean) as string[];
 
     let session: mongoose.ClientSession | null = null;
     try {
@@ -131,9 +134,7 @@ export const DELETE = withRole(['owner'], { access: requireJobOwner, audit: 'JOB
         await Photo.deleteMany({ _id: { $in: photoIds } }, { session });
       }
       await Submission.deleteMany({ jobId: job._id }, { session });
-      if (generatedFileIds.length > 0) {
-        await GeneratedFile.deleteMany({ _id: { $in: generatedFileIds } }, { session });
-      }
+      await GeneratedFile.deleteMany({ jobId: job._id }, { session });
       await Job.deleteOne({ _id: job._id }, { session });
 
       await session.commitTransaction();
@@ -144,16 +145,20 @@ export const DELETE = withRole(['owner'], { access: requireJobOwner, audit: 'JOB
       if (session) await session.endSession();
     }
 
-    // Cloudinary cleanup after commit — allSettled ensures all assets are attempted even if
-    // one fails, and a CDN failure never causes a 500 after the DB records are already gone.
+    // External storage cleanup after commit — allSettled ensures all assets are attempted even
+    // if one fails, and a storage failure never causes a 500 after DB records are already gone.
+    const cleanupOps: Promise<unknown>[] = [];
+
     if (photos.length > 0) {
-      const destroys = photos.flatMap(p => {
-        const ops: Promise<unknown>[] = [cloudinary.uploader.destroy(p.cloudinaryId)];
-        if (p.previewCloudinaryId) ops.push(cloudinary.uploader.destroy(p.previewCloudinaryId));
-        return ops;
+      photos.forEach(p => {
+        cleanupOps.push(cloudinary.uploader.destroy(p.cloudinaryId));
+        if (p.previewCloudinaryId) cleanupOps.push(cloudinary.uploader.destroy(p.previewCloudinaryId));
       });
-      await Promise.allSettled(destroys);
     }
+
+    r2Paths.forEach(path => cleanupOps.push(r2.delete(path)));
+
+    if (cleanupOps.length > 0) await Promise.allSettled(cleanupOps);
 
     return ok({ message: 'Job deleted' });
   }

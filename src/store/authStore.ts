@@ -1,4 +1,7 @@
 import { create } from 'zustand';
+import { store } from '@/store/index';
+import { api } from '@/store/api/api';
+import { notificationsApi } from '@/store/api/notificationsApi';
 
 export interface User {
   id: string;
@@ -186,6 +189,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem('wallpainter_fcm_token');
     document.cookie = 'wallpainter_auth_status=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     set({ user: null, isAuthenticated: false });
+    // Wipe RTK Query cache so the next user never sees stale data from a previous session
+    store.dispatch(api.util.resetApiState());
+    store.dispatch(notificationsApi.util.resetApiState());
   },
 
   checkAuth: async () => {

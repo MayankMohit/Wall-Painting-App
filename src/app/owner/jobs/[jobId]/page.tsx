@@ -44,6 +44,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const [genTypes, setGenTypes] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState('');
+  const [storageError, setStorageError] = useState<{ usedBytes: number; limitBytes: number } | null>(null);
 
   const [genCompanyName, setGenCompanyName] = useState('');
   const [genAddress, setGenAddress] = useState('');
@@ -92,6 +93,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     if (genTypes.length === 0) return;
     setIsGenerating(true);
     setGenError('');
+    setStorageError(null);
     try {
       const token = localStorage.getItem('wallpainter_token');
       const res = await fetch(`/api/jobs/${jobId}/files/generate`, {
@@ -106,14 +108,18 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
         }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message ?? 'Generation failed');
+        const body = await res.json().catch(() => ({}));
+        if (body.error === 'STORAGE_LIMIT') {
+          setStorageError({ usedBytes: body.usedBytes, limitBytes: body.limitBytes });
+          return;
+        }
+        throw new Error(body.error ?? body.message ?? 'Generation failed');
       }
       setGenOpen(false);
       setGenTypes([]);
       router.push(`/owner/jobs/${jobId}/files`);
-    } catch (err: unknown) {
-      setGenError((err as Error).message);
+    } catch (e: unknown) {
+      setGenError((e as Error).message);
     } finally {
       setIsGenerating(false);
     }
@@ -502,8 +508,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
 
       {/* ══ Generate files modal ══════════════════════════════════════ */}
       {genOpen && (
-        <Modal onClose={() => { setGenOpen(false); setGenTypes([]); setGenError(''); }}>
-          <ModalHeader title="Generate files" onClose={() => { setGenOpen(false); setGenTypes([]); setGenError(''); }} />
+        <Modal onClose={() => { setGenOpen(false); setGenTypes([]); setGenError(''); setStorageError(null); }}>
+          <ModalHeader title="Generate files" onClose={() => { setGenOpen(false); setGenTypes([]); setGenError(''); setStorageError(null); }} />
           <div className="px-5 py-4 flex flex-col gap-2">
 
             {/* File Type Toggles */}
@@ -554,6 +560,44 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               </div>
             )}
 
+            {storageError && (() => {
+              const usedMB  = (storageError.usedBytes  / (1024 * 1024)).toFixed(1);
+              const limitMB = (storageError.limitBytes / (1024 * 1024)).toFixed(0);
+              const pct     = Math.min(100, Math.round((storageError.usedBytes / storageError.limitBytes) * 100));
+              return (
+                <div className="mt-2 rounded-(--r-md) border overflow-hidden" style={{ borderColor: 'oklch(0.72 0.15 30 / .35)', background: 'oklch(0.985 0.015 50)' }}>
+                  <div className="flex items-start gap-3 px-4 pt-3.5 pb-3">
+                    <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center mt-0.5" style={{ background: 'oklch(0.9 0.1 40)' }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="oklch(0.48 0.18 30)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-bold" style={{ color: 'oklch(0.38 0.15 30)' }}>Storage full</p>
+                      <p className="text-[12px] mt-0.5 leading-normal" style={{ color: 'oklch(0.48 0.08 40)' }}>
+                        You're using <strong>{usedMB} MB</strong> of your <strong>{limitMB} MB</strong> limit. Delete old files to make room for new ones.
+                      </p>
+                      {/* Usage bar */}
+                      <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: 'oklch(0.88 0.06 40)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'oklch(0.55 0.18 30)' }} />
+                      </div>
+                      <div className="mt-0.5 text-[10px] font-semibold" style={{ color: 'oklch(0.55 0.1 40)' }}>{pct}% used</div>
+                      <Link
+                        href={`/owner/jobs/${jobId}/files`}
+                        onClick={() => { setGenOpen(false); setStorageError(null); }}
+                        className="inline-flex items-center gap-1 mt-2.5 text-[12px] font-bold no-underline"
+                        style={{ color: 'oklch(0.42 0.16 30)' }}
+                      >
+                        Go to Files → delete old ones
+                        <ArrowRight size={12} />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {genError && (
               <div className="mt-1 px-3 py-2.5 rounded-full text-[12px] font-medium" style={{ background: 'var(--rejected-soft)', color: 'var(--rejected)' }}>
                 {genError}
@@ -562,7 +606,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
           </div>
           <ModalFooter>
             <button
-              onClick={() => { setGenOpen(false); setGenTypes([]); setGenError(''); }}
+              onClick={() => { setGenOpen(false); setGenTypes([]); setGenError(''); setStorageError(null); }}
               className="h-9 px-4 rounded-full text-[13px] font-semibold text-(--ink-2) bg-(--surface) border border-(--border-2) hover:border-(--border-3) transition-[border-color] cursor-pointer"
             >
               Cancel

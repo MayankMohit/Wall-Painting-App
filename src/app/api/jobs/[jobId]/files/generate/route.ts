@@ -2,6 +2,8 @@ import { requireAuth } from '@/lib/rbac';
 import { err, forbidden, badRequest } from '@/lib/api-response';
 import { connectDB } from '@/lib/db';
 import { GeneratedFile } from '@/lib/models/GeneratedFile';
+import { Job } from '@/lib/models/Job';
+import { getOwnerStorageBytes, STORAGE_LIMIT_BYTES } from '@/lib/storage';
 import { Queue } from 'bullmq';
 
 // Same safe connection config
@@ -36,6 +38,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
   await connectDB();
 
   try {
+    // Resolve the owner of this job (admin may trigger generation on behalf of an owner)
+    const job = await Job.findById(jobId).select('ownerId').lean();
+    if (!job) return badRequest('Job not found');
+
+    const ownerId = auth.role === 'owner' ? auth.userId : job.ownerId.toString();
+    const usedBytes = await getOwnerStorageBytes(ownerId);
+
+    if (usedBytes >= STORAGE_LIMIT_BYTES) {
+      return new Response(
+        JSON.stringify({ error: 'STORAGE_LIMIT', usedBytes, limitBytes: STORAGE_LIMIT_BYTES }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const createdFiles = [];
 
     for (const type of types) {
