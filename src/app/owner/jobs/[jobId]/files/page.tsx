@@ -179,6 +179,9 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
 
   // Fake progress animation
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const generatingFilesRef = useRef<GeneratedFile[]>(generatingFiles);
+  generatingFilesRef.current = generatingFiles;
+
   useEffect(() => {
     setFakeProgress((prev) => {
       const next = { ...prev };
@@ -195,7 +198,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
     intervalRef.current = setInterval(() => {
       setFakeProgress((prev) => {
         const next = { ...prev };
-        for (const f of generatingFiles) {
+        for (const f of generatingFilesRef.current) {
           const cur = next[f._id] ?? 6;
           if (cur < 80) next[f._id] = Math.min(80, cur + Math.random() * 3.5 + 1.5);
         }
@@ -203,7 +206,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
       });
     }, 1200);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [hasGenerating, generatingFiles]);
+  }, [hasGenerating]);
 
   const handleDownload = async (file: GeneratedFile) => {
     if (downloadingId) return;
