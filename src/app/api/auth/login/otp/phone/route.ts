@@ -10,7 +10,7 @@ import type { z } from 'zod';
 
 type LoginOtpPhoneBody = z.infer<typeof LoginOtpPhoneSchema>;
 
-export const POST = withMiddleware({ rateLimit: 'standard', schema: LoginOtpPhoneSchema, audit: 'AUTH_LOGIN_PHONE' })(
+export const POST = withMiddleware({ rateLimit: 'strict', schema: LoginOtpPhoneSchema, audit: 'AUTH_LOGIN_PHONE' })(
   async (req, ctx) => {
     const { phone, firebaseIdToken } = ctx.body as LoginOtpPhoneBody;
 

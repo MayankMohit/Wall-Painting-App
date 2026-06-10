@@ -10,7 +10,7 @@ import type { z } from 'zod';
 
 type LoginOtpVerifyBody = z.infer<typeof LoginOtpVerifySchema>;
 
-export const POST = withMiddleware({ rateLimit: 'standard', schema: LoginOtpVerifySchema, audit: 'AUTH_LOGIN_OTP' })(
+export const POST = withMiddleware({ rateLimit: 'strict', schema: LoginOtpVerifySchema, audit: 'AUTH_LOGIN_OTP' })(
   async (req, ctx) => {
     const { sessionId, otp } = ctx.body as LoginOtpVerifyBody;
 

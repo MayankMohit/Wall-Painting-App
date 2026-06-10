@@ -9,11 +9,11 @@ import type { z } from 'zod';
 
 type LoginBody = z.infer<typeof LoginSchema>;
 
-export const POST = withMiddleware({ rateLimit: 'standard', schema: LoginSchema, audit: 'AUTH_LOGIN' })(
+export const POST = withMiddleware({ rateLimit: 'strict', schema: LoginSchema, audit: 'AUTH_LOGIN' })(
   async (req, ctx) => {
     const { identifier, password } = ctx.body as LoginBody;
 
-    await checkRateLimit('standard', identifier.toLowerCase(), 'id');
+    await checkRateLimit('strict', identifier.toLowerCase(), 'id');
 
     await connectDB();
     const isEmail = identifier.includes('@');

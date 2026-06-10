@@ -11,7 +11,7 @@ import type { z } from 'zod';
 
 type LoginOtpSendBody = z.infer<typeof LoginOtpSendSchema>;
 
-export const POST = withMiddleware({ rateLimit: 'standard', schema: LoginOtpSendSchema })(
+export const POST = withMiddleware({ rateLimit: 'strict', schema: LoginOtpSendSchema })(
   async (req, ctx) => {
     const { identifier } = ctx.body as LoginOtpSendBody;
 

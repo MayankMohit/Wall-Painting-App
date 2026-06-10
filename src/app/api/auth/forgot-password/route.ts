@@ -11,7 +11,7 @@ type ForgotPasswordBody = z.infer<typeof ForgotPasswordSchema>;
 
 const NEUTRAL_MSG = 'If that account exists, a reset link has been sent';
 
-export const POST = withMiddleware({ rateLimit: 'standard', schema: ForgotPasswordSchema })(
+export const POST = withMiddleware({ rateLimit: 'strict', schema: ForgotPasswordSchema })(
   async (req, ctx) => {
     const { email } = ctx.body as ForgotPasswordBody;
 
