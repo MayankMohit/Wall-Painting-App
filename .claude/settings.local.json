@@ -9,7 +9,9 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('exports keys:', list\\(\\(d.get\\('exports'\\) or {}\\).keys\\(\\)\\)[:5]\\)\")",
       "Bash(xargs wc *)",
       "PowerShell(npx tsc --noEmit 2>&1)",
-      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k,v\\) for k,v in {**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}.items\\(\\)]\")"
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k,v\\) for k,v in {**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}.items\\(\\)]\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\mayan\\\\VS-CODE\\\\wall-painting-app\" -Recurse -Force)",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

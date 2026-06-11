@@ -1,0 +1,36 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_net
+
+  app:
+    build: .
+    restart: always
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file: .env.production
+    depends_on:
+      - redis
+    networks:
+      - app_net
+
+  worker:
+    build: .
+    restart: always
+    command: ["node", "node_modules/.bin/tsx", "workers/index.ts"]
+    env_file: .env.production
+    depends_on:
+      - redis
+    networks:
+      - app_net
+
+volumes:
+  redis_data:
+
+networks:
+  app_net:
+    driver: bridge

@@ -1,0 +1,25 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Oracle VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host:     ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key:      ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/wall-painting-app
+            git pull origin main
+            docker compose build --no-cache
+            docker compose up -d --no-deps --build app worker
+            sleep 5
+            curl -sf http://127.0.0.1:3000/api/health || exit 1
+            echo "Deploy successful"
