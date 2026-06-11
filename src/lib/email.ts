@@ -1,8 +1,12 @@
 import { Resend } from 'resend';
 import { wrapEmail, h2, p, small, btn, badge, box, boxLabel, boxText, otpDisplay, dataTable, divider } from '@/lib/templates/emails/_base';
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
-const FROM = process.env.RESEND_FROM_EMAIL!;
+let _resend: Resend | null = null;
+function getResend() {
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY!);
+  return _resend;
+}
+function getFrom() { return process.env.RESEND_FROM_EMAIL!; }
 
 const OTP_SUBJECTS: Record<string, string> = {
   register:       'Verify your email to complete registration',
@@ -38,8 +42,8 @@ export async function sendOtpEmail(
     ${small('Never share this code with anyone. Wallo will never ask for it. If you didn\'t request this, you can safely ignore this email.')}
   `;
 
-  await resend.emails.send({
-    from: FROM,
+  await getResend().emails.send({
+    from: getFrom(),
     to,
     subject: OTP_SUBJECTS[purpose],
     html: wrapEmail(body, `Your ${purpose === 'login' ? 'sign-in' : 'verification'} code`),
@@ -56,8 +60,8 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     ${small('This link expires in <strong>1 hour</strong>. If you didn\'t request this, you can safely ignore this email.')}
   `;
 
-  await resend.emails.send({
-    from: FROM,
+  await getResend().emails.send({
+    from: getFrom(),
     to,
     subject: 'Reset your Wallo password',
     html: wrapEmail(body, 'Reset link valid for 1 hour'),
@@ -76,8 +80,8 @@ export async function sendOwnerApprovedEmail(to: string, name: string): Promise<
     ${small('If you have any questions, reach out to our support team.')}
   `;
 
-  await resend.emails.send({
-    from: FROM,
+  await getResend().emails.send({
+    from: getFrom(),
     to,
     subject: 'Your Wallo account has been approved',
     html: wrapEmail(body, 'Your account is now active'),
@@ -104,8 +108,8 @@ export async function sendOwnerRejectedEmail(
     ${small(`If you believe this is a mistake, contact <a href="mailto:${adminContact}" style="color:#5c5040;font-weight:600;">${adminContact}</a> to appeal.`)}
   `;
 
-  await resend.emails.send({
-    from: FROM,
+  await getResend().emails.send({
+    from: getFrom(),
     to,
     subject: 'Your Wallo account registration was not approved',
     html: wrapEmail(body, 'Account registration not approved'),
@@ -118,7 +122,7 @@ export async function sendNotificationEmail(
   subject: string,
   html: string
 ): Promise<void> {
-  await resend.emails.send({ from: FROM, to, subject, html });
+  await getResend().emails.send({ from: getFrom(), to, subject, html });
 }
 
 export async function sendAdminNewOwnerNotification(
@@ -137,8 +141,8 @@ export async function sendAdminNewOwnerNotification(
     ${small('Log in to the admin dashboard to review and approve or reject this registration.')}
   `;
 
-  await resend.emails.send({
-    from: FROM,
+  await getResend().emails.send({
+    from: getFrom(),
     to,
     subject: 'New owner registration pending approval',
     html: wrapEmail(body, `${owner.name} is awaiting approval`),
