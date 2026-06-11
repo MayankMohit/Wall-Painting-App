@@ -8,7 +8,7 @@ export type TokenPayload = {
 };
 
 const BCRYPT_ROUNDS = 12;
-function getJwtSecret() { return process.env.getJwtSecret()!; }
+function getJwtSecret() { return process.env.JWT_SECRET!; }
 
 export async function hashPassword(plain: string): Promise<string> {
   return bcrypt.hash(plain, BCRYPT_ROUNDS);
