@@ -8,7 +8,19 @@ services:
       - app_net
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        - NEXT_PUBLIC_APP_URL
+        - NEXT_PUBLIC_FIREBASE_API_KEY
+        - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+        - NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+        - NEXT_PUBLIC_FIREBASE_APP_ID
+        - NEXT_PUBLIC_FIREBASE_VAPID_KEY
+        - NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+        - NEXT_PUBLIC_CLOUDINARY_API_KEY
+        - NEXT_PUBLIC_ADMIN_CONTACT_EMAIL
     restart: always
     ports:
       - "127.0.0.1:3000:3000"
@@ -19,7 +31,19 @@ services:
       - app_net
 
   worker:
-    build: .
+    build:
+      context: .
+      args:
+        - NEXT_PUBLIC_APP_URL
+        - NEXT_PUBLIC_FIREBASE_API_KEY
+        - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+        - NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+        - NEXT_PUBLIC_FIREBASE_APP_ID
+        - NEXT_PUBLIC_FIREBASE_VAPID_KEY
+        - NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+        - NEXT_PUBLIC_CLOUDINARY_API_KEY
+        - NEXT_PUBLIC_ADMIN_CONTACT_EMAIL
     restart: always
     command: ["node", "node_modules/.bin/tsx", "workers/index.ts"]
     env_file: .env.production

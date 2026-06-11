@@ -1,7 +1,5 @@
 import { Queue } from 'bullmq';
 
-// BullMQ manages its own ioredis connection internally — do not pass a Redis instance.
-// Passing a plain config object avoids the dual-ioredis type conflict.
 function redisConnection() {
   const raw = process.env.REDIS_URL || 'redis://localhost:6379';
   const url  = new URL(raw);
@@ -15,17 +13,16 @@ function redisConnection() {
   };
 }
 
-export const fileGenQueue = new Queue('fileGen', {
-  connection: redisConnection(),
-  defaultJobOptions: { attempts: 2, backoff: { type: 'exponential', delay: 5000 } },
-});
+function makeQueue(name: string, opts: object): Queue {
+  let q: Queue | null = null;
+  return new Proxy({} as Queue, {
+    get(_, prop: string) {
+      if (!q) q = new Queue(name, { connection: redisConnection(), ...opts });
+      return (q as any)[prop];
+    },
+  });
+}
 
-export const notifyQueue = new Queue('notify', {
-  connection: redisConnection(),
-  defaultJobOptions: { attempts: 5, backoff: { type: 'exponential', delay: 1000 } },
-});
-
-export const assetCleanupQueue = new Queue('assetCleanup', {
-  connection: redisConnection(),
-  defaultJobOptions: { attempts: 3, backoff: { type: 'exponential', delay: 2000 } },
-});
+export const fileGenQueue     = makeQueue('fileGen',      { defaultJobOptions: { attempts: 2, backoff: { type: 'exponential', delay: 5000 } } });
+export const notifyQueue      = makeQueue('notify',       { defaultJobOptions: { attempts: 5, backoff: { type: 'exponential', delay: 1000 } } });
+export const assetCleanupQueue = makeQueue('assetCleanup', { defaultJobOptions: { attempts: 3, backoff: { type: 'exponential', delay: 2000 } } });

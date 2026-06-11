@@ -41,6 +41,4 @@ next-env.d.ts
 # Terminal Paste Image folder
 .cp-images/
 
-# Scripts
-/scripts/
 
