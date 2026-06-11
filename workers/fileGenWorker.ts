@@ -107,7 +107,6 @@ async function main() {
   worker.on('completed', (job) => console.log(`[fileGenWorker] ${job.name}:${job.id} completed`));
   worker.on('failed', async (job, err) => {
     console.error(`[fileGenWorker] ${job?.name}:${job?.id} failed —`, err.message);
-    // If the job crashes, update the DB so the UI stops spinning!
     if (job?.data?.fileId) {
       await GeneratedFile.updateOne({ _id: job.data.fileId }, { status: 'failed' });
     }
