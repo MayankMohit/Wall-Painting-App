@@ -1,15 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  signInWithPhoneNumber,
-  RecaptchaVerifier,
-  ConfirmationResult,
-} from "firebase/auth";
-import { firebaseAuth } from "@/lib/firebase-client";
 import { useAuthStore } from "@/store/authStore";
 import AuthShell from "@/components/auth/AuthShell";
 import AuthField from "@/components/auth/AuthField";
@@ -33,14 +27,8 @@ function redirectAfterLogin(
 
 export default function LoginPage() {
   const router = useRouter();
-  const {
-    login,
-    loginWithEmailOtp,
-    loginWithPhoneOtp,
-    isLoading,
-    error,
-    clearError,
-  } = useAuthStore();
+  const { login, loginWithEmailOtp, isLoading, error, clearError } =
+    useAuthStore();
 
   const [tab, setTab] = useState<Tab>("password");
   const [identifier, setIdentifier] = useState("");
@@ -50,13 +38,8 @@ export default function LoginPage() {
   const [otpInput, setOtpInput] = useState("");
   const [showOtp, setShowOtp] = useState(false);
   const [sending, setSending] = useState(false);
-  const [otpConfirming, setOtpConfirming] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [confirmationResult, setConfirmationResult] =
-    useState<ConfirmationResult | null>(null);
-
-  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
 
   useEffect(() => {
     clearError();
@@ -69,7 +52,6 @@ export default function LoginPage() {
     setShowOtp(false);
     setSendError(null);
     setSessionId(null);
-    setConfirmationResult(null);
   }
 
   function handleTabChange(idx: number) {
@@ -94,90 +76,42 @@ export default function LoginPage() {
 
   async function handleSendOtp() {
     setSendError(null);
+    if (!isEmail) {
+      setSendError(
+        "One-time codes are sent by email — enter your email address.",
+      );
+      return;
+    }
     setSending(true);
     try {
-      if (isEmail) {
-        const res = await fetch("/api/auth/login/otp/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ identifier }),
-        });
-        const json = await res.json();
-        if (!res.ok) {
-          const e = (json.data ?? json).error;
-          setSendError(
-            (typeof e === "string" ? e : e?.message) ?? "Failed to send OTP",
-          );
-          return;
-        }
-        setSessionId((json.data ?? json).sessionId);
-        setShowOtp(true);
-      } else {
-        if (!recaptchaRef.current) {
-          const container = document.getElementById("recaptcha-container");
-          if (container) container.innerHTML = "";
-          recaptchaRef.current = new RecaptchaVerifier(
-            firebaseAuth,
-            "recaptcha-container",
-            { size: "invisible" },
-          );
-          await recaptchaRef.current.render();
-        }
-        const result = await signInWithPhoneNumber(
-          firebaseAuth,
-          identifier,
-          recaptchaRef.current,
-        );
-        setConfirmationResult(result);
-        setShowOtp(true);
-      }
-    } catch (e: unknown) {
-      if (recaptchaRef.current) {
-        try {
-          recaptchaRef.current.clear();
-        } catch {
-          /* ignore */
-        }
-        recaptchaRef.current = null;
-      }
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("invalid-phone-number"))
+      const res = await fetch("/api/auth/login/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const e = (json.data ?? json).error;
         setSendError(
-          "Invalid phone number. Use E.164 format e.g. +919876543210",
+          (typeof e === "string" ? e : e?.message) ?? "Failed to send OTP",
         );
-      else if (msg.includes("too-many-requests"))
-        setSendError("Too many attempts. Please wait before trying again.");
-      else setSendError("Failed to send OTP. Please try again.");
+        return;
+      }
+      setSessionId((json.data ?? json).sessionId);
+      setShowOtp(true);
+    } catch {
+      setSendError("Failed to send OTP. Please try again.");
     } finally {
       setSending(false);
     }
   }
 
   async function confirmOtp(otp: string) {
-    if (isEmail) {
-      if (!sessionId) return;
-      const success = await loginWithEmailOtp(sessionId, otp);
-      if (success) {
-        const { user } = useAuthStore.getState();
-        redirectAfterLogin(user!.role, user!.status, router);
-      }
-    } else {
-      if (!confirmationResult) return;
-      setOtpConfirming(true);
-      try {
-        const credential = await confirmationResult.confirm(otp);
-        const firebaseIdToken = await credential.user.getIdToken();
-        const success = await loginWithPhoneOtp(identifier, firebaseIdToken);
-        if (success) {
-          const { user } = useAuthStore.getState();
-          redirectAfterLogin(user!.role, user!.status, router);
-        }
-      } catch {
-        useAuthStore.setState({ error: "Incorrect OTP. Please try again." });
-        setOtpInput("");
-      } finally {
-        setOtpConfirming(false);
-      }
+    if (!sessionId) return;
+    const success = await loginWithEmailOtp(sessionId, otp);
+    if (success) {
+      const { user } = useAuthStore.getState();
+      redirectAfterLogin(user!.role, user!.status, router);
     }
   }
 
@@ -228,14 +162,16 @@ export default function LoginPage() {
         )}
 
         <div className="mt-4.5 flex flex-col gap-3.5">
-          {/* Identifier field — both tabs */}
+          {/* Identifier field — both tabs (OTP is email-only) */}
           <AuthField
-            label="Email or phone"
-            type="text"
+            label={tab === "otp" ? "Email" : "Email or phone"}
+            type={tab === "otp" ? "email" : "text"}
             value={identifier}
             onChange={(e) => handleIdentifierChange(e.target.value)}
-            placeholder="you@example.com or +919876543210"
-            autoComplete="username"
+            placeholder={
+              tab === "otp" ? "you@example.com" : "you@example.com or +919876543210"
+            }
+            autoComplete={tab === "otp" ? "email" : "username"}
           />
 
           {/* ── Password tab ── */}
@@ -293,13 +229,9 @@ export default function LoginPage() {
           {/* ── OTP tab — send state ── */}
           {tab === "otp" && !showOtp && (
             <>
-              {!isEmail && identifier && (
-                <p className="text-[12px] text-(--ink-3) leading-normal -mt-1">
-                  Include country code — e.g. +91 for India
-                </p>
-              )}
               <p className="text-[12px] text-(--ink-3) leading-normal -mt-1">
-                We&apos;ll text or email you a 6‑digit code. No password needed.
+                We&apos;ll email you a 6‑digit code. No password needed — enter
+                the email on your account.
               </p>
               <Button
                 variant="primary"
@@ -327,10 +259,8 @@ export default function LoginPage() {
                   value={otpInput}
                   onChange={(e) => handleOtpChange(e.target.value)}
                   maxLength={6}
-                  disabled={otpConfirming || isLoading}
-                  placeholder={
-                    otpConfirming || isLoading ? "Verifying…" : "· · · · · ·"
-                  }
+                  disabled={isLoading}
+                  placeholder={isLoading ? "Verifying…" : "· · · · · ·"}
                   autoFocus
                   className="w-full h-14 rounded-(--r) border-[1.5px] border-(--ink) bg-(--surface) text-[22px] tracking-[.3em] text-center font-(--mono) text-(--ink) outline-none"
                 />
@@ -352,11 +282,11 @@ export default function LoginPage() {
                 variant="primary"
                 size="lg"
                 full
-                disabled={otpInput.length < 6 || isLoading || otpConfirming}
+                disabled={otpInput.length < 6 || isLoading}
                 onClick={() => confirmOtp(otpInput)}
                 trailing={<ArrowRight size={18} weight={2.2} />}
               >
-                {isLoading || otpConfirming ? "Verifying…" : "Sign in"}
+                {isLoading ? "Verifying…" : "Sign in"}
               </Button>
             </>
           )}
@@ -373,8 +303,6 @@ export default function LoginPage() {
           </Link>
         </p>
       </div>
-
-      <div id="recaptcha-container" />
     </AuthShell>
   );
 }

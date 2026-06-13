@@ -61,12 +61,16 @@ function MetaRow({ label, value, mono = false, last = false }: { label: string; 
   );
 }
 
-function VerifyRow({ label, value, ok, last = false }: { label: string; value: string; ok: boolean; last?: boolean }) {
+function VerifyRow({ label, value, ok, href, last = false }: { label: string; value: string; ok: boolean; href?: string; last?: boolean }) {
   return (
     <div className={`px-[18px] py-3 flex items-center gap-3 ${last ? '' : 'border-b border-(--border)'}`}>
       <div className="flex-1">
         <div className="text-[10px] text-(--ink-3) uppercase tracking-[.05em]">{label}</div>
-        <div className="text-[14px] font-semibold text-(--ink) mt-0.5 font-(--mono)">{value}</div>
+        {href ? (
+          <a href={href} className="text-[14px] font-semibold text-(--accent-deep) mt-0.5 font-(--mono) no-underline hover:underline">{value}</a>
+        ) : (
+          <div className="text-[14px] font-semibold text-(--ink) mt-0.5 font-(--mono)">{value}</div>
+        )}
       </div>
       {ok ? (
         <div className="w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0" style={{ background: 'var(--approved)' }}>
@@ -236,7 +240,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ user
             <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-[.06em] mb-2">Verification</div>
             <div className="bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden">
               <VerifyRow label="Email" value={user.email} ok={user.emailVerified} />
-              <VerifyRow label="Phone" value={user.phone || '—'} ok={!!user.phone} last />
+              <VerifyRow label="Phone" value={user.phone || '—'} ok={!!user.phone} href={user.phone ? `tel:${user.phone}` : undefined} last />
             </div>
           </div>
 
@@ -359,7 +363,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ user
               <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-[.06em] mb-2.5">Verification</div>
               <div className="bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden">
                 <VerifyRow label="Email" value={user.email} ok={user.emailVerified} />
-                <VerifyRow label="Phone" value={user.phone || '—'} ok={!!user.phone} last />
+                <VerifyRow label="Phone" value={user.phone || '—'} ok={!!user.phone} href={user.phone ? `tel:${user.phone}` : undefined} last />
               </div>
             </div>
 
@@ -438,8 +442,13 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ user
                   <div className="text-[13px] text-(--ink-3) mt-2 leading-[1.5] max-w-xs mx-auto">
                     <span className="font-semibold text-(--ink-2)">{user.name}</span> will be set to{' '}
                     <span className="font-semibold" style={{ color: 'var(--approved)' }}>Active</span> and granted full access.
-                    They'll be notified by email.
+                    They&apos;ll be notified by email.
                   </div>
+                  {isOwner && user.status === 'inactive' && user.phone && (
+                    <div className="text-[12px] mt-3 mx-auto max-w-xs px-3 py-2 rounded-(--r-md) border text-left leading-[1.45]" style={{ background: 'var(--pending-soft)', borderColor: 'var(--border-2)', color: 'var(--ink-2)' }}>
+                      Call <a href={`tel:${user.phone}`} className="font-semibold font-(--mono) text-(--accent-deep) no-underline">{user.phone}</a> to verify this owner before activating.
+                    </div>
+                  )}
                 </div>
                 <div className="flex border-t border-(--border)">
                   <button onClick={() => setDialog(null)} className="flex-1 py-4 text-[15px] font-semibold text-(--ink-2) cursor-pointer border-r border-(--border) hover:bg-(--paper-2) transition-colors">Cancel</button>

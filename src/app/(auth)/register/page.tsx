@@ -1,17 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  signInWithPhoneNumber,
-  RecaptchaVerifier,
-  ConfirmationResult,
-} from "firebase/auth";
-import { firebaseAuth } from "@/lib/firebase-client";
 import { useAuthStore } from "@/store/authStore";
 import AuthShell from "@/components/auth/AuthShell";
 import AuthField from "@/components/auth/AuthField";
+import PhoneField from "@/components/common/PhoneField";
 import Button from "@/components/ui/Button";
 import {
   ArrowLeft,
@@ -32,16 +27,6 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"painter" | "owner">("painter");
 
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [confirmationResult, setConfirmationResult] =
-    useState<ConfirmationResult | null>(null);
-  const [firebaseIdToken, setFirebaseIdToken] = useState<string | null>(null);
-  const [phoneOtpInput, setPhoneOtpInput] = useState("");
-  const [showPhoneOtp, setShowPhoneOtp] = useState(false);
-  const [phoneSending, setPhoneSending] = useState(false);
-  const [phoneConfirming, setPhoneConfirming] = useState(false);
-  const [phoneError, setPhoneError] = useState<string | null>(null);
-
   const [emailVerified, setEmailVerified] = useState(false);
   const [emailSessionId, setEmailSessionId] = useState<string | null>(null);
   const [emailOtpInput, setEmailOtpInput] = useState("");
@@ -50,20 +35,9 @@ export default function RegisterPage() {
   const [emailConfirming, setEmailConfirming] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
-  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
-
   useEffect(() => {
     clearError();
   }, [clearError]);
-
-  function resetPhoneVerification() {
-    setPhoneVerified(false);
-    setFirebaseIdToken(null);
-    setConfirmationResult(null);
-    setShowPhoneOtp(false);
-    setPhoneOtpInput("");
-    setPhoneError(null);
-  }
 
   function resetEmailVerification() {
     setEmailVerified(false);
@@ -71,11 +45,6 @@ export default function RegisterPage() {
     setShowEmailOtp(false);
     setEmailOtpInput("");
     setEmailError(null);
-  }
-
-  function handlePhoneChange(val: string) {
-    setPhone(val);
-    if (phoneVerified || confirmationResult) resetPhoneVerification();
   }
 
   function handleEmailChange(val: string) {
@@ -86,76 +55,6 @@ export default function RegisterPage() {
   function handleRoleChange(val: "painter" | "owner") {
     setRole(val);
     if (val === "painter") resetEmailVerification();
-  }
-
-  async function handleSendPhoneOtp() {
-    setPhoneError(null);
-    setPhoneSending(true);
-    try {
-      if (!recaptchaRef.current) {
-        const container = document.getElementById("recaptcha-container");
-        if (container) container.innerHTML = "";
-        recaptchaRef.current = new RecaptchaVerifier(
-          firebaseAuth,
-          "recaptcha-container",
-          { size: "invisible" },
-        );
-        await recaptchaRef.current.render();
-      }
-      const result = await signInWithPhoneNumber(
-        firebaseAuth,
-        phone,
-        recaptchaRef.current,
-      );
-      setConfirmationResult(result);
-      setShowPhoneOtp(true);
-    } catch (e: unknown) {
-      if (recaptchaRef.current) {
-        try {
-          recaptchaRef.current.clear();
-        } catch {
-          /* ignore */
-        }
-        recaptchaRef.current = null;
-      }
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("invalid-phone-number"))
-        setPhoneError(
-          "Invalid phone number. Use E.164 format e.g. +919876543210",
-        );
-      else if (msg.includes("too-many-requests"))
-        setPhoneError("Too many attempts. Please wait before trying again.");
-      else
-        setPhoneError(
-          "Failed to send OTP. Check the phone number and try again.",
-        );
-    } finally {
-      setPhoneSending(false);
-    }
-  }
-
-  async function confirmPhoneOtp(otp: string) {
-    if (!confirmationResult) return;
-    setPhoneConfirming(true);
-    setPhoneError(null);
-    try {
-      const credential = await confirmationResult.confirm(otp);
-      const token = await credential.user.getIdToken();
-      setFirebaseIdToken(token);
-      setPhoneVerified(true);
-      setShowPhoneOtp(false);
-    } catch {
-      setPhoneError("Incorrect OTP. Please try again.");
-      setPhoneOtpInput("");
-    } finally {
-      setPhoneConfirming(false);
-    }
-  }
-
-  function handlePhoneOtpChange(val: string) {
-    const digits = val.replace(/\D/g, "").slice(0, 6);
-    setPhoneOtpInput(digits);
-    if (digits.length === 6) confirmPhoneOtp(digits);
   }
 
   async function handleSendEmailOtp() {
@@ -222,14 +121,12 @@ export default function RegisterPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!firebaseIdToken) return;
     const success = await registerUser({
       name,
       email,
       phone,
       password,
       role,
-      firebaseIdToken,
       ...(role === "owner" && {
         emailOtp: emailOtpInput,
         emailSessionId: emailSessionId!,
@@ -247,7 +144,6 @@ export default function RegisterPage() {
     !!email &&
     !!phone &&
     !!password &&
-    phoneVerified &&
     (role === "painter" || emailVerified) &&
     !isLoading;
 
@@ -425,72 +321,17 @@ export default function RegisterPage() {
             </div>
 
             {/* Phone */}
-            <div>
-              <AuthField
-                label="Phone — verification required"
-                type="tel"
-                value={phone}
-                onChange={(e) => handlePhoneChange(e.target.value)}
-                placeholder="+919876543210"
-                autoComplete="tel"
-                required
-                locked={phoneVerified}
-                error={phoneError ?? undefined}
-                trailing={
-                  phoneVerified ? (
-                    <div className="flex items-center gap-1 text-(--approved) text-[12px] font-semibold whitespace-nowrap">
-                      <Check size={14} weight={2.4} />
-                      Verified
-                    </div>
-                  ) : undefined
-                }
-              />
-              {!phoneVerified && !showPhoneOtp && (
-                <>
-                  <p className="mt-1 text-[11px] text-(--ink-4)">
-                    Include country code — e.g. +91 for India
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleSendPhoneOtp}
-                    disabled={!phone || phoneSending}
-                    className={`mt-1.5 text-[12px] text-(--accent-deep) bg-none border-none cursor-pointer p-0 font-(--font) ${!phone || phoneSending ? "opacity-50" : "opacity-100"}`}
-                  >
-                    {phoneSending
-                      ? "Sending code…"
-                      : "Send verification code →"}
-                  </button>
-                </>
-              )}
-              {showPhoneOtp && !phoneVerified && (
-                <div className="mt-2.5">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={phoneOtpInput}
-                    onChange={(e) => handlePhoneOtpChange(e.target.value)}
-                    maxLength={6}
-                    disabled={phoneConfirming}
-                    placeholder={phoneConfirming ? "Verifying…" : "· · · · · ·"}
-                    autoFocus
-                    className={otpInputClass}
-                  />
-                  <div className="mt-1.5 text-[11px] text-(--ink-3) flex justify-between">
-                    <span>Code sent to {phone}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        resetPhoneVerification();
-                        handleSendPhoneOtp();
-                      }}
-                      className="text-(--accent-deep) bg-none border-none cursor-pointer text-[11px] font-(--font)"
-                    >
-                      Resend
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <PhoneField
+              label={role === "painter" ? "WhatsApp number" : "Phone"}
+              value={phone}
+              onChange={setPhone}
+              required
+              hint={
+                role === "owner"
+                  ? "You will receive a call on this number to verify your account."
+                  : "Use a number that has WhatsApp — your job link is sent there."
+              }
+            />
 
             {/* Password */}
             <AuthField
@@ -511,8 +352,9 @@ export default function RegisterPage() {
                   style={{ flexShrink: 0, marginTop: 1, color: "var(--info)" }}
                 />
                 <p className="text-[12px] text-(--info) leading-normal m-0">
-                  Business owner accounts require email + phone verification and
-                  are reviewed by an admin before activation.
+                  Business owner accounts require email verification. You will
+                  then receive a call on your phone number to verify it before
+                  your account is activated.
                 </p>
               </div>
             )}
@@ -554,8 +396,6 @@ export default function RegisterPage() {
           </Link>
         </p>
       </div>
-
-      <div id="recaptcha-container" />
     </AuthShell>
   );
 }

@@ -2,7 +2,6 @@ import { connectDB } from '@/lib/db';
 import { User } from '@/lib/models';
 import { hashPassword, signToken } from '@/lib/auth';
 import { RegisterSchema } from '@/lib/validators';
-import { admin } from '@/lib/firebase-admin';
 import { verifyEmailOtp } from '@/lib/otp';
 import { sendAdminNewOwnerNotification } from '@/lib/email';
 import { notify } from '@/lib/notify/emit';
@@ -14,12 +13,7 @@ type RegisterBody = z.infer<typeof RegisterSchema>;
 
 export const POST = withMiddleware({ rateLimit: 'strict', schema: RegisterSchema, audit: 'AUTH_REGISTER' })(
   async (req, ctx) => {
-    const { name, email, phone, password, role, firebaseIdToken, emailOtp, sessionId } = ctx.body as RegisterBody;
-
-    const decoded = await admin.auth().verifyIdToken(firebaseIdToken).catch(() =>
-      ctx.fail(401, ErrorCodes.NOT_AUTHORIZED, 'Phone verification failed')
-    );
-    if (decoded.phone_number !== phone) ctx.fail(401, ErrorCodes.NOT_AUTHORIZED, 'Phone token mismatch');
+    const { name, email, phone, password, role, emailOtp, sessionId } = ctx.body as RegisterBody;
 
     await connectDB();
 

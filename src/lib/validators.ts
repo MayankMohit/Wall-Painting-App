@@ -8,7 +8,6 @@ export const RegisterSchema = z.object({
   phone:           z.string().trim().regex(PhoneRegex, { error: 'Phone must be in E.164 format e.g. +919876543210' }),
   password:        z.string().min(8, { error: 'Password must be at least 8 characters' }),
   role:            z.enum(['painter', 'owner']),
-  firebaseIdToken: z.string().min(1, { error: 'Phone verification is required' }),
   emailOtp:        z.string().length(6).optional(),
   sessionId:       z.string().optional(),
 }).refine(
@@ -47,11 +46,6 @@ export const LoginOtpSendSchema = z.object({
 export const LoginOtpVerifySchema = z.object({
   sessionId: z.string().min(1),
   otp:       z.string().length(6),
-});
-
-export const LoginOtpPhoneSchema = z.object({
-  phone:           z.string().trim().regex(PhoneRegex, { error: 'Invalid phone number' }),
-  firebaseIdToken: z.string().min(1),
 });
 
 export const UpdateProfileSchema = z.object({

@@ -21,7 +21,6 @@ interface AuthState {
 
   login: (identifier: string, password: string) => Promise<boolean>;
   loginWithEmailOtp: (sessionId: string, otp: string) => Promise<boolean>;
-  loginWithPhoneOtp: (phone: string, firebaseIdToken: string) => Promise<boolean>;
 
   registerUser: (userData: {
     name: string;
@@ -29,7 +28,6 @@ interface AuthState {
     phone: string;
     password: string;
     role: 'painter' | 'owner';
-    firebaseIdToken: string;
     emailOtp?: string;
     emailSessionId?: string;
   }) => Promise<boolean>;
@@ -121,24 +119,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const result = await callApi('/api/auth/login/otp/verify', { sessionId, otp });
-      if (!result.ok) {
-        set({ error: result.error, isLoading: false });
-        return false;
-      }
-      persistAuth(result.token!);
-      scheduleRefresh(result.token!, () => get().refreshToken());
-      set({ user: result.user!, isAuthenticated: true, isLoading: false });
-      return true;
-    } catch {
-      set({ error: 'Network error. Please try again.', isLoading: false });
-      return false;
-    }
-  },
-
-  loginWithPhoneOtp: async (phone, firebaseIdToken) => {
-    set({ isLoading: true, error: null });
-    try {
-      const result = await callApi('/api/auth/login/otp/phone', { phone, firebaseIdToken });
       if (!result.ok) {
         set({ error: result.error, isLoading: false });
         return false;
