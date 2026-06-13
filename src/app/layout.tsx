@@ -14,11 +14,57 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Wallo",
-  description: "Wall Painting Job Management",
+  metadataBase: new URL("https://wallo.cc"),
+  title: {
+    default: "Wallo",
+    template: "%s | Wallo",
+  },
+  description:
+    "The job site tool for painting contractors. Log walls, track approvals, and ship invoices — all in one place.",
+  keywords: [
+    "painting contractor app",
+    "wall painting job management",
+    "contractor job tracker",
+    "photo approval tool",
+    "painting business software",
+  ],
+  authors: [{ name: "Wallo", url: "https://wallo.cc" }],
+  creator: "Wallo",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://wallo.cc",
+    siteName: "Wallo",
+    title: "Wallo — Job Management for Painting Contractors",
+    description:
+      "Log walls, track approvals, ship invoices. The job site tool built for painting contractors.",
+    images: [
+      {
+        url: "/app-icon.png",
+        width: 512,
+        height: 512,
+        alt: "Wallo",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: "Wallo — Job Management for Painting Contractors",
+    description:
+      "Log walls, track approvals, ship invoices. Built for the trades.",
+    images: ["/app-icon.png"],
+  },
   icons: {
-    icon: '/app-icon.png',
-    apple: '/app-icon.png',
+    icon: "/app-icon.png",
+    apple: "/app-icon.png",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
   },
 };
 
@@ -32,6 +78,15 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* Capture beforeinstallprompt before React hydrates so the install page never misses it */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          window.addEventListener('beforeinstallprompt', function(e) {
+            e.preventDefault();
+            window.__installPrompt = e;
+          });
+        `}} />
+      </head>
       <body className="min-h-full flex flex-col">
           <Providers>{children}</Providers>
         </body>
