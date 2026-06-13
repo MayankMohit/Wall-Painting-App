@@ -9,12 +9,12 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 
 const TIERS: Record<RateLimitTier, { max: number; windowMs: number }> = IS_PROD
   ? {
-      strict  : { max: 5,   windowMs: 15 * 60_000 },
+      strict  : { max: 5,   windowMs:      60_000 },
       standard: { max: 100, windowMs:      60_000 },
       relaxed : { max: 300, windowMs:      60_000 },
     }
   : {
-      strict  : { max: 1000, windowMs: 15 * 60_000 },
+      strict  : { max: 1000, windowMs:      60_000 },
       standard: { max: 5000, windowMs:      60_000 },
       relaxed : { max: 5000, windowMs:      60_000 },
     };
