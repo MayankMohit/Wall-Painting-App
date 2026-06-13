@@ -34,12 +34,14 @@ export const PATCH = withRole(['admin'], { schema: AdminReasonSchema, audit: 'AD
     ctx.setAudit('ADMIN_USER_REJECT', { type: 'User', id: userId }, { reason });
 
     await Promise.allSettled([
-      sendOwnerRejectedEmail(
-        user.email,
-        user.name,
-        process.env.ADMIN_CONTACT_EMAIL!,
-        reason
-      ),
+      user.email
+        ? sendOwnerRejectedEmail(
+            user.email,
+            user.name,
+            process.env.ADMIN_CONTACT_EMAIL!,
+            reason
+          )
+        : Promise.resolve(),
       notify.emit('account.rejected', {
         recipientId: String(user._id),
         actorId: ctx.user!.userId,

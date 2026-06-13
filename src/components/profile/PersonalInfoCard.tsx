@@ -18,14 +18,16 @@ interface PersonalInfoCardProps {
   displayEmail: string;
   verify: EmailVerifyState;
   change: EmailChangeState;
+  emailLocked?: boolean; // hide email actions (passwordless painter uses the Complete-profile banner instead)
 }
 
 export function PersonalInfoCard({
   name, phone, joined,
   isEditing, isSaving, editName, onEditName,
   emailVerified, displayEmail,
-  verify, change,
+  verify, change, emailLocked = false,
 }: PersonalInfoCardProps) {
+  const hasEmail = !!displayEmail;
   return (
     <div className="bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden">
 
@@ -49,27 +51,39 @@ export function PersonalInfoCard({
       <div className="px-3.5 py-3 border-b border-(--border)">
         <div className="flex items-center gap-2 mb-1.5">
           <div className="text-[13px] text-(--ink-3) flex-1">Email</div>
-          {!emailVerified && <Pill kind="pending">Unverified</Pill>}
+          {hasEmail && !emailVerified && <Pill kind="pending">Unverified</Pill>}
         </div>
         <div className="flex items-center gap-2">
-          <div className="text-[13px] font-semibold text-(--ink) flex-1 min-w-0 truncate">{displayEmail}</div>
-          {change.mode === 'idle' && (
+          {hasEmail ? (
+            <div className="text-[13px] font-semibold text-(--ink) flex-1 min-w-0 truncate">{displayEmail}</div>
+          ) : (
+            <div className="text-[13px] text-(--ink-4) flex-1 min-w-0 truncate">Not set</div>
+          )}
+          {change.mode === 'idle' && !emailLocked && (
             <div className="flex items-center gap-2 shrink-0">
-              {!emailVerified && !verify.sessionId && (
+              {!hasEmail ? (
+                <button onClick={change.open} className="text-[13px] font-semibold text-(--accent-deep) bg-transparent border-0 cursor-pointer">
+                  Add email
+                </button>
+              ) : (
                 <>
-                  <button
-                    onClick={verify.sendOtp}
-                    disabled={verify.sending}
-                    className="text-[13px] font-semibold text-(--accent-deep) bg-transparent border-0 cursor-pointer disabled:opacity-50"
-                  >
-                    {verify.sending ? '…' : 'Verify'}
+                  {!emailVerified && !verify.sessionId && (
+                    <>
+                      <button
+                        onClick={verify.sendOtp}
+                        disabled={verify.sending}
+                        className="text-[13px] font-semibold text-(--accent-deep) bg-transparent border-0 cursor-pointer disabled:opacity-50"
+                      >
+                        {verify.sending ? '…' : 'Verify'}
+                      </button>
+                      <span className="text-(--border-3)">·</span>
+                    </>
+                  )}
+                  <button onClick={change.open} className="text-[13px] font-semibold text-(--ink-2) bg-transparent border-0 cursor-pointer">
+                    Change
                   </button>
-                  <span className="text-(--border-3)">·</span>
                 </>
               )}
-              <button onClick={change.open} className="text-[13px] font-semibold text-(--ink-2) bg-transparent border-0 cursor-pointer">
-                Change
-              </button>
             </div>
           )}
           {change.mode !== 'idle' && (

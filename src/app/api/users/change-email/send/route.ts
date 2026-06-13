@@ -21,6 +21,10 @@ export const POST = withAuth({ schema: ChangeEmailSendSchema, audit: 'USER_CHANG
     const user = await User.findById(ctx.user!.userId);
     if (!user) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'User not found');
 
+    // Password-less (owner-provisioned) painters must set a password before they can
+    // change their email through this flow — they use the add-email/verify path instead.
+    if (!user.password) return ctx.fail(400, ErrorCodes.INVALID_CREDENTIALS, 'Set a password before changing your email');
+
     const passwordValid = await comparePassword(password, user.password);
     if (!passwordValid) return ctx.fail(401, ErrorCodes.INVALID_CREDENTIALS, 'Incorrect password');
 

@@ -7,6 +7,7 @@ import { useEmailVerify } from '@/hooks/useEmailVerify';
 import { useEmailChange } from '@/hooks/useEmailChange';
 import { AvatarCard } from '@/components/profile/AvatarCard';
 import { PersonalInfoCard } from '@/components/profile/PersonalInfoCard';
+import { CompleteProfileCard } from '@/components/profile/CompleteProfileCard';
 import { SecurityCard } from '@/components/profile/SecurityCard';
 import { PainterNotifications } from '@/components/profile/PainterNotifications';
 import { SectionHdr } from '@/components/profile/SectionHdr';
@@ -22,6 +23,8 @@ export default function PainterProfilePage() {
 
   const emailVerified = (user?.emailVerified || verify.success) ?? false;
   const displayEmail  = profile.profileData?.email || user?.email || '';
+  // Owner-provisioned painter who hasn't set a password yet → guide them to complete their profile.
+  const isPasswordless = user?.role === 'painter' && user?.hasPassword === false;
 
   if (profile.isLoading) {
     return (
@@ -89,8 +92,16 @@ export default function PainterProfilePage() {
           />
         </div>
 
-        {/* Verify email banner */}
-        {!emailVerified && !verify.sessionId && change.mode === 'idle' && (
+        {/* Complete-profile prompt — passwordless (owner-provisioned) painters only */}
+        {isPasswordless && (
+          <div className="px-4 lg:px-8 pt-3">
+            <CompleteProfileCard onDone={checkAuth} />
+          </div>
+        )}
+
+        {/* Verify email banner — only when there's an email to verify. Owner-provisioned
+            painters with no email add one from Personal info, after setting a password. */}
+        {!!displayEmail && !emailVerified && !verify.sessionId && change.mode === 'idle' && (
           <div className="px-4 lg:px-8 pt-3">
             <div className="bg-(--surface) border border-(--accent) rounded-(--r-md) p-3.5 flex items-center gap-3">
               <div className="shrink-0 rounded-[10px] bg-(--accent-soft) text-(--accent-deep) flex items-center justify-center" style={{ width: 40, height: 40 }}>
@@ -124,6 +135,7 @@ export default function PainterProfilePage() {
             displayEmail={displayEmail}
             verify={verify}
             change={change}
+            emailLocked={isPasswordless}
           />
         </div>
 
@@ -133,11 +145,16 @@ export default function PainterProfilePage() {
           <PainterNotifications />
         </div>
 
-        {/* Security */}
-        <SectionHdr title="Security" />
-        <div className="px-4 lg:px-8">
-          <SecurityCard />
-        </div>
+        {/* Security — hidden for passwordless painters (they set their first password
+            via the Complete-profile flow above) */}
+        {!isPasswordless && (
+          <>
+            <SectionHdr title="Security" />
+            <div className="px-4 lg:px-8">
+              <SecurityCard />
+            </div>
+          </>
+        )}
 
         {/* Sign out */}
         <div className="px-4 lg:px-8 pt-6">

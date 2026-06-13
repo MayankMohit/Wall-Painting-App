@@ -6,11 +6,12 @@ import { notificationsApi } from '@/store/api/notificationsApi';
 export interface User {
   id: string;
   name: string;
-  email: string;
+  email: string | null;   // owner-provisioned painters have no email until they add one
   role: 'painter' | 'owner' | 'admin';
   phone: string;
   emailVerified: boolean;
   status: 'active' | 'inactive' | 'suspended';
+  hasPassword?: boolean;   // from /api/users/me — false for owner-provisioned painters who haven't set one
 }
 
 interface AuthState {
@@ -21,6 +22,7 @@ interface AuthState {
 
   login: (identifier: string, password: string) => Promise<boolean>;
   loginWithEmailOtp: (sessionId: string, otp: string) => Promise<boolean>;
+  loginWithInvite: (token: string) => Promise<{ ok: boolean; jobId?: string }>;
 
   registerUser: (userData: {
     name: string;
@@ -130,6 +132,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       set({ error: 'Network error. Please try again.', isLoading: false });
       return false;
+    }
+  },
+
+  loginWithInvite: async (token) => {
+    set({ isLoading: true, error: null });
+    try {
+      const res = await fetch('/api/auth/invite/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      const json = await res.json();
+      const payload = json.data ?? json;
+      if (!res.ok) {
+        const e = payload.error;
+        set({ error: (typeof e === 'string' ? e : e?.message) ?? 'This link is no longer valid.', isLoading: false });
+        return { ok: false };
+      }
+      persistAuth(payload.token);
+      scheduleRefresh(payload.token, () => get().refreshToken());
+      set({ user: payload.user, isAuthenticated: true, isLoading: false });
+      return { ok: true, jobId: payload.jobId as string | undefined };
+    } catch {
+      set({ error: 'Network error. Please try again.', isLoading: false });
+      return { ok: false };
     }
   },
 

@@ -5,6 +5,7 @@ import { ok, created } from '@/lib/api-response';
 import { CreateSubmissionSchema } from '@/lib/validators';
 import { withAuth, withRole } from '@/lib/middleware';
 import { requireJobAccess } from '@/lib/middleware/requireJobAccess';
+import { requireActiveAccount } from '@/lib/middleware/requireActiveAccount';
 import { cloudinary } from '@/lib/cloudinary';
 import type { z } from 'zod';
 import { notify } from '@/lib/notify/emit';
@@ -50,7 +51,7 @@ export const GET = withAuth({ access: requireJobAccess })(
 // POST — Create a new submission. Painter must be assigned to an active job. Atomically inserts
 //        photo documents and the submission in a transaction. Cleans up Cloudinary assets on any
 //        failure so uploaded images never become orphaned.
-export const POST = withRole(['painter'], { schema: CreateSubmissionSchema, access: requireJobAccess, audit: 'SUBMISSION_CREATE' })(
+export const POST = withRole(['painter'], { schema: CreateSubmissionSchema, access: [requireJobAccess, requireActiveAccount], audit: 'SUBMISSION_CREATE' })(
   async (req, ctx) => {
     const { photoNo, location, sizes, uploadedImages } = ctx.body as z.infer<typeof CreateSubmissionSchema>;
 

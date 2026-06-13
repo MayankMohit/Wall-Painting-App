@@ -40,7 +40,9 @@ export const POST = withMiddleware({ rateLimit: 'strict', schema: RegisterSchema
     if (role === 'owner') {
       const admins = await User.find({ role: 'admin' }, 'email').lean();
       await Promise.allSettled([
-        ...admins.map((a) => sendAdminNewOwnerNotification(a.email, { name, email, phone })),
+        ...admins
+          .filter((a): a is typeof a & { email: string } => !!a.email)
+          .map((a) => sendAdminNewOwnerNotification(a.email, { name, email, phone })),
         notify.emit('owner.registered', { data: { name, email } }),
       ]);
     }

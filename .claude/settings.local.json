@@ -3,15 +3,8 @@
     "allow": [
       "Bash(npx tsc *)",
       "Bash(grep -E \"\\\\.\\(json|ts|js\\)$\")",
-      "Bash(node -e \"const p = require\\('./package.json'\\); const deps = {...p.dependencies, ...p.devDependencies}; ['bcrypt','bcryptjs','jsonwebtoken','zod','mongoose','next','@types/bcrypt','@types/bcryptjs','@types/jsonwebtoken'].forEach\\(k => console.log\\(k+':', deps[k] || 'NOT INSTALLED'\\)\\)\")",
-      "Bash(xargs grep *)",
-      "Bash(node *)",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('exports keys:', list\\(\\(d.get\\('exports'\\) or {}\\).keys\\(\\)\\)[:5]\\)\")",
       "Bash(xargs wc *)",
-      "PowerShell(npx tsc --noEmit 2>&1)",
-      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k,v\\) for k,v in {**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}.items\\(\\)]\")",
-      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\mayan\\\\VS-CODE\\\\wall-painting-app\" -Recurse -Force)",
-      "Bash(Select-Object FullName)"
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 20; if \\($?\\) { \"TSC_CLEAN\" })"
     ]
   }
 }

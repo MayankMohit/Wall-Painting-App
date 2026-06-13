@@ -82,6 +82,10 @@ function buildMessage(log: IAuditLog): string {
       return failed
         ? 'Phone OTP login failed — Firebase token rejected'
         : `${cap(role)} signed in via phone OTP${ua ? ` · ${ua}` : ''}`;
+    case 'AUTH_LOGIN_INVITE':
+      return failed
+        ? 'Invite-link login failed — link invalid, expired, or revoked'
+        : `Painter signed in via invite link${ua ? ` · ${ua}` : ''}`;
     case 'AUTH_REGISTER':
       return `New ${cap((m.role as string) ?? role)} account registered`;
     case 'AUTH_FORGOT_PASSWORD':
@@ -142,6 +146,12 @@ function buildMessage(log: IAuditLog): string {
       return `Painter assigned to job${company ? ` · ${company}` : ''}`;
     case 'JOB_PAINTER_REMOVE':
       return `Painter removed from job${company ? ` · ${company}` : ''}`;
+    case 'PAINTER_PROVISIONED':
+      return `${cap(role)} created a painter account`;
+    case 'INVITE_CREATED':
+      return `Invite link created for painter${company ? ` · ${company}` : ''}`;
+    case 'INVITE_REVOKED':
+      return 'Invite link revoked';
     case 'SUBMISSION_CREATE':
       return `Submission created${company ? ` · ${company}` : ''}${photoNo ? ` · #${photoNo}` : ''}`;
     case 'SUBMISSION_UPDATE':

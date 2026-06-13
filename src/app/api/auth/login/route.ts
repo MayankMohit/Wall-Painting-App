@@ -29,7 +29,13 @@ export const POST = withMiddleware({ rateLimit: 'strict', schema: LoginSchema, a
       ctx.fail(403, ErrorCodes.ACCOUNT_DISABLED, `Account suspended. Contact ${process.env.ADMIN_CONTACT_EMAIL} if you think this is a mistake.`);
     }
 
-    const valid = await comparePassword(password, user.password);
+    // Owner-provisioned painters have no password (they log in via invite link until
+    // they set one). Reject with the generic message — bcrypt would throw on undefined,
+    // and an identical error avoids account-state enumeration.
+    const passwordHash = user.password;
+    if (!passwordHash) return ctx.fail(401, ErrorCodes.INVALID_CREDENTIALS, 'Invalid credentials');
+
+    const valid = await comparePassword(password, passwordHash);
     if (!valid) ctx.fail(401, ErrorCodes.INVALID_CREDENTIALS, 'Invalid credentials');
 
     const token = signToken({ userId: user._id.toString(), role: user.role, name: user.name });

@@ -19,7 +19,7 @@ interface ProfileData {
   joined: string;
 }
 
-function useAdminProfile(user: { name?: string; email?: string } | null) {
+function useAdminProfile(user: { name?: string; email?: string | null } | null) {
   const [data,      setData]      = useState<ProfileData | null>(null);
   const [isLoading, setLoading]   = useState(true);
   const [error,     setError]     = useState('');

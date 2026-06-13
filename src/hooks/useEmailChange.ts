@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { apiPost } from '@/lib/profileApi';
+import { apiPost, errMsg } from '@/lib/profileApi';
 
 export type ChangeMode = 'idle' | 'form' | 'otp';
 
@@ -22,7 +22,7 @@ export function useEmailChange(onSuccess: () => void) {
     setError(null); setSending(true);
     try {
       const { ok, data } = await apiPost('/api/users/change-email/send', { newEmail, password });
-      if (!ok) { setError(data.error ?? 'Failed to send code'); return; }
+      if (!ok) { setError(errMsg(data, 'Failed to send code')); return; }
       setSessionId(data.sessionId); setMode('otp');
     } catch { setError('Network error'); }
     finally   { setSending(false); }
@@ -33,7 +33,7 @@ export function useEmailChange(onSuccess: () => void) {
     setConfirming(true); setError(null);
     try {
       const { ok, data } = await apiPost('/api/users/change-email/confirm', { sessionId, otp: code });
-      if (!ok) { setError(data.error ?? 'Invalid code'); setOtp(''); return; }
+      if (!ok) { setError(errMsg(data, 'Invalid code')); setOtp(''); return; }
       setSuccess(true); setMode('idle'); onSuccess();
     } catch { setError('Network error'); }
     finally   { setConfirming(false); }

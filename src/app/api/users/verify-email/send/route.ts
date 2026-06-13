@@ -14,6 +14,7 @@ export const POST = withAuth({ rateLimit: 'strict' })(
     if (!user) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'User not found');
 
     if (user.emailVerified) return ctx.fail(409, ErrorCodes.VALIDATION_ERROR, 'Email is already verified');
+    if (!user.email) return ctx.fail(400, ErrorCodes.VALIDATION_ERROR, 'Add an email address first');
 
     const sessionId = crypto.randomUUID();
     const otp = generateOtp();

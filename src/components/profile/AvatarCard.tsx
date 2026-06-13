@@ -19,12 +19,14 @@ export function AvatarCard({ name, email, emailVerified, stats }: AvatarCardProp
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[17px] font-semibold text-(--ink) truncate leading-snug">{name}</div>
-          <div className="text-[12px] text-(--ink-3) mt-0.5 truncate">{email}</div>
+          <div className="text-[12px] text-(--ink-3) mt-0.5 truncate">{email || 'No email added'}</div>
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
             <Pill kind="neutral">Painter</Pill>
-            {emailVerified
-              ? <Pill kind="approved">Verified</Pill>
-              : <Pill kind="pending">Email unverified</Pill>
+            {!email
+              ? <Pill kind="neutral">No email</Pill>
+              : emailVerified
+                ? <Pill kind="approved">Verified</Pill>
+                : <Pill kind="pending">Email unverified</Pill>
             }
           </div>
         </div>

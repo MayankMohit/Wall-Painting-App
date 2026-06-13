@@ -17,7 +17,8 @@ export const GET = withAuth()(
     const userId = ctx.user!.userId;
 
     const [user, submissionStats] = await Promise.all([
-      User.findById(userId).select(EXCLUDED).lean(),
+      // Keep password in the projection only to derive `hasPassword`, then strip it below.
+      User.findById(userId).select('-resetPasswordToken -resetPasswordExpires').lean(),
       Submission.aggregate([
         { $match: { painterId: new mongoose.Types.ObjectId(userId) } },
         { $group: { _id: '$status', count: { $sum: 1 } } },
@@ -30,8 +31,11 @@ export const GET = withAuth()(
       submissionStats.map((s: { _id: string; count: number }) => [s._id, s.count])
     );
 
+    const { password, ...safe } = user;
+
     return ok({
-      ...user,
+      ...safe,
+      hasPassword: !!password,
       stats: {
         completedJobs:   statsMap['approved'] ?? 0,
         pendingApprovals: statsMap['pending']  ?? 0,

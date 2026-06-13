@@ -48,6 +48,22 @@ export const LoginOtpVerifySchema = z.object({
   otp:       z.string().length(6),
 });
 
+export const CreatePainterSchema = z.object({
+  name:  z.string().min(1, { error: 'Name is required' }).trim(),
+  phone: z.string().trim().regex(PhoneRegex, { error: 'Phone must be in E.164 format e.g. +919876543210' }),
+  email: z.email({ error: 'Invalid email address' }).optional(),
+});
+
+// Owner creates / revokes a painter's invite for a job (painter must already be on the job).
+export const InvitePainterSchema = z.object({
+  painterId: z.string().min(1, { error: 'Painter ID is required' }),
+});
+
+// Public claim — the raw token from the /join/<token> link.
+export const InviteClaimSchema = z.object({
+  token: z.string().min(1, { error: 'Invite token is required' }),
+});
+
 export const UpdateProfileSchema = z.object({
   name: z.string().min(1, { error: 'Name is required' }).trim().optional(),
 });

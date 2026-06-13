@@ -165,7 +165,7 @@ export default function AdminUsersPage() {
                     <RolePill role={u.role} />
                     <StatusPill status={u.status} />
                   </div>
-                  <div className="font-(--mono) text-[11px] text-(--ink-3) mt-0.5 truncate">{u.email}</div>
+                  <div className="font-(--mono) text-[11px] text-(--ink-3) mt-0.5 truncate">{u.email || 'No email'}</div>
                 </div>
                 <ArrowRight size={16} style={{ color: 'var(--ink-4)', flexShrink: 0 }} />
               </Link>
@@ -253,7 +253,7 @@ export default function AdminUsersPage() {
                     <Avatar name={u.name} size={36} />
                     <div className="text-[14px] font-semibold text-(--ink) truncate">{u.name}</div>
                   </div>
-                  <div className="font-(--mono) text-[12px] text-(--ink-3) truncate">{u.email}</div>
+                  <div className="font-(--mono) text-[12px] text-(--ink-3) truncate">{u.email || 'No email'}</div>
                   <div><RolePill role={u.role} /></div>
                   <div><StatusPill status={u.status} /></div>
                   <div className="font-(--mono) text-[12px] text-(--ink-3)">{relTime(u.createdAt)}</div>

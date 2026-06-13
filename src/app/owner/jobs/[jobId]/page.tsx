@@ -4,9 +4,10 @@ import { useState, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import { useGetJobQuery, useUpdateJobMutation, useDeleteJobMutation } from '@/store/api/endpoints/jobs';
+import { useGetJobQuery, useUpdateJobMutation, useDeleteJobMutation, useGetJobInvitesQuery } from '@/store/api/endpoints/jobs';
 import { JobStatusPill } from '@/components/owner/JobStatusPill';
 import { AddPainterModal } from '@/components/owner/AddPainterModal';
+import { ShareInviteButton } from '@/components/owner/ShareInviteButton';
 import {
   ArrowLeft, Menu, Plus, FileIcon, Brush, X, Trash, Clock, Users, Check, Spark, ArrowRight,
 } from '@/components/owner/icons';
@@ -50,8 +51,15 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const [genAddress, setGenAddress] = useState('');
 
   const { data: job, isLoading, isError } = useGetJobQuery(jobId);
+  const { data: invites } = useGetJobInvitesQuery(jobId);
   const [updateJob, { isLoading: saving }] = useUpdateJobMutation();
   const [deleteJob, { isLoading: deleting }] = useDeleteJobMutation();
+
+  // painterId → active invite (with its share link). Painters without one fall back
+  // to a "Regenerate" button.
+  const inviteMap = new Map(
+    (invites ?? []).filter((iv) => iv.status === 'active').map((iv) => [iv.painterId, iv] as const),
+  );
 
   const { register, handleSubmit, formState: { isSubmitting: editSubmitting } } = useForm({
     values: { companyName: job?.companyName ?? '', description: job?.description ?? '' },
@@ -263,37 +271,41 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             </div>
           ) : (
             <div>
-              {job.painters.map((p, i) => {
+              {job.painters.map((p) => {
                 const rej = p.stats.submitted - p.stats.approved - p.stats.pending;
                 return (
-                  <Link
-                    key={p._id}
-                    href={`/owner/jobs/${jobId}/painters/${p._id}`}
-                    className="flex items-center gap-3 py-3 border-b border-(--border) last:border-0 no-underline"
-                  >
-                    <Avatar name={p.name} size={36} />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[14px] font-semibold text-(--ink) truncate">{p.name}</div>
-                      <div className="mt-1 flex items-center gap-1.5 text-[11px] flex-wrap">
-                        <span className="font-semibold" style={{ color: 'var(--approved)' }}>
-                          {p.stats.approved} approved
-                        </span>
-                        <span style={{ color: 'var(--ink-4)' }}>·</span>
-                        <span className="font-semibold" style={{ color: 'var(--accent-deep)' }}>
-                          {p.stats.pending} pending
-                        </span>
-                        {rej > 0 && (
-                          <>
-                            <span style={{ color: 'var(--ink-4)' }}>·</span>
-                            <span className="font-semibold" style={{ color: 'var(--rejected)' }}>
-                              {rej} rejected
-                            </span>
-                          </>
-                        )}
+                  <div key={p._id} className="py-3 border-b border-(--border) last:border-0">
+                    <Link
+                      href={`/owner/jobs/${jobId}/painters/${p._id}`}
+                      className="flex items-center gap-3 no-underline"
+                    >
+                      <Avatar name={p.name} size={36} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[14px] font-semibold text-(--ink) truncate">{p.name}</div>
+                        <div className="mt-1 flex items-center gap-1.5 text-[11px] flex-wrap">
+                          <span className="font-semibold" style={{ color: 'var(--approved)' }}>
+                            {p.stats.approved} approved
+                          </span>
+                          <span style={{ color: 'var(--ink-4)' }}>·</span>
+                          <span className="font-semibold" style={{ color: 'var(--accent-deep)' }}>
+                            {p.stats.pending} pending
+                          </span>
+                          {rej > 0 && (
+                            <>
+                              <span style={{ color: 'var(--ink-4)' }}>·</span>
+                              <span className="font-semibold" style={{ color: 'var(--rejected)' }}>
+                                {rej} rejected
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
+                      <ArrowRight size={16} style={{ color: 'var(--ink-4)', flexShrink: 0 }} />
+                    </Link>
+                    <div className="mt-2.5 pl-12">
+                      <ShareInviteButton jobId={jobId} painterId={p._id} invite={inviteMap.get(p._id)} compact />
                     </div>
-                    <ArrowRight size={16} style={{ color: 'var(--ink-4)', flexShrink: 0 }} />
-                  </Link>
+                  </div>
                 );
               })}
             </div>
@@ -361,36 +373,40 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                 job.painters.map((p) => {
                   const rej = p.stats.submitted - p.stats.approved - p.stats.pending;
                   return (
-                    <Link
-                      key={p._id}
-                      href={`/owner/jobs/${jobId}/painters/${p._id}`}
-                      className={`grid ${PAINTER_COLS} items-center px-4 py-3.5 border-b border-(--border) last:border-0 hover:bg-(--paper) transition-colors no-underline group`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Avatar name={p.name} size={34} />
-                        <div className="min-w-0">
-                          <div className="text-[14px] font-semibold text-(--ink) truncate">{p.name}</div>
-                          {p.phone && (
-                            <div className="text-[11px] text-(--ink-3) font-(--mono) mt-0.5">{p.phone}</div>
-                          )}
+                    <div key={p._id} className="border-b border-(--border) last:border-0">
+                      <Link
+                        href={`/owner/jobs/${jobId}/painters/${p._id}`}
+                        className={`grid ${PAINTER_COLS} items-center px-4 py-3.5 hover:bg-(--paper) transition-colors no-underline group`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar name={p.name} size={34} />
+                          <div className="min-w-0">
+                            <div className="text-[14px] font-semibold text-(--ink) truncate">{p.name}</div>
+                            {p.phone && (
+                              <div className="text-[11px] text-(--ink-3) font-(--mono) mt-0.5">{p.phone}</div>
+                            )}
+                          </div>
                         </div>
+                        <div className="text-center text-[14px] font-semibold text-(--ink) tabular-nums">
+                          {p.stats.submitted}
+                        </div>
+                        <div className="text-center text-[14px] font-semibold tabular-nums" style={{ color: 'var(--approved)' }}>
+                          {p.stats.approved}
+                        </div>
+                        <div className="text-center text-[14px] font-semibold tabular-nums" style={{ color: p.stats.pending > 0 ? 'var(--accent-deep)' : 'var(--ink-4)' }}>
+                          {p.stats.pending}
+                        </div>
+                        <div className="text-center text-[14px] font-semibold tabular-nums" style={{ color: rej > 0 ? 'var(--rejected)' : 'var(--ink-4)' }}>
+                          {rej}
+                        </div>
+                        <div className="flex justify-end">
+                          <ArrowRight size={15} style={{ color: 'var(--ink-4)' }} className="group-hover:text-(--ink-3)" />
+                        </div>
+                      </Link>
+                      <div className="px-4 pb-3 pl-[60px]">
+                        <ShareInviteButton jobId={jobId} painterId={p._id} invite={inviteMap.get(p._id)} compact />
                       </div>
-                      <div className="text-center text-[14px] font-semibold text-(--ink) tabular-nums">
-                        {p.stats.submitted}
-                      </div>
-                      <div className="text-center text-[14px] font-semibold tabular-nums" style={{ color: 'var(--approved)' }}>
-                        {p.stats.approved}
-                      </div>
-                      <div className="text-center text-[14px] font-semibold tabular-nums" style={{ color: p.stats.pending > 0 ? 'var(--accent-deep)' : 'var(--ink-4)' }}>
-                        {p.stats.pending}
-                      </div>
-                      <div className="text-center text-[14px] font-semibold tabular-nums" style={{ color: rej > 0 ? 'var(--rejected)' : 'var(--ink-4)' }}>
-                        {rej}
-                      </div>
-                      <div className="flex justify-end">
-                        <ArrowRight size={15} style={{ color: 'var(--ink-4)' }} className="group-hover:text-(--ink-3)" />
-                      </div>
-                    </Link>
+                    </div>
                   );
                 })
               )}
@@ -581,7 +597,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-bold" style={{ color: 'oklch(0.38 0.15 30)' }}>Storage full</p>
                       <p className="text-[12px] mt-0.5 leading-normal" style={{ color: 'oklch(0.48 0.08 40)' }}>
-                        You're using <strong>{usedMB} MB</strong> of your <strong>{limitMB} MB</strong> limit. Delete old files to make room for new ones.
+                        You&apos;re using <strong>{usedMB} MB</strong> of your <strong>{limitMB} MB</strong> limit. Delete old files to make room for new ones.
                       </p>
                       {/* Usage bar */}
                       <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: 'oklch(0.88 0.06 40)' }}>

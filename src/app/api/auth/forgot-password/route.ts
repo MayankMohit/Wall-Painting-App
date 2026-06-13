@@ -33,7 +33,7 @@ export const POST = withMiddleware({ rateLimit: 'strict', schema: ForgotPassword
     await user.save();
 
     const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${rawToken}`;
-    await sendPasswordResetEmail(user.email, resetUrl);
+    if (user.email) await sendPasswordResetEmail(user.email, resetUrl);
 
     return Response.json({ data: { message: NEUTRAL_MSG } });
   }

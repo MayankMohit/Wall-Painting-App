@@ -20,7 +20,7 @@ interface OwnerProfileData {
   joined: string;
 }
 
-function useOwnerProfile(user: { name?: string; email?: string } | null) {
+function useOwnerProfile(user: { name?: string; email?: string | null } | null) {
   const [data, setData]       = useState<OwnerProfileData | null>(null);
   const [isLoading, setLoading] = useState(true);
   const [error, setError]     = useState('');

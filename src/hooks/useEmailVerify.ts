@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { apiPost } from '@/lib/profileApi';
+import { apiPost, errMsg } from '@/lib/profileApi';
 
 export function useEmailVerify(onSuccess: () => void) {
   const [sessionId, setSessionId]   = useState<string | null>(null);
@@ -13,7 +13,7 @@ export function useEmailVerify(onSuccess: () => void) {
     setError(null); setSending(true);
     try {
       const { ok, data } = await apiPost('/api/users/verify-email/send', {});
-      if (!ok) { setError(data.error ?? 'Failed to send code'); return; }
+      if (!ok) { setError(errMsg(data, 'Failed to send code')); return; }
       setSessionId(data.sessionId);
     } catch { setError('Network error'); }
     finally   { setSending(false); }
@@ -24,7 +24,7 @@ export function useEmailVerify(onSuccess: () => void) {
     setConfirming(true); setError(null);
     try {
       const { ok, data } = await apiPost('/api/users/verify-email/confirm', { sessionId, otp: code });
-      if (!ok) { setError(data.error ?? 'Invalid code'); setOtp(''); return; }
+      if (!ok) { setError(errMsg(data, 'Invalid code')); setOtp(''); return; }
       setSuccess(true); onSuccess();
     } catch { setError('Network error'); }
     finally   { setConfirming(false); }

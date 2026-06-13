@@ -8,7 +8,7 @@ export interface ProfileData {
   stats: { accepted: number; pending: number };
 }
 
-export function useProfileData(user: { name?: string; email?: string } | null) {
+export function useProfileData(user: { name?: string; email?: string | null } | null) {
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [isLoading, setIsLoading]     = useState(true);
   const [error, setError]             = useState('');

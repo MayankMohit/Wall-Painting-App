@@ -2,6 +2,8 @@
 
 import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
+import { ShareInviteButton } from '@/components/owner/ShareInviteButton';
+import { useGetJobInvitesQuery } from '@/store/api/endpoints/jobs';
 
 interface AssignedPainter {
   _id: string;
@@ -19,6 +21,9 @@ export default function JobPaintersPage({ params }: { params: Promise<{ jobId: s
   const [painters, setPainters] = useState<AssignedPainter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const { data: invites } = useGetJobInvitesQuery(jobId);
+  const inviteFor = (pid: string) => (invites ?? []).find((iv) => iv.painterId === pid && iv.status === 'active');
 
   // Add Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -159,7 +164,7 @@ export default function JobPaintersPage({ params }: { params: Promise<{ jobId: s
                     <div key={p._id} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg">
                       <div>
                         <p className="font-bold text-gray-900 text-sm">{p.name}</p>
-                        <p className="text-xs text-gray-500">{p.email}</p>
+                        <p className="text-xs text-gray-500">{p.email || p.phone || 'No email'}</p>
                       </div>
                       <button 
                         onClick={() => handleAddPainter(p._id)}
@@ -203,7 +208,7 @@ export default function JobPaintersPage({ params }: { params: Promise<{ jobId: s
                     <span className="text-indigo-600 opacity-0 group-hover:opacity-100 text-sm font-bold">View Submissions →</span>
                   </h3>
                   <div className="text-sm text-gray-500 flex flex-col mt-0.5">
-                    <span>✉️ {painter.email}</span>
+                    {painter.email && <span>✉️ {painter.email}</span>}
                     {painter.phone && <span>📞 {painter.phone}</span>}
                   </div>
                 </div>
@@ -214,6 +219,10 @@ export default function JobPaintersPage({ params }: { params: Promise<{ jobId: s
                   <div className="text-xl font-black text-gray-900">{painter.submissionCount}</div>
                   <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mt-1">Total Submissions</div>
                 </div>
+              </div>
+
+              <div className="px-6 py-3 border-b border-gray-100">
+                <ShareInviteButton jobId={jobId} painterId={painter._id} invite={inviteFor(painter._id)} compact />
               </div>
 
               <div className="p-4 bg-gray-50 mt-auto flex justify-between items-center px-6">

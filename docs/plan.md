@@ -1,6 +1,6 @@
 # Plan — Remove Phone Verification, WhatsApp Invite Flow & Painter-wise Excel
 
-> Status: **Proposed** · Last updated: 2026-06-12
+> Status: **Phase A done · §8 done · Phase B done (foundation + APIs + frontend) · Phase C next** · Last updated: 2026-06-13
 >
 > Replaces Firebase phone OTP (blocked in production by the Spark plan's 10 SMS/day
 > limit) and implements the hackathon panel's feedback: a WhatsApp-first onboarding
@@ -26,9 +26,10 @@ link per painter over WhatsApp, removing signup entirely.
 - **Phase A** — Rip out Firebase phone verification everywhere. Ships immediately,
   unblocks production.
 - **Phase B** — Owner-provisioned painter accounts + per-painter invite links +
-  public claim page that logs the painter in.
-- **Phase C** — WhatsApp deep-link polish, invite resend/revoke UI, painter
-  account upgrade (set email/password later).
+  public claim page that logs the painter straight into the job, plus the
+  painter account upgrade (set email/password) so they can also log in normally.
+- **Phase C** — Invite management polish (batch resend, unclaimed banner) and
+  Firebase env cleanup.
 - **Painter-wise Excel (§8)** — a second Excel export type where the job's data is
   grouped into one section per painter, each with its own area total. Independent
   of Phases A–C; can be built in parallel.
@@ -70,9 +71,10 @@ Independent of Phases B/C. Small, ships first, fixes production today.
 
 ### 3.2 Behavioural notes
 
-- Self-registration stays available for **owners** (and painters, until Phase B
-  makes that path mostly redundant). Owner registration still requires email OTP —
-  that flow is untouched.
+- Self-registration stays available for **owners and painters — permanently**.
+  Owner-provisioning (Phase B) becomes the primary painter path, but manual
+  painter signup remains a supported secondary path (unverified phone, no demotion
+  or hiding). Owner registration still requires email OTP — that flow is untouched.
 - Phone numbers are now stored **unverified**. Risk: a typo'd or squatted number.
   Accepted: stakes are low, admins can edit users, and Phase B makes the owner
   the source of truth for painter phones anyway.
@@ -96,21 +98,28 @@ Independent of Phases B/C. Small, ships first, fixes production today.
 ```
 Owner (job page)                                Painter (WhatsApp)
 ─────────────────                               ──────────────────
-1. "Add painter" → "New painter" tab
-2. Enters name + phone (email optional)
-3. POST /api/users/painters  ──► creates User (role painter, no password)
-4. POST /api/jobs/[jobId]/invites ──► Invite { tokenHash, painterId, jobId }
+1. "Add painter" → search list
+2. Not found → "Create painter" (bottom of list)
+3. Enters name + phone only → one "Create & add" button:
+     POST /api/users/painters  ──► creates User (role painter, no password)
+     POST /api/jobs/[jobId]/painters ──► adds painter to THIS job
+4. Taps "Share link" (per painter, in the job's painter list or detail page):
+     POST /api/jobs/[jobId]/invites ──► Invite { tokenHash, painterId, jobId }
 5. Gets wa.me deep link with prefilled
    message containing https://app/join/<token>
 6. Taps link → WhatsApp opens → sends     ──►  7. Painter taps /join/<token>
-                                               8. Page shows "Join <company> as <name>"
-                                               9. Tap Continue → POST /api/auth/invite/claim
-                                              10. JWT issued (normal signToken payload)
-                                              11. Redirect → /painter/dashboard
+                                               8. Auto-claims on load (POST) — no
+                                                  confirmation page shown
+                                               9. JWT issued (normal signToken payload)
+                                              10. Redirect → that invite's job page
 ```
 
-Steps 3+4 happen in one UI action; existing painters skip step 3 (invite can be
-generated for any painter already assigned to the job).
+Step 3 creates the account **and** adds the painter to the current job in one
+click (symmetric with tapping an existing search result). Job membership is
+**always** the owner's action — tapping the link never adds the painter to a
+job, it only logs them in and drops them into the job the invite was made for.
+Existing painters skip step 3 (invite can be generated for any painter already
+on the job).
 
 ### 4.2 Database changes
 
@@ -193,17 +202,17 @@ Zod validation, rate limit, audit).
   3. Painter exists and `status !== 'suspended'` → else 403 `ACCOUNT_DISABLED`.
 - On success: set `lastUsedAt`, issue the standard JWT via
   `signToken({ userId, role: 'painter', name })`, return the same
-  `{ token, user }` shape as the other login routes (so `authStore` logic is reused).
-- Optional convenience: also return `{ jobId, companyName }` so the claim page
-  can greet contextually and deep-link to the job.
+  `{ token, user }` shape as the other login routes (so `authStore` logic is
+  reused), **plus `{ jobId }`** so the claim page redirects straight into that
+  job.
 - Audit: `AUTH_LOGIN_INVITE`.
 
-**`GET /api/auth/invite/resolve?token=...`** — public, `rateLimit: 'strict'`
-
-- Read-only preview for the claim page: returns `{ painterName, companyName }`
-  or the same 410/403 errors. Does **not** log in and does not touch
-  `lastUsedAt` — safe against WhatsApp link-preview prefetch (which only GETs
-  the page, never POSTs).
+> **No `resolve` preview endpoint.** Earlier drafts had a `GET .../resolve` to
+> render a "Joining \<company\> as \<name\>" greeting. We dropped the greeting
+> entirely (see §4.5), so there is no preview endpoint. The WhatsApp
+> link-preview bot only GETs the page HTML and never runs the client-side claim
+> POST, so it can't consume an invite; multi-use makes an accidental claim
+> harmless anyway.
 
 ### 4.4 Login route guard (password-less accounts)
 
@@ -219,88 +228,125 @@ account-state enumeration.) Same guard in any other password-checking route
 
 ### 4.5 New page — `src/app/join/[token]/page.tsx`
 
-Public route (no auth middleware). Client component:
+Public route (no auth middleware). Client component. **No confirmation screen** —
+the painter taps the WhatsApp link and lands in the job; nothing to read or click.
 
-1. On mount: `GET /api/auth/invite/resolve` → show
-   **"You're joining \<company\> as \<painter name\>"** with a single
-   **Continue** button. Friendly error states for expired/revoked/disabled.
-2. On Continue: `POST /api/auth/invite/claim` → on success call a new
-   `authStore.loginWithInvite(token)` action (mirrors `loginWithEmailOtp`:
-   `persistAuth`, `scheduleRefresh`, set user) → `router.push('/painter/dashboard')`.
-3. If already authenticated as the same painter, skip straight to the dashboard.
-   If authenticated as someone else, log out first, then continue.
+1. On mount: show a brief loading state, then `POST /api/auth/invite/claim` via a
+   new `authStore.loginWithInvite(token)` action (mirrors `loginWithEmailOtp`:
+   `persistAuth`, `scheduleRefresh`, set user).
+2. On success: `router.replace('/painter/jobs/<jobId>')` (the invite's job, from
+   the claim response) — not the dashboard.
+3. On failure: friendly full-page error states for expired/revoked/disabled
+   ("Ask your contractor to send a new link"). This is the only UI the painter
+   ever sees on this route, and only when something is wrong.
+4. If already authenticated as the **same** painter, skip the claim and redirect
+   straight to the job. If authenticated as **someone else**, log out first, then
+   claim.
 
-The explicit Continue click (instead of auto-claim on load) keeps the claim a
-deliberate action and is the natural seam for an email-OTP step later (§7.4).
+Auto-claiming on load (rather than behind a Continue button) is safe: the
+WhatsApp preview bot GETs the HTML but never runs the claim POST, and the invite
+is multi-use so a re-open just re-logs-in.
 
 ### 4.6 Owner UI changes
 
-**`src/components/owner/AddPainterModal.tsx`** — add a two-tab layout:
+**`src/components/owner/AddPainterModal.tsx`** — a single search list (no tabs):
 
-- **Existing** — current search/add list, plus a per-row "Get invite link"
-  action after adding (calls `POST /api/jobs/[jobId]/invites`, shows the wa.me
-  button + copy-link button).
-- **New painter** — name + phone (+ optional email) form → on submit:
-  `POST /api/users/painters` → `POST /api/jobs/[jobId]/painters` →
-  `POST /api/jobs/[jobId]/invites` → success state showing
-  **"Open WhatsApp"** (wa.me deep link) and **"Copy message"** buttons.
-  On 409, render the returned existing painter inline with an
-  "Add to job instead" button.
+- Type to search the owner's scoped painters (by name or phone). Matches render
+  at the top; **a "＋ Create new painter" row is always pinned at the bottom of
+  the list** (so it's available whether or not the search matched anyone).
+- Tapping an existing match adds them to the job (current behaviour).
+- Tapping "Create new painter" opens an inline **name + phone** form (no email
+  field — painters set email themselves later, §4.10). One **"Create & add"**
+  button does `POST /api/users/painters` → `POST /api/jobs/[jobId]/painters` in
+  a single action, then returns to the painter list with a per-row **"Share
+  link"** button for the new painter.
+- **Name collision is allowed** — if the typed name matches existing painters,
+  show them as suggestions above the create form ("Did you mean…?") so the owner
+  can pick the real one instead of duplicating, but creation still proceeds.
+- **Phone collision blocks creation** — `POST /api/users/painters` returns 409
+  with the existing painter; the form renders that painter inline with an
+  **"Add to job"** button instead of creating a duplicate. (Non-painter
+  conflict → plain 409, no details leaked.)
 
-**`src/app/owner/jobs/[jobId]/painters/page.tsx`** — per painter row: invite
-status chip (active / expired / none, from a small
-`GET /api/jobs/[jobId]/invites` list endpoint or embedded in the painters
-aggregate), "Resend link" (regenerates), "Revoke" actions.
+**Invite sharing** lives wherever a painter appears on a job, as a per-painter
+button (not bundled into creation):
+
+- **`src/app/owner/jobs/[jobId]/painters/page.tsx`** — each painter row gets an
+  invite-status chip (active / expired / none, from a small
+  `GET /api/jobs/[jobId]/invites` list endpoint or embedded in the painters
+  aggregate) and a **"Share link"** action (creates/regenerates the invite,
+  shows the **"Open WhatsApp"** + **"Copy message"** buttons), plus **"Revoke"**.
+- **`src/app/owner/jobs/[jobId]/painters/[pid]/page.tsx`** (painter detail) — the
+  **same "Share link" / status / revoke** controls for that one painter.
 
 **RTK Query** — new endpoints in `src/store/api/endpoints/painters.ts`
 (`createPainter`) and `jobs.ts` (`createInvite`, `revokeInvite`), with cache
 invalidation on the job painters list.
 
-### 4.7 Scoping fix (do while we're here)
+### 4.7 Scoping fix — REVERTED (2026-06-13, owner's decision)
 
-`GET /api/users` currently lists **all** painters platform-wide to any owner.
-Once owners provision accounts this is a real privacy leak between competing
-contractors. Scope it: owners see only painters who appear in their own jobs
-(`Job.distinct('painters', { ownerId })` → `$in` filter). Admin behaviour
-unchanged. `AddPainterModal` search keeps working against the scoped list.
+Originally scoped `GET /api/users` so owners saw only painters in their own jobs
+(`Job.distinct('painters', { ownerId })` → `$in`). **Reverted** at the owner's
+request: it hid pre-existing/self-registered painters from the Add-painter search,
+breaking the "add an existing painter" workflow. Owners now see **all** painters
+again (pre-Phase-B behaviour). Trade-off accepted: this app is treated as a shared
+painter pool, not multi-tenant with cross-contractor privacy. Revisit only if it
+becomes genuinely multi-tenant.
 
 ### 4.8 Security summary
 
 | Threat | Mitigation |
 |---|---|
-| Token brute force | 256-bit random token; `strict` rate limit on claim/resolve; tokens hashed at rest |
+| Token brute force | 256-bit random token; `strict` rate limit on claim; tokens hashed at rest |
 | Forwarded link = stolen session | Accepted for this threat model (painter uploads photos to one job). Owner-side revoke + 30-day expiry + regenerate-on-resend bound the exposure. JWT expiry/refresh unchanged. |
-| Link-preview bots consuming invites | Claim is POST-only behind a button; resolve is read-only |
+| Link-preview bots consuming invites | Claim is a client-side POST run on page load; the preview bot only GETs the HTML and never executes it. Multi-use makes an accidental claim harmless. |
 | DB leak leaks login links | Only SHA-256 hashes stored |
 | Owner A invites painter of owner B | Invites require `requireJobOwner` on the job; painter accounts are global but the invite only grants login + that painter's own existing access |
 | Suspended painter uses old link | Claim re-checks `user.status` on every use |
 
-### 4.9 Acceptance criteria
+### 4.10 Painter account upgrade — set email + password (pulled into Phase B)
 
-- [ ] Owner can create a painter with just name + phone, get a wa.me link, and the
-      painter logs in by tapping the link — zero typing for the painter.
+A painter created by an owner has **no email and no password**, so they can only
+get in via the invite link. Phase B gives them a way to upgrade so normal login
+works too (originally Phase C; moved up so provisioned painters aren't link-only).
+
+- **Painter profile page** gets **"Add email"** (reuses the existing
+  verify-email OTP flow → sets `email` + `emailVerified`) and **"Set password"**
+  (no current-password check when `user.password` is unset; `ChangePasswordSchema`).
+- Until both are set, password login stays rejected by the §4.4 guard. Once set,
+  phone/email + password login works **alongside** the still-valid invite link.
+- This is independent of the invite mechanics — a painter can upgrade anytime,
+  and self-registered painters already have email+password from signup.
+
+### 4.11 Acceptance criteria
+
+- [ ] Owner can create a painter with just name + phone via the "Create & add"
+      button, share a wa.me link, and the painter logs in by tapping it — zero
+      typing for the painter, landing directly in that job (no confirmation page).
 - [ ] Re-opening the same link within 30 days logs in again; after revoke/resend
       the old link shows the "ask your contractor" screen.
-- [ ] Phone conflict on create surfaces the existing painter with one-tap add.
+- [ ] Phone conflict on create surfaces the existing painter with one-tap add;
+      name collisions are allowed and surface "did you mean…" suggestions.
+- [ ] "Share link" is available per-painter in both the job painter list and the
+      painter detail page.
+- [ ] A provisioned painter can set email + password from their profile, after
+      which normal login works; before that, password login is rejected.
 - [ ] Password login is impossible for password-less painters but still works for
       everyone else; `tsc` + lint clean; profile/admin pages render null-email users.
-- [ ] Owners no longer see painters outside their own jobs.
+- [x] ~~Owners no longer see painters outside their own jobs.~~ **Reverted (§4.7)** — owners see all painters (shared pool).
+- [ ] Painter self-registration (`/register`) still works, unverified, as a
+      secondary path.
 
 ---
 
-## 5. Phase C — Polish & Account Upgrade
+## 5. Phase C — Polish
 
-1. **Painter profile upgrade** — painter profile page gets "Add email" (reuses the
-   existing verify-email OTP flow) and "Set password" (no current-password check
-   when `user.password` is unset). Once set, normal phone+password login works
-   alongside the invite link.
-2. **Invite management UX** — invite status on the job painters list, batch
-   "resend all", and a banner on the job page when painters haven't claimed yet
-   (`lastUsedAt === null`).
-3. **Painter self-signup demotion** — keep `/register` for owners; either hide the
-   painter role option or leave it as a secondary path. Decide after observing
-   Phase B adoption.
-4. **Cleanup** — remove unused Firebase env vars from deploy config **except** the
+> Painter profile upgrade (set email/password) moved into Phase B — see §4.10.
+> Painter self-signup is **kept permanently** as a secondary path (no demotion).
+
+1. **Invite management UX** — batch "resend all", and a banner on the job page
+   when painters haven't claimed yet (`lastUsedAt === null`).
+2. **Cleanup** — remove unused Firebase env vars from deploy config **except** the
    FCM ones (`NEXT_PUBLIC_FIREBASE_*` and the admin credentials are still needed
    for push).
 
@@ -331,15 +377,21 @@ unchanged. `AddPainterModal` search keeps working against the scoped list.
    (`INVITE_TTL_DAYS`) and tune from pilot data.
 4. **Optional email-OTP hardening (original proposal)** — if link forwarding ever
    becomes a real abuse problem *and* painters have verified emails by then, the
-   claim page's Continue step can additionally require an email OTP
-   (`otp:invite:` Redis prefix, existing `sendOtpEmail`). The API is shaped so
-   this is a small additive change, not a redesign.
+   claim page could re-introduce a confirmation step requiring an email OTP
+   (`otp:invite:` Redis prefix, existing `sendOtpEmail`). This would mean bringing
+   back a deliberate Continue screen (removed in §4.5), so it's a UX change, not
+   just additive.
 5. **wwebjs WhatsApp data sink** — parked per D8. Reconsider only if, after
    Phase C, painters still won't open the dashboard link.
+6. **URL shortener for the invite link — out of scope.** Considered and dropped:
+   the link *is* the login credential, so a short code would either lose the
+   entropy that resists brute force or hand the credential to a third-party
+   shortener. The full `wallo.cc/join/<token>` (~65 chars) renders fine as a
+   WhatsApp tappable link. Revisit only if real links prove unwieldy.
 
 ---
 
-## 8. Feature — Painter-wise Excel Export
+## 8. Feature — Painter-wise Excel Export  ✅ DONE (2026-06-13)
 
 Independent of Phases A–C. A second Excel file per job, alongside the existing
 "Master List" export: the same approved-submission data, but grouped into **one

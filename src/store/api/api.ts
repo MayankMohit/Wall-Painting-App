@@ -22,6 +22,7 @@ export const api = createApi({
     'Submission',
     'SubmissionDetail',
     'File',
+    'Invite',
   ],
   endpoints: () => ({}),
 });

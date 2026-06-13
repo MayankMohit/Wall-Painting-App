@@ -7,7 +7,7 @@ const PAGE_SIZE = 20;
 
 export const GET = withRole(['owner', 'admin'])(
   async (req, ctx) => {
-    const { role, userId } = ctx.user!;
+    const { role } = ctx.user!;
     const { searchParams } = new URL(req.url);
     const q          = searchParams.get('q') ?? '';
     const page       = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));

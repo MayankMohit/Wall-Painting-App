@@ -255,7 +255,7 @@ export default function PaintersPage() {
                     className="text-[11px] mt-0.5 truncate"
                     style={{ color: 'var(--ink-3)', fontFamily: 'var(--mono)' }}
                   >
-                    {p.email}{p.phone ? ` · ${p.phone}` : ''}
+                    {[p.email, p.phone].filter(Boolean).join(' · ') || 'No contact'}
                   </div>
                   <div
                     className="text-[10px] mt-0.5"
@@ -346,7 +346,7 @@ export default function PaintersPage() {
                         className="text-[11px] mt-0.5 truncate"
                         style={{ color: 'var(--ink-3)', fontFamily: 'var(--mono)' }}
                       >
-                        {p.email}{p.phone ? ` · ${p.phone}` : ''}
+                        {[p.email, p.phone].filter(Boolean).join(' · ') || 'No contact'}
                       </div>
                     </div>
                   </div>

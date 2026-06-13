@@ -45,7 +45,7 @@ async function processEmail(data: {
   data: Record<string, unknown>;
 }) {
   const user = await User.findById(data.recipientId, 'email name').lean();
-  if (!user) return;
+  if (!user?.email) return;
 
   const tpl = templates[data.eventId];
   if (!tpl?.email) return;

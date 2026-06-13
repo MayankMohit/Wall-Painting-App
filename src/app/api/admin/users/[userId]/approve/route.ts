@@ -29,7 +29,7 @@ export const PATCH = withRole(['admin'], { audit: 'ADMIN_USER_APPROVE' })(
     ctx.setAudit('ADMIN_USER_APPROVE', { type: 'User', id: userId });
 
     await Promise.allSettled([
-      sendOwnerApprovedEmail(user.email, user.name),
+      user.email ? sendOwnerApprovedEmail(user.email, user.name) : Promise.resolve(),
       notify.emit('account.approved', {
         recipientId: String(user._id),
         actorId: ctx.user!.userId,

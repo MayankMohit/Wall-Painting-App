@@ -3,7 +3,7 @@ import { api } from '../api';
 export interface Painter {
   _id: string;
   name: string;
-  email: string;
+  email?: string | null;
   phone?: string;
   status?: string;
   createdAt?: string;
@@ -29,7 +29,11 @@ const paintersEndpoints = api.injectEndpoints({
       },
       transformResponse: (res: { data: PaintersResult }) => res.data,
     }),
+    createPainter: builder.mutation<{ painter: Painter }, { name: string; phone: string; email?: string }>({
+      query: (body) => ({ url: '/users/painters', method: 'POST', body }),
+      transformResponse: (res: { data: { painter: Painter } }) => res.data,
+    }),
   }),
 });
 
-export const { useGetPaintersQuery } = paintersEndpoints;
+export const { useGetPaintersQuery, useCreatePainterMutation } = paintersEndpoints;

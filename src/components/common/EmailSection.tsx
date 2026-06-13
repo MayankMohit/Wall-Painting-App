@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { User } from '@/store/authStore';
+import { errMsg } from '@/lib/profileApi';
 
 interface Props {
   user: User;
@@ -46,7 +47,7 @@ export default function EmailSection({ user, onEmailUpdated }: Props) {
     setVerifySending(true);
     try {
       const { ok, data } = await post('/api/users/verify-email/send', {});
-      if (!ok) { setVerifyError(data.error ?? 'Failed to send OTP'); return; }
+      if (!ok) { setVerifyError(errMsg(data, 'Failed to send OTP')); return; }
       setVerifySessionId(data.sessionId);
     } catch {
       setVerifyError('Network error. Please try again.');
@@ -62,7 +63,7 @@ export default function EmailSection({ user, onEmailUpdated }: Props) {
     try {
       const { ok, data } = await post('/api/users/verify-email/confirm', { sessionId: verifySessionId, otp });
       if (!ok) {
-        setVerifyError(data.error ?? 'Invalid or expired OTP');
+        setVerifyError(errMsg(data, 'Invalid or expired OTP'));
         setVerifyOtp('');
         return;
       }
@@ -106,7 +107,7 @@ export default function EmailSection({ user, onEmailUpdated }: Props) {
     setChangeSending(true);
     try {
       const { ok, data } = await post('/api/users/change-email/send', { newEmail, password: changePassword });
-      if (!ok) { setChangeError(data.error ?? 'Failed to send OTP'); return; }
+      if (!ok) { setChangeError(errMsg(data, 'Failed to send OTP')); return; }
       setChangeSessionId(data.sessionId);
     } catch {
       setChangeError('Network error. Please try again.');
@@ -122,7 +123,7 @@ export default function EmailSection({ user, onEmailUpdated }: Props) {
     try {
       const { ok, data } = await post('/api/users/change-email/confirm', { sessionId: changeSessionId, otp });
       if (!ok) {
-        setChangeError(data.error ?? 'Invalid or expired OTP');
+        setChangeError(errMsg(data, 'Invalid or expired OTP'));
         setChangeOtp('');
         return;
       }

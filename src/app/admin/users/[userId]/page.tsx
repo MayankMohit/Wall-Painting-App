@@ -217,7 +217,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ user
               <Avatar name={user.name} size={56} />
               <div className="flex-1 min-w-0">
                 <div className="text-[17px] font-semibold text-(--ink)">{user.name}</div>
-                <div className="font-(--mono) text-[11px] text-(--ink-3) mt-0.5 truncate">{user.email}</div>
+                <div className="font-(--mono) text-[11px] text-(--ink-3) mt-0.5 truncate">{user.email || 'No email'}</div>
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   <RolePill role={user.role} />
                   <StatusPill status={user.status} />
@@ -239,7 +239,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ user
           <div>
             <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-[.06em] mb-2">Verification</div>
             <div className="bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden">
-              <VerifyRow label="Email" value={user.email} ok={user.emailVerified} />
+              <VerifyRow label="Email" value={user.email || 'No email'} ok={user.emailVerified} />
               <VerifyRow label="Phone" value={user.phone || '—'} ok={!!user.phone} href={user.phone ? `tel:${user.phone}` : undefined} last />
             </div>
           </div>
@@ -362,7 +362,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ user
             <div>
               <div className="text-[11px] font-bold text-(--ink-3) uppercase tracking-[.06em] mb-2.5">Verification</div>
               <div className="bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden">
-                <VerifyRow label="Email" value={user.email} ok={user.emailVerified} />
+                <VerifyRow label="Email" value={user.email || 'No email'} ok={user.emailVerified} />
                 <VerifyRow label="Phone" value={user.phone || '—'} ok={!!user.phone} href={user.phone ? `tel:${user.phone}` : undefined} last />
               </div>
             </div>
@@ -399,7 +399,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ user
                     </div>
                     <div>
                       <div className="text-[17px] font-bold text-(--ink)">Suspend this account?</div>
-                      <div className="text-[12px] text-(--ink-3) mt-0.5">{user.name} · {user.email}</div>
+                      <div className="text-[12px] text-(--ink-3) mt-0.5">{user.name} · {user.email || 'No email'}</div>
                     </div>
                   </div>
                   <div className="space-y-3">

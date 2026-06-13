@@ -3,11 +3,21 @@ import { HttpError, ErrorCodes } from '@/lib/errors';
 
 export type RateLimitTier = 'strict' | 'standard' | 'relaxed';
 
-const TIERS: Record<RateLimitTier, { max: number; windowMs: number }> = {
-  strict  : { max: 5,   windowMs: 15 * 60_000 },
-  standard: { max: 100, windowMs:      60_000  },
-  relaxed : { max: 300, windowMs:      60_000  },
-};
+// Production caps. In dev these are loosened heavily so repeated login/register/
+// invite-claim testing doesn't trip the 5-per-15-min `strict` wall.
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+const TIERS: Record<RateLimitTier, { max: number; windowMs: number }> = IS_PROD
+  ? {
+      strict  : { max: 5,   windowMs: 15 * 60_000 },
+      standard: { max: 100, windowMs:      60_000 },
+      relaxed : { max: 300, windowMs:      60_000 },
+    }
+  : {
+      strict  : { max: 1000, windowMs: 15 * 60_000 },
+      standard: { max: 5000, windowMs:      60_000 },
+      relaxed : { max: 5000, windowMs:      60_000 },
+    };
 
 export async function checkRateLimit(
   tier    : RateLimitTier,

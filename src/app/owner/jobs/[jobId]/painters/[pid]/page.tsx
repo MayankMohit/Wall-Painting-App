@@ -3,13 +3,14 @@
 import { useState, use, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useGetPainterQueueQuery, useGetJobQuery, useRemovePainterFromJobMutation } from '@/store/api/endpoints/jobs';
+import { useGetPainterQueueQuery, useGetJobQuery, useRemovePainterFromJobMutation, useGetJobInvitesQuery } from '@/store/api/endpoints/jobs';
 import { useGetSubmissionsQuery } from '@/store/api/endpoints/submissions';
 import { StatusPill } from '@/components/jobs/shared/StatusPill';
 import { PhotoThumb } from '@/components/jobs/detail/PhotoThumb';
 import { SubmissionRow } from '@/components/jobs/detail/SubmissionRow';
 import { relativeTime } from '@/components/jobs/shared/submissionHelpers';
 import { ArrowLeft, ArrowRight, Trash, X } from '@/components/owner/icons';
+import { ShareInviteButton } from '@/components/owner/ShareInviteButton';
 
 type Filter = 'all' | 'pending' | 'approved' | 'rejected';
 
@@ -41,6 +42,8 @@ export default function PainterQueuePage({
 
   const { data: queue, isLoading: qLoading, isError: qError } = useGetPainterQueueQuery({ jobId, painterId: pid });
   const { data: job } = useGetJobQuery(jobId);
+  const { data: invites } = useGetJobInvitesQuery(jobId);
+  const invite = (invites ?? []).find((iv) => iv.painterId === pid && iv.status === 'active');
   const { data: allSubs = [], isLoading: sLoading } = useGetSubmissionsQuery(jobId);
   const [removePainter, { isLoading: removing }] = useRemovePainterFromJobMutation();
 
@@ -136,6 +139,7 @@ export default function PainterQueuePage({
             {queue.job.companyName} · review queue
           </p>
         </div>
+        <div className="mr-3"><ShareInviteButton jobId={jobId} painterId={pid} invite={invite} compact /></div>
         <button
           onClick={() => setRemoveOpen(true)}
           className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[13px] font-semibold cursor-pointer transition-colors hover:opacity-88"
@@ -185,6 +189,11 @@ export default function PainterQueuePage({
           >
             <Trash size={15} />
           </button>
+        </div>
+
+        {/* Share invite link */}
+        <div className="mt-3">
+          <ShareInviteButton jobId={jobId} painterId={pid} invite={invite} compact />
         </div>
 
         {/* Stat tiles */}

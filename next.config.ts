@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'res.cloudinary.com' },
     ],
   },
-  allowedDevOrigins: ['*.ngrok-free.app', '*.ngrok.io'],
+  allowedDevOrigins: ['*.ngrok-free.app', '*.ngrok.io', '*.trycloudflare.com'],
   async headers() {
     return [
       {
