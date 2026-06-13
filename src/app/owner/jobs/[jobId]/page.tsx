@@ -513,8 +513,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
           <div className="px-5 py-4 flex flex-col gap-2">
 
             {/* File Type Toggles */}
-            {(['excel', 'pdf_photos', 'pdf_file'] as const).map((t) => {
-              const labels: Record<string, string> = { excel: 'Excel Spreadsheet', pdf_photos: 'Photos PDF', pdf_file: 'File PDF' };
+            {(['excel', 'excel_painters', 'pdf_photos', 'pdf_file'] as const).map((t) => {
+              const labels: Record<string, string> = { 
+                excel: 'Excel · Master List', 
+                excel_painters: 'Excel · Painter-wise',
+                pdf_photos: 'Photos PDF', 
+                pdf_file: 'File PDF' 
+              };
               const on = genTypes.includes(t);
               return (
                 <div

@@ -31,8 +31,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
   // Accepts an array so the UI can request Excel AND PDF at the same time
   const { types, ownerInput } = body; 
   
-  if (!Array.isArray(types) || types.length === 0) {
-    return badRequest('Please select at least one file type to generate.');
+  const VALID_TYPES = ['excel', 'excel_painters', 'pdf_file', 'pdf_photos'];
+  if (!Array.isArray(types) || types.length === 0 || !types.every(t => VALID_TYPES.includes(t))) {
+    return badRequest('Please select at least one valid file type to generate.');
   }
 
   await connectDB();
@@ -55,7 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
     const createdFiles = [];
 
     for (const type of types) {
-      const ext = type === 'excel' ? 'xlsx' : 'pdf';
+      const ext = type.startsWith('excel') ? 'xlsx' : 'pdf';
       const fileName = `export_${type}_${Date.now()}.${ext}`;
 
       const fileDoc = await GeneratedFile.create({

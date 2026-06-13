@@ -7,7 +7,7 @@ import '@/lib/models/Photo';
 import '@/lib/models/User';
 
 import { r2 } from '@/lib/r2';
-import { buildExcel } from './excelWorker';
+import { buildExcel, buildPainterWiseExcel } from './excelWorker';
 import { buildPhotosPdf } from './photosPdfWorker';
 import { buildFilePdf } from './filePdfWorker';
 
@@ -22,8 +22,6 @@ function redisConnection() {
     ...(url.username && url.username !== 'default' ? { username: url.username } : {}),
     ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
     maxRetriesPerRequest: null as unknown as number,
-    // Exponential backoff capped at 30s.
-    // Prevents the tight retry loop that burns Upstash free-tier request quota.
     retryStrategy: (times: number) => Math.min(times * 2_000, 30_000),
   };
 }
@@ -31,7 +29,7 @@ function redisConnection() {
 type Payload = {
   jobId: string;
   fileId: string;
-  type: 'excel' | 'pdf_photos' | 'pdf_file';
+  type: 'excel' | 'excel_painters' | 'pdf_photos' | 'pdf_file';
   ownerId: string;
   ownerInput?: { companyName?: string; jobName?: string; city?: string; address?: string };
 };
@@ -51,6 +49,17 @@ async function main() {
       switch (type) {
         case 'excel': {
           const excel = await buildExcel(jobId, {
+            companyName: ownerInput.companyName || '',
+            jobName: ownerInput.jobName || '',
+            city: ownerInput.city || '',
+          });
+          buffer = excel.buffer;
+          mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+          ext = 'xlsx';
+          break;
+        }
+        case 'excel_painters': {
+          const excel = await buildPainterWiseExcel(jobId, {
             companyName: ownerInput.companyName || '',
             jobName: ownerInput.jobName || '',
             city: ownerInput.city || '',
@@ -90,17 +99,14 @@ async function main() {
       await GeneratedFile.updateOne({ _id: fileId }, {
         status: 'ready', r2Path, r2Url, fileSize: buffer.length,
       });
-
-      // Removed the redis.publish line here to prevent conflict with the main app.
-      // Your frontend polling will pick up the 'ready' status naturally from the DB update above!
     },
     {
       connection,
       concurrency:      2,
-      drainDelay:       30,       // seconds to wait between polls when queue is empty (was ~5s)
-      stalledInterval:  60_000,   // check for stalled jobs every 60s instead of 30s
-      lockDuration:     120_000,  // hold job lock for 2 min (reduces lock-renewal commands)
-      lockRenewTime:    60_000,   // renew at halftime
+      drainDelay:       30, 
+      stalledInterval:  60_000, 
+      lockDuration:     120_000,
+      lockRenewTime:    60_000, 
     }
   );
 

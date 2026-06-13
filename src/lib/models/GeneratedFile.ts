@@ -3,15 +3,15 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 export interface IGeneratedFile extends Document {
   _id: Types.ObjectId;
   jobId: Types.ObjectId;
-  fileType: 'excel' | 'pdf_file' | 'pdf_photos';
+  fileType: 'excel' | 'excel_painters' | 'pdf_file' | 'pdf_photos';
   fileName: string;
-  r2Path?: string;        // Made optional
-  r2Url?: string;         // Made optional
-  fileSize?: number;      // Made optional
+  r2Path?: string;
+  r2Url?: string;
+  fileSize?: number;
   status: 'generating' | 'ready' | 'failed';
   generatedBy: Types.ObjectId;
-  generatedAt?: Date;     // Made optional
-  expiresAt?: Date;       // Made optional
+  generatedAt?: Date;
+  expiresAt?: Date;
   downloadCount: number;
   createdAt: Date;
   updatedAt: Date;
@@ -20,10 +20,9 @@ export interface IGeneratedFile extends Document {
 const GeneratedFileSchema = new Schema<IGeneratedFile>(
   {
     jobId: { type: Schema.Types.ObjectId, ref: 'Job', required: true },
-    fileType: { type: String, enum: ['excel', 'pdf_file', 'pdf_photos'], required: true },
+    fileType: { type: String, enum: ['excel', 'excel_painters', 'pdf_file', 'pdf_photos'], required: true },
     fileName: { type: String, required: true },
     
-    // These are populated by the worker AFTER generation is complete
     r2Path: { type: String },
     r2Url: { type: String },
     fileSize: { type: Number },

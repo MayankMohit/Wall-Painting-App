@@ -15,9 +15,10 @@ import { ArrowLeft, Trash, Spark, Clock, Check, Bell, X } from '@/components/own
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 const FILE_META = {
-  excel:      { color: 'oklch(0.55 0.13 145)', label: 'Excel · Wall log',    filterLabel: 'Excel'    },
-  pdf_photos: { color: 'oklch(0.55 0.18 25)',  label: 'Photos PDF',          filterLabel: 'Photo PDF' },
-  pdf_file:   { color: 'oklch(0.5 0.12 240)',  label: 'Invoice-ready PDF',   filterLabel: 'File PDF'  },
+  excel:          { color: 'oklch(0.55 0.13 145)', label: 'Excel · Master List',  filterLabel: 'Master Excel' },
+  excel_painters: { color: 'oklch(0.48 0.16 160)', label: 'Excel · Painter-wise', filterLabel: 'Painter Excel' },
+  pdf_photos:     { color: 'oklch(0.55 0.18 25)',  label: 'Photos PDF',           filterLabel: 'Photo PDF' },
+  pdf_file:       { color: 'oklch(0.5 0.12 240)',  label: 'Invoice-ready PDF',    filterLabel: 'File PDF'  },
 } as const;
 
 function formatSize(bytes?: number): string {
@@ -35,7 +36,7 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-type FileFilter = 'all' | 'excel' | 'pdf_photos' | 'pdf_file';
+type FileFilter = 'all' | 'excel' | 'excel_painters' | 'pdf_photos' | 'pdf_file';
 
 const EMPTY_FILES: GeneratedFile[] = [];
 
@@ -75,7 +76,7 @@ function EyeIcon({ size = 16 }: { size?: number }) {
 }
 
 function FileTypeIcon({ type, size = 18 }: { type: GeneratedFile['fileType']; size?: number }) {
-  return type === 'excel' ? <ExcelIcon size={size} /> : <PdfIcon size={size} />;
+  return type.startsWith('excel') ? <ExcelIcon size={size} /> : <PdfIcon size={size} />;
 }
 
 // ── generating hero ───────────────────────────────────────────────────────────
@@ -179,7 +180,7 @@ function PreviewModal({
 }) {
   const [loaded, setLoaded] = useState(false);
 
-  const src = fileType === 'excel'
+  const src = fileType.startsWith('excel')
     ? `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`
     : url;
 
@@ -193,7 +194,7 @@ function PreviewModal({
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-semibold text-white truncate">{fileName}</p>
           <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
-            {fileType === 'excel' ? 'Excel preview via Office Online' : 'PDF preview'}
+            {fileType.startsWith('excel') ? 'Excel preview via Office Online' : 'PDF preview'}
           </p>
         </div>
         <button
@@ -219,7 +220,7 @@ function PreviewModal({
           onLoad={() => setLoaded(true)}
           title={fileName}
           // PDFs: allow same-origin; Excel: Office Online handles it
-          sandbox={fileType === 'excel' ? 'allow-scripts allow-same-origin allow-forms allow-popups' : undefined}
+          sandbox={fileType.startsWith('excel') ? 'allow-scripts allow-same-origin allow-forms allow-popups' : undefined}
         />
       </div>
     </div>
@@ -314,17 +315,19 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
   const totalSize = readyFiles.reduce((sum: number, f: GeneratedFile) => sum + (f.fileSize ?? 0), 0);
 
   const filterCounts = {
-    all:        readyFiles.length,
-    excel:      readyFiles.filter((f: GeneratedFile) => f.fileType === 'excel').length,
-    pdf_photos: readyFiles.filter((f: GeneratedFile) => f.fileType === 'pdf_photos').length,
-    pdf_file:   readyFiles.filter((f: GeneratedFile) => f.fileType === 'pdf_file').length,
+    all:            readyFiles.length,
+    excel:          readyFiles.filter((f: GeneratedFile) => f.fileType === 'excel').length,
+    excel_painters: readyFiles.filter((f: GeneratedFile) => f.fileType === 'excel_painters').length,
+    pdf_photos:     readyFiles.filter((f: GeneratedFile) => f.fileType === 'pdf_photos').length,
+    pdf_file:       readyFiles.filter((f: GeneratedFile) => f.fileType === 'pdf_file').length,
   };
 
   const FILTERS: { key: FileFilter; label: string }[] = [
-    { key: 'all',        label: `All · ${filterCounts.all}`             },
-    { key: 'excel',      label: `Excel · ${filterCounts.excel}`         },
-    { key: 'pdf_photos', label: `Photo PDF · ${filterCounts.pdf_photos}` },
-    { key: 'pdf_file',   label: `File PDF · ${filterCounts.pdf_file}`   },
+    { key: 'all',            label: `All · ${filterCounts.all}`             },
+    { key: 'excel',          label: `Master Excel · ${filterCounts.excel}`  },
+    { key: 'excel_painters', label: `Painter Excel · ${filterCounts.excel_painters}` },
+    { key: 'pdf_photos',     label: `Photo PDF · ${filterCounts.pdf_photos}`},
+    { key: 'pdf_file',       label: `File PDF · ${filterCounts.pdf_file}`   },
   ];
 
   const displayedFiles = readyFiles.filter((f: GeneratedFile) => filter === 'all' || f.fileType === filter);

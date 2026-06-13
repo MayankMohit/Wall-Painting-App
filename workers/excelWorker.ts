@@ -2,33 +2,38 @@ import ExcelJS from 'exceljs';
 import { Submission } from '@/lib/models/Submission';
 import { Job } from '@/lib/models/Job';
 import { buildMasterSheet } from './layouts/excelLayout';
+import { buildPainterSections } from './layouts/painterExcelLayout';
 
-export async function buildExcel(jobId: string, header: { companyName: string; jobName: string; city: string }) {
-
-  // Fetch the actual Job document from the database
-  const jobDoc = await Job.findById(jobId).lean();
-  
-  // In your schema, the job's title is stored as 'companyName'
+// Shared data fetcher
+async function fetchJobData(jobId: string) {
+  const jobDoc = await Job.findById(jobId).populate('painters', 'name').lean();
   const actualJobName = jobDoc?.companyName || 'UNKNOWN JOB';
-
-  // 1. Fetch submissions AND populate the painter's name
+  
   const subs = await Submission.find({ jobId, status: 'approved' })
     .sort({ painterId: 1, photoNo: 1, submittedAt: 1 })
     .populate('painterId', 'name')
     .lean();
 
+  return { 
+    actualJobName, 
+    subs, 
+    allPainters: (jobDoc?.painters as any[]) || [] 
+  };
+}
+
+export async function buildExcel(jobId: string, header: { companyName: string; jobName: string; city: string }) {
+  const { actualJobName, subs } = await fetchJobData(jobId);
   const wb = new ExcelJS.Workbook();
+  const flattenedRows = buildMasterSheet(wb, { ...header, jobName: actualJobName }, subs);
 
-  const finalHeader = {
-    ...header,
-    jobName: actualJobName
-  };
+  return { buffer: Buffer.from(await wb.xlsx.writeBuffer()), rows: flattenedRows };
+}
 
-  // 2. Delegate to layout builder (Painter looping is removed, only Master List remains)
-  const flattenedRows = buildMasterSheet(wb, finalHeader, subs);
+export async function buildPainterWiseExcel(jobId: string, header: { companyName: string; jobName: string; city: string }) {
+  const { actualJobName, subs, allPainters } = await fetchJobData(jobId);
+  const wb = new ExcelJS.Workbook();
+  
+  buildPainterSections(wb, { ...header, jobName: actualJobName }, subs, allPainters);
 
-  return {
-    buffer: Buffer.from(await wb.xlsx.writeBuffer()),
-    rows: flattenedRows
-  };
+  return { buffer: Buffer.from(await wb.xlsx.writeBuffer()) };
 }

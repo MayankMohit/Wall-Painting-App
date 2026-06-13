@@ -3,7 +3,7 @@ import { api } from '../api';
 export interface GeneratedFile {
   _id: string;
   jobId: string;
-  fileType: 'excel' | 'pdf_photos' | 'pdf_file';
+  fileType: 'excel' | 'excel_painters' | 'pdf_photos' | 'pdf_file';
   fileName: string;
   fileSize?: number;
   r2Url?: string;
