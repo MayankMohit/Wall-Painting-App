@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { v2 as cloudinary } from 'cloudinary';
+import { STORAGE_ENV } from '@/lib/storageEnv';
 
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -54,8 +55,11 @@ export function signUpload(params: SignParams = {}): CloudinarySignature {
   const apiSecret = process.env.CLOUDINARY_API_SECRET!;
   const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET ?? null;
 
-  const paramsToSign: Record<string, string | number> = { timestamp };
-  if (params.folder) paramsToSign.folder = params.folder;
+  // Enforce a per-environment top-level folder server-side (never trust the
+  // client) so dev and prod assets never collide in a shared Cloudinary cloud.
+  const folder = params.folder ? `${STORAGE_ENV}/${params.folder}` : STORAGE_ENV;
+
+  const paramsToSign: Record<string, string | number> = { timestamp, folder };
   if (uploadPreset) paramsToSign.upload_preset = uploadPreset;
 
   const paramStr = Object.keys(paramsToSign)
@@ -74,6 +78,6 @@ export function signUpload(params: SignParams = {}): CloudinarySignature {
     cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME!,
     apiKey: process.env.CLOUDINARY_API_KEY!,
     uploadPreset,
-    folder: params.folder ?? null,
+    folder,
   };
 }

@@ -7,6 +7,7 @@ import '@/lib/models/Photo';
 import '@/lib/models/User';
 
 import { r2 } from '@/lib/r2';
+import { STORAGE_ENV } from '@/lib/storageEnv';
 import { buildExcel, buildPainterWiseExcel } from './excelWorker';
 import { buildPhotosPdf } from './photosPdfWorker';
 import { buildFilePdf } from './filePdfWorker';
@@ -93,7 +94,7 @@ async function main() {
           throw new Error(`Unknown file type: ${type}`);
       }
 
-      const r2Path = `exports/${jobId}/${fileId}.${ext}`;
+      const r2Path = `exports/${STORAGE_ENV}/${jobId}/${fileId}.${ext}`;
       const r2Url = await r2.upload(r2Path, buffer, mime);
 
       await GeneratedFile.updateOne({ _id: fileId }, {
