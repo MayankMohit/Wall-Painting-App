@@ -50,7 +50,7 @@ export default function AuthShell({ children, tagline }: AuthShellProps) {
 
         {/* Footer */}
         <div className="relative flex justify-between text-[11px] text-white/35 tracking-wider font-(--mono)">
-          <span>v3.2 · WEB</span>
+          <span>v1 · WEB</span>
           <span>© WALLO</span>
         </div>
       </div>

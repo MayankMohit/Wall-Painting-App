@@ -15,6 +15,8 @@ import {
   Brush,
   Briefcase,
   Shield,
+  Eye,
+  EyeOff,
 } from "@/components/auth/icons";
 
 export default function RegisterPage() {
@@ -25,6 +27,8 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<"painter" | "owner">("painter");
 
   const [emailVerified, setEmailVerified] = useState(false);
@@ -139,11 +143,14 @@ export default function RegisterPage() {
     }
   }
 
+  const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
+
   const canSubmit =
     !!name &&
     !!email &&
     !!phone &&
     !!password &&
+    passwordsMatch &&
     (role === "painter" || emailVerified) &&
     !isLoading;
 
@@ -336,12 +343,38 @@ export default function RegisterPage() {
             {/* Password */}
             <AuthField
               label="Password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Min. 8 characters"
               autoComplete="new-password"
               required
+              trailing={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="text-(--ink-3) hover:text-(--ink) transition-colors shrink-0"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              }
+            />
+
+            {/* Confirm Password */}
+            <AuthField
+              label="Confirm password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter your password"
+              autoComplete="new-password"
+              required
+              error={
+                confirmPassword.length > 0 && !passwordsMatch
+                  ? "Passwords do not match"
+                  : undefined
+              }
             />
 
             {/* Owner info notice */}
