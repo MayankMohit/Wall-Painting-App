@@ -270,11 +270,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               No painters assigned yet.
             </div>
           ) : (
-            <div>
+            <div className="bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden">
               {job.painters.map((p) => {
                 const rej = p.stats.submitted - p.stats.approved - p.stats.pending;
                 return (
-                  <div key={p._id} className="py-3 border-b border-(--border) last:border-0">
+                  <div key={p._id} className="px-4 py-4 border-b border-(--border) last:border-0">
                     <Link
                       href={`/owner/jobs/${jobId}/painters/${p._id}`}
                       className="flex items-center gap-3 no-underline"
