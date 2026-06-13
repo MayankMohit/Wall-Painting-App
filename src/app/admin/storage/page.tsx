@@ -193,14 +193,24 @@ export default function AdminStoragePage() {
 
   const [data,        setData]        = useState<StorageResponse | null>(null);
   const [isLoading,   setIsLoading]   = useState(true);
+  const [error,       setError]       = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
   const fetchStorage = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const res  = await fetch('/api/admin/storage', { headers: { Authorization: `Bearer ${token}` } });
-      const json = await res.json();
-      if (json.data) { setData(json.data); setLastFetched(new Date()); }
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        const e = json?.error ?? json?.data?.error;
+        throw new Error((typeof e === 'string' ? e : e?.message) ?? `Request failed (${res.status})`);
+      }
+      if (!json?.data) throw new Error('No data returned from server');
+      setData(json.data);
+      setLastFetched(new Date());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load storage data');
     } finally {
       setIsLoading(false);
     }
@@ -231,8 +241,10 @@ export default function AdminStoragePage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-(--border) pb-5">
         <div>
           <h1 className="text-[24px] font-bold tracking-[-0.025em] text-(--ink)">Storage</h1>
-          <p className="text-[13px] text-(--ink-3) mt-1">
-            {lastFetched
+          <p className="text-[13px] mt-1" style={{ color: error ? 'var(--rejected)' : 'var(--ink-3)' }}>
+            {error
+              ? `Couldn’t reach storage providers — ${error}`
+              : lastFetched
               ? `Live data · last refreshed ${lastFetched.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })} IST`
               : 'Querying storage providers…'}
           </p>
@@ -248,6 +260,18 @@ export default function AdminStoragePage() {
 
       {isLoading && !data ? (
         <div className="py-24 text-center text-[13px] text-(--ink-4) animate-pulse">Querying storage providers…</div>
+      ) : error && !data ? (
+        <div className="py-24 text-center">
+          <p className="text-[14px] font-semibold text-(--ink-2)">Couldn’t load storage data</p>
+          <p className="text-[13px] text-(--ink-4) mt-1.5 max-w-md mx-auto">{error}</p>
+          <button
+            onClick={fetchStorage}
+            disabled={isLoading}
+            className="mt-5 h-9 px-5 rounded-full border border-(--border-2) bg-(--surface) text-[13px] font-semibold text-(--ink-2) hover:border-(--border-3) disabled:opacity-50 transition-[border-color] cursor-pointer"
+          >
+            {isLoading ? 'Retrying…' : 'Try again'}
+          </button>
+        </div>
       ) : (
         <>
           {/* ── Summary card ── */}

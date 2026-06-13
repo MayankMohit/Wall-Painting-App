@@ -6,6 +6,19 @@ import { Photo, GeneratedFile } from '@/lib/models';
 import { ok } from '@/lib/api-response';
 import { withRole } from '@/lib/middleware';
 
+// External provider calls (Cloudinary / R2) have no built-in socket timeout — a
+// blocked egress or slow API would otherwise hang the whole request forever and
+// leave the admin UI stuck on "Querying storage providers…". Cap each one so the
+// route always responds and the failed provider degrades to "unavailable".
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
 export const GET = withRole(['admin'], { audit: 'ADMIN_STORAGE_VIEW' })(
   async (req, ctx) => {
     await connectDB();
@@ -21,12 +34,12 @@ export const GET = withRole(['admin'], { audit: 'ADMIN_STORAGE_VIEW' })(
     const printIds     = photos.map((p) => p.cloudinaryId        as string).filter(Boolean);
     const thumbnailIds = photos.map((p) => p.previewCloudinaryId as string).filter(Boolean);
 
-    // Phase 2 — external I/O, all in parallel, each can fail independently
+    // Phase 2 — external I/O, all in parallel, each can fail (or time out) independently
     const [cdRes, r2Res, dbRes, breakdownRes] = await Promise.allSettled([
-      getCloudinaryUsage(),
-      getR2Usage(),
-      mongoose.connection.db!.command({ dbStats: 1 }),
-      getCloudinaryPhotoBreakdown(printIds, thumbnailIds),
+      withTimeout(getCloudinaryUsage(), 12_000, 'cloudinary'),
+      withTimeout(getR2Usage(), 12_000, 'r2'),
+      withTimeout(mongoose.connection.db!.command({ dbStats: 1 }), 8_000, 'dbStats'),
+      withTimeout(getCloudinaryPhotoBreakdown(printIds, thumbnailIds), 15_000, 'cloudinary-breakdown'),
     ]);
 
     // Shape R2 file-type breakdown from MongoDB aggregate
