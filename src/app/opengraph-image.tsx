@@ -5,13 +5,22 @@ export const alt = "Wallo — Job Management for Painting Contractors";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
+async function loadFont(): Promise<ArrayBuffer | null> {
+  try {
+    const css = await fetch(
+      "https://fonts.googleapis.com/css2?family=Inter:wght@800&display=swap",
+      { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(3000) }
+    ).then((r) => r.text());
+    const fontUrl = css.match(/src: url\((.+?)\) format/)?.[1] ?? "";
+    if (!fontUrl) return null;
+    return await fetch(fontUrl, { signal: AbortSignal.timeout(3000) }).then((r) => r.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
 export default async function OgImage() {
-  const css = await fetch(
-    "https://fonts.googleapis.com/css2?family=Inter:wght@800&display=swap",
-    { headers: { "User-Agent": "Mozilla/5.0" } }
-  ).then((r) => r.text());
-  const fontUrl = css.match(/src: url\((.+?)\) format/)?.[1] ?? "";
-  const fontData = await fetch(fontUrl).then((r) => r.arrayBuffer());
+  const fontData = await loadFont();
 
   return new ImageResponse(
     (
@@ -91,7 +100,7 @@ export default async function OgImage() {
     ),
     {
       ...size,
-      fonts: [{ name: "Inter", data: fontData, weight: 800, style: "normal" }],
+      fonts: fontData ? [{ name: "Inter", data: fontData, weight: 800, style: "normal" }] : [],
     },
   );
 }

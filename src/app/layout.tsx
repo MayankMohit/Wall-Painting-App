@@ -38,21 +38,12 @@ export const metadata: Metadata = {
     title: "Wallo — Job Management for Painting Contractors",
     description:
       "Log walls, track approvals, ship invoices. The job site tool built for painting contractors.",
-    images: [
-      {
-        url: "/app-icon.png",
-        width: 512,
-        height: 512,
-        alt: "Wallo",
-      },
-    ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Wallo — Job Management for Painting Contractors",
     description:
       "Log walls, track approvals, ship invoices. Built for the trades.",
-    images: ["/app-icon.png"],
   },
   icons: {
     icon: "/app-icon.png",
