@@ -4,7 +4,8 @@
       "Bash(npx tsc *)",
       "Bash(grep -E \"\\\\.\\(json|ts|js\\)$\")",
       "Bash(xargs wc *)",
-      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 20; if \\($?\\) { \"TSC_CLEAN\" })"
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 20; if \\($?\\) { \"TSC_CLEAN\" })",
+      "Bash(npx playwright *)"
     ]
   }
 }
