@@ -1,7 +1,8 @@
 import PDFDocument from 'pdfkit';
 
 const CM_TO_PTS = 28.3465;
-const TARGET_WIDTH_PTS = 13 * CM_TO_PTS; // all pages share this width; height varies by aspect ratio
+export const PHOTO_PAGE_WIDTH_CM = 13; // all pages share this width; height varies by aspect ratio
+const TARGET_WIDTH_PTS = PHOTO_PAGE_WIDTH_CM * CM_TO_PTS;
 
 export function drawPhotoPage(
   doc: typeof PDFDocument,

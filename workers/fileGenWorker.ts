@@ -8,6 +8,7 @@ import '@/lib/models/User';
 
 import { r2 } from '@/lib/r2';
 import { STORAGE_ENV } from '@/lib/storageEnv';
+import { FILE_GEN_QUEUE } from '@/lib/queues';
 import { buildExcel, buildPainterWiseExcel } from './excelWorker';
 import { buildPhotosPdf } from './photosPdfWorker';
 import { buildFilePdf } from './filePdfWorker';
@@ -40,7 +41,7 @@ async function main() {
   const connection = redisConnection();
 
   const worker = new Worker<Payload>(
-    'fileGenQueue',
+    FILE_GEN_QUEUE,
     async (job) => {
       const { jobId, fileId, type, ownerId, ownerInput = {} } = job.data;
       let buffer: Buffer;
@@ -118,7 +119,7 @@ async function main() {
       await GeneratedFile.updateOne({ _id: job.data.fileId }, { status: 'failed' });
     }
   });
-  console.log('[fileGenWorker] started, listening on fileGenQueue');
+  console.log(`[fileGenWorker] started, listening on ${FILE_GEN_QUEUE}`);
 
   process.on('SIGTERM', async () => {
     await worker.close();

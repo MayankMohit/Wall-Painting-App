@@ -1,7 +1,16 @@
 import PDFDocument from 'pdfkit';
 import sharp from 'sharp';
 import { Submission } from '@/lib/models/Submission';
-import { drawPhotoPage } from './layouts/photosPdfLayout';
+import { drawPhotoPage, PHOTO_PAGE_WIDTH_CM } from './layouts/photosPdfLayout';
+
+// Each photo only ever displays at PHOTO_PAGE_WIDTH_CM wide in the PDF, so any
+// resolution beyond TARGET_DPI across that width is invisible bytes. Downscaling
+// to that size + re-encoding with mozjpeg shrinks the PDF several-fold with no
+// perceptible quality loss. Bump TARGET_DPI toward 300 for print-shop output.
+const TARGET_DPI = 250;
+const JPEG_QUALITY = 88;
+const PHOTO_PAGE_WIDTH_IN = PHOTO_PAGE_WIDTH_CM / 2.54;
+const TARGET_WIDTH_PX = Math.round(PHOTO_PAGE_WIDTH_IN * TARGET_DPI);
 
 export async function buildPhotosPdf(jobId: string) {
   const subs = await Submission.find({ jobId, status: 'approved' })
@@ -34,7 +43,15 @@ export async function buildPhotosPdf(jobId: string) {
           meta = await sharp(safeBuf).metadata();
         }
 
-        drawPhotoPage(doc, safeBuf, meta.width || 1, meta.height || 1, photo.generatedNumber);
+        // Downscale to the page's actual display size and re-encode with mozjpeg.
+        // withoutEnlargement leaves already-small images untouched. Aspect ratio
+        // is preserved, so the layout's width-driven page sizing is unaffected.
+        const { data, info } = await sharp(safeBuf)
+          .resize({ width: TARGET_WIDTH_PX, withoutEnlargement: true })
+          .jpeg({ quality: JPEG_QUALITY, mozjpeg: true, chromaSubsampling: '4:2:0' })
+          .toBuffer({ resolveWithObject: true });
+
+        drawPhotoPage(doc, data, info.width || 1, info.height || 1, photo.generatedNumber);
 
       } catch (e) {
         console.error(`[Photos PDF Worker] Failed to process image ${photo._id}:`, e);

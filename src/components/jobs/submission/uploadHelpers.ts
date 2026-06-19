@@ -11,7 +11,9 @@ export interface CloudinaryResult {
   secure_url: string;
 }
 
-export async function uploadToCloudinary(
+// One POST to Cloudinary. Parses Cloudinary's error body so failures surface a
+// real reason instead of a generic "Upload failed".
+async function postToCloudinary(
   file: File,
   sig: UploadSig,
   apiKey: string,
@@ -27,8 +29,43 @@ export async function uploadToCloudinary(
     `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
     { method: "POST", body: fd },
   );
-  if (!r.ok) throw new Error("Upload failed");
+  if (!r.ok) {
+    let reason = `HTTP ${r.status}`;
+    try {
+      const body = await r.json();
+      if (body?.error?.message) reason = body.error.message;
+    } catch { /* non-JSON error body */ }
+    const err = new Error(`Cloudinary upload failed: ${reason}`);
+    // 4xx (bad signature, invalid file) won't fix themselves — don't retry those.
+    (err as { retryable?: boolean }).retryable = r.status === 429 || r.status >= 500;
+    throw err;
+  }
   return r.json();
+}
+
+// Upload with a few retries on transient failures (network blips, 429/5xx).
+// A single hiccup on one of many photos must not fail the whole submission.
+export async function uploadToCloudinary(
+  file: File,
+  sig: UploadSig,
+  apiKey: string,
+  cloudName: string,
+  attempts = 3,
+): Promise<CloudinaryResult> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await postToCloudinary(file, sig, apiKey, cloudName);
+    } catch (e) {
+      lastErr = e;
+      // Stop early on definitive (non-retryable) errors.
+      if (e instanceof Error && (e as { retryable?: boolean }).retryable === false) break;
+      if (i < attempts - 1) {
+        await new Promise((res) => setTimeout(res, 400 * 2 ** i));
+      }
+    }
+  }
+  throw lastErr;
 }
 
 export interface UploadedImage {

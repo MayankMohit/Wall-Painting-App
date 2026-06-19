@@ -79,6 +79,17 @@ function FileTypeIcon({ type, size = 18 }: { type: GeneratedFile['fileType']; si
   return type.startsWith('excel') ? <ExcelIcon size={size} /> : <PdfIcon size={size} />;
 }
 
+function Checkbox({ on }: { on: boolean }) {
+  return (
+    <div
+      className="w-5.5 h-5.5 rounded-md shrink-0 flex items-center justify-center transition-colors"
+      style={{ background: on ? 'var(--accent)' : 'transparent', border: on ? 'none' : '1.5px solid var(--border-3)' }}
+    >
+      {on && <Check size={12} weight={3} style={{ color: '#fff' }} />}
+    </div>
+  );
+}
+
 // ── generating hero ───────────────────────────────────────────────────────────
 
 function GeneratingHero({ done, total }: { done: number; total: number }) {
@@ -239,6 +250,10 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
   const [fakeProgress, setFakeProgress]   = useState<Record<string, number>>({});
   const [previewingId, setPreviewingId]   = useState<string | null>(null);
   const [previewData, setPreviewData]     = useState<{ url: string; fileType: string; fileName: string } | null>(null);
+  const [selectMode, setSelectMode]       = useState(false);
+  const [selected, setSelected]           = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy]           = useState(false);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
   const { data: job }                      = useGetJobQuery(jobId);
   const { data: files = EMPTY_FILES, isLoading } = useGetFilesQuery(jobId, {
@@ -310,6 +325,54 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
     setDeletingId(fileId);
     try { await deleteFile({ jobId, fileId }).unwrap(); }
     finally { setDeletingId(null); setDeleteConfirmId(null); }
+  };
+
+  // ── multi-select ──────────────────────────────────────────────────────────
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+
+  const exitSelect = () => { setSelectMode(false); setSelected(new Set()); };
+
+  const handleBulkDownload = async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      // Sequential: each presigned URL forces an attachment download, so an
+      // anchor click downloads without opening tabs. A small gap avoids the
+      // browser's "download multiple files?" throttle racing the clicks.
+      for (const file of displayedFiles.filter((f) => selected.has(f._id))) {
+        try {
+          const res = await getDownloadUrl({ jobId, fileId: file._id }).unwrap();
+          const a = document.createElement('a');
+          a.href = res.url;
+          a.download = file.fileName;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          await new Promise((r) => setTimeout(r, 400));
+        } catch { /* skip the failed one, continue the rest */ }
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkBusy(true);
+    try {
+      for (const id of selected) {
+        try { await deleteFile({ jobId, fileId: id }).unwrap(); }
+        catch { /* skip and continue */ }
+      }
+    } finally {
+      setBulkBusy(false);
+      setBulkDeleteConfirm(false);
+      exitSelect();
+    }
   };
 
   const totalSize = readyFiles.reduce((sum: number, f: GeneratedFile) => sum + (f.fileSize ?? 0), 0);
@@ -394,7 +457,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
       <div className="hidden lg:block px-8 py-4"><FilterChips desktop /></div>
 
       {/* ══ Content ═════════════════════════════════════════════════ */}
-      <div className="px-4 lg:px-8 pb-10 space-y-4">
+      <div className="px-4 lg:px-8 pt-3 pb-10 space-y-4">
 
         {/* Generating section */}
         {hasGenerating && (
@@ -418,22 +481,71 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
           <div className="text-[11px] font-bold tracking-wider uppercase text-(--ink-3) pt-1">Ready</div>
         )}
 
+        {/* Selection toolbar */}
+        {displayedFiles.length > 0 && (() => {
+          const displayedIds = displayedFiles.map((f) => f._id);
+          const allSelected = displayedIds.length > 0 && displayedIds.every((id) => selected.has(id));
+          return (
+            <div className="flex items-center justify-between min-h-9 py-1">
+              {!selectMode ? (
+                <button
+                  onClick={() => { setSelectMode(true); setSelected(new Set()); }}
+                  className="text-[13px] font-semibold text-(--accent-deep) bg-transparent border-0 cursor-pointer hover:opacity-75 transition-opacity py-1.5 pr-2"
+                >
+                  Select
+                </button>
+              ) : (
+                <>
+                  <span className="text-[13px] font-semibold text-(--ink-2) py-1.5">
+                    {selected.size} selected
+                  </span>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setSelected(allSelected ? new Set() : new Set(displayedIds))}
+                      className="text-[13px] font-semibold text-(--accent-deep) bg-transparent border-0 cursor-pointer hover:opacity-75 transition-opacity py-1.5"
+                    >
+                      {allSelected ? 'Clear all' : 'Select all'}
+                    </button>
+                    <button
+                      onClick={exitSelect}
+                      className="text-[13px] font-semibold text-(--ink-3) bg-transparent border-0 cursor-pointer hover:opacity-75 transition-opacity py-1.5"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Mobile list */}
         {displayedFiles.length > 0 && (
           <div className="lg:hidden overflow-hidden rounded-(--r-md) border border-(--border)" style={{ background: 'var(--surface)' }}>
             {displayedFiles.map((f) => {
               const meta = FILE_META[f.fileType];
+              const sel  = selected.has(f._id);
               return (
-                <div key={f._id} className="flex items-center gap-3 px-4 py-3 border-b border-(--border) last:border-0">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: meta.color }}>
-                    <FileTypeIcon type={f.fileType} size={18} />
-                  </div>
+                <div
+                  key={f._id}
+                  onClick={selectMode ? () => toggleSelect(f._id) : undefined}
+                  className={`flex items-center gap-3 px-4 py-3 border-b border-(--border) last:border-0 ${selectMode ? 'cursor-pointer' : ''}`}
+                  style={selectMode && sel ? { background: 'var(--accent-soft)' } : undefined}
+                >
+                  {selectMode ? (
+                    <div className="w-10 flex items-center justify-center shrink-0"><Checkbox on={sel} /></div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: meta.color }}>
+                      <FileTypeIcon type={f.fileType} size={18} />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-semibold text-(--ink) truncate">{f.fileName}</div>
                     <div className="text-[11px] text-(--ink-3) mt-0.5">
                       <span className="font-(--mono)">{formatSize(f.fileSize)}</span> · {formatDate(f.createdAt)}
                     </div>
                   </div>
+                  {!selectMode && <>
                   <button
                     onClick={() => handlePreview(f)}
                     disabled={!!previewingId}
@@ -459,6 +571,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
                   >
                     <Trash size={15} />
                   </button>
+                  </>}
                 </div>
               );
             })}
@@ -476,45 +589,55 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
             </div>
             {displayedFiles.map((f) => {
               const meta = FILE_META[f.fileType];
+              const sel  = selected.has(f._id);
               return (
                 <div
                   key={f._id}
-                  className="grid items-center px-5 py-3 border-b border-(--border) last:border-0"
-                  style={{ gridTemplateColumns: '52px 2fr 110px 160px 130px' }}
+                  onClick={selectMode ? () => toggleSelect(f._id) : undefined}
+                  className={`grid items-center px-5 py-3 border-b border-(--border) last:border-0 ${selectMode ? 'cursor-pointer' : ''}`}
+                  style={{ gridTemplateColumns: '52px 2fr 110px 160px 130px', ...(selectMode && sel ? { background: 'var(--accent-soft)' } : {}) }}
                 >
-                  <div className="w-9.5 h-9.5 rounded-lg flex items-center justify-center text-white" style={{ background: meta.color }}>
-                    <FileTypeIcon type={f.fileType} size={18} />
-                  </div>
+                  {selectMode ? (
+                    <div className="w-9.5 h-9.5 flex items-center justify-center"><Checkbox on={sel} /></div>
+                  ) : (
+                    <div className="w-9.5 h-9.5 rounded-lg flex items-center justify-center text-white" style={{ background: meta.color }}>
+                      <FileTypeIcon type={f.fileType} size={18} />
+                    </div>
+                  )}
                   <div className="text-[13px] font-semibold text-(--ink) truncate pr-4">{f.fileName}</div>
                   <div className="text-[13px] text-(--ink-2) font-(--mono)">{formatSize(f.fileSize)}</div>
                   <div className="text-[13px] text-(--ink-3)">{formatDate(f.createdAt)}</div>
-                  <div className="flex items-center gap-1.5 justify-end">
-                    <button
-                      onClick={() => handlePreview(f)}
-                      disabled={!!previewingId}
-                      className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40"
-                    >
-                      {previewingId === f._id
-                        ? <span className="w-3 h-3 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
-                        : <EyeIcon size={16} />}
-                    </button>
-                    <button
-                      onClick={() => handleDownload(f)}
-                      disabled={!!downloadingId}
-                      className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40"
-                    >
-                      {downloadingId === f._id
-                        ? <span className="w-3 h-3 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
-                        : <DownloadIcon size={16} />}
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirmId(f._id)}
-                      className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) hover:border-(--border-3) transition-colors cursor-pointer"
-                      style={{ color: 'var(--rejected)' }}
-                    >
-                      <Trash size={15} />
-                    </button>
-                  </div>
+                  {selectMode ? (
+                    <div />
+                  ) : (
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <button
+                        onClick={() => handlePreview(f)}
+                        disabled={!!previewingId}
+                        className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40"
+                      >
+                        {previewingId === f._id
+                          ? <span className="w-3 h-3 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
+                          : <EyeIcon size={16} />}
+                      </button>
+                      <button
+                        onClick={() => handleDownload(f)}
+                        disabled={!!downloadingId}
+                        className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40"
+                      >
+                        {downloadingId === f._id
+                          ? <span className="w-3 h-3 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
+                          : <DownloadIcon size={16} />}
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirmId(f._id)}
+                        className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) hover:border-(--border-3) transition-colors cursor-pointer"
+                        style={{ color: 'var(--rejected)' }}
+                      >
+                        <Trash size={15} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -556,6 +679,68 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
           </div>
         )}
       </div>
+
+      {/* ══ Bulk action bar ══════════════════════════════════════════ */}
+      {selectMode && selected.size > 0 && (
+        <div className="fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-2 py-2 rounded-full shadow-(--shadow)"
+          style={{ background: 'var(--ink)' }}>
+          <span className="text-[13px] font-semibold text-white pl-3 pr-1 tabular-nums">{selected.size}</span>
+          <button
+            onClick={handleBulkDownload}
+            disabled={bulkBusy}
+            className="flex items-center gap-1.5 h-9 px-4 rounded-full text-[13px] font-semibold cursor-pointer disabled:opacity-50 transition-opacity"
+            style={{ background: 'rgba(255,255,255,0.14)', color: '#fff' }}
+          >
+            {bulkBusy
+              ? <span className="w-3.5 h-3.5 rounded-full border-[1.5px] border-white/40 border-t-white animate-spin" />
+              : <DownloadIcon size={15} />}
+            Download
+          </button>
+          <button
+            onClick={() => setBulkDeleteConfirm(true)}
+            disabled={bulkBusy}
+            className="flex items-center gap-1.5 h-9 px-4 rounded-full text-[13px] font-semibold text-white cursor-pointer disabled:opacity-50 transition-opacity"
+            style={{ background: 'var(--rejected)' }}
+          >
+            <Trash size={15} /> Delete
+          </button>
+        </div>
+      )}
+
+      {/* ══ Bulk delete confirm dialog ═══════════════════════════════ */}
+      {bulkDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={(e) => { if (e.target === e.currentTarget && !bulkBusy) setBulkDeleteConfirm(false); }}
+        >
+          <div className="w-full max-w-sm rounded-(--r-lg) overflow-hidden shadow-(--shadow)" style={{ background: 'var(--paper)' }}>
+            <div className="px-5 pt-5 pb-4">
+              <div className="text-[16px] font-bold text-(--ink) mb-1.5">Delete {selected.size} file{selected.size > 1 ? 's' : ''}?</div>
+              <div className="text-[14px] text-(--ink-3) leading-normal">
+                These files will be permanently deleted and cannot be recovered.
+              </div>
+            </div>
+            <div className="flex gap-2 px-5 pb-5">
+              <button
+                onClick={() => setBulkDeleteConfirm(false)}
+                disabled={bulkBusy}
+                className="flex-1 h-10 rounded-full border border-(--border-2) text-[13px] font-semibold text-(--ink-2) bg-transparent cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkBusy}
+                className="flex-1 h-10 rounded-full text-[13px] font-semibold text-white cursor-pointer disabled:opacity-50"
+                style={{ background: 'var(--rejected)' }}
+              >
+                {bulkBusy ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══ Delete confirm dialog ════════════════════════════════════ */}
       {previewData && (

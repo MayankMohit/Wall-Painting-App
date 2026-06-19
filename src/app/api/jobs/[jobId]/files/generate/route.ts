@@ -4,22 +4,7 @@ import { connectDB } from '@/lib/db';
 import { GeneratedFile } from '@/lib/models/GeneratedFile';
 import { Job } from '@/lib/models/Job';
 import { getOwnerStorageBytes, STORAGE_LIMIT_BYTES } from '@/lib/storage';
-import { Queue } from 'bullmq';
-
-// Same safe connection config
-const raw = process.env.REDIS_URL ?? 'redis://localhost:6379';
-const url  = new URL(raw);
-const isTls = url.protocol === 'rediss:';
-const connection = {
-  host:     url.hostname,
-  port:     Number(url.port) || (isTls ? 6380 : 6379),
-  ...(url.password ? { password: decodeURIComponent(url.password) } : {}),
-  ...(url.username && url.username !== 'default' ? { username: url.username } : {}),
-  ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
-  maxRetriesPerRequest: null as unknown as number,
-};
-
-const fileGenQueue = new Queue('fileGenQueue', { connection });
+import { fileGenQueue } from '@/lib/queues';
 
 export async function POST(request: Request, { params }: { params: Promise<{ jobId: string }> }) {
   const auth = await requireAuth(request);
@@ -71,7 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
         jobId,
         fileId: fileDoc._id.toString(),
         type,
-        ownerId: auth.userId,
+        ownerId, // resolved owner (admins may generate on an owner's behalf)
         ownerInput: ownerInput || {}
       });
 

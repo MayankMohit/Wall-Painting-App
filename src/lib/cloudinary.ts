@@ -46,21 +46,18 @@ export interface CloudinarySignature {
   timestamp: number;
   cloudName: string;
   apiKey: string;
-  uploadPreset: string | null;
   folder: string | null;
 }
 
 export function signUpload(params: SignParams = {}): CloudinarySignature {
   const timestamp = Math.floor(Date.now() / 1000);
   const apiSecret = process.env.CLOUDINARY_API_SECRET!;
-  const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET ?? null;
 
   // Enforce a per-environment top-level folder server-side (never trust the
   // client) so dev and prod assets never collide in a shared Cloudinary cloud.
   const folder = params.folder ? `${STORAGE_ENV}/${params.folder}` : STORAGE_ENV;
 
   const paramsToSign: Record<string, string | number> = { timestamp, folder };
-  if (uploadPreset) paramsToSign.upload_preset = uploadPreset;
 
   const paramStr = Object.keys(paramsToSign)
     .sort()
@@ -77,7 +74,6 @@ export function signUpload(params: SignParams = {}): CloudinarySignature {
     timestamp,
     cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME!,
     apiKey: process.env.CLOUDINARY_API_KEY!,
-    uploadPreset,
     folder,
   };
 }

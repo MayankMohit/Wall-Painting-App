@@ -32,6 +32,15 @@ function Avatar({ name, size = 34 }: { name: string; size?: number }) {
 // ── table column layout ───────────────────────────────────────────────────────
 const PAINTER_COLS = 'grid-cols-[2fr_1fr_1fr_1fr_1fr_52px]';
 
+// ── generatable file types (single source of truth for the toggles + select-all)
+const GEN_TYPES = ['excel', 'excel_painters', 'pdf_photos', 'pdf_file'] as const;
+const GEN_TYPE_LABELS: Record<(typeof GEN_TYPES)[number], string> = {
+  excel:          'Excel · Master List',
+  excel_painters: 'Excel · Painter-wise',
+  pdf_photos:     'Photos PDF',
+  pdf_file:       'File PDF',
+};
+
 // ── page ─────────────────────────────────────────────────────────────────────
 export default function JobDetailPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = use(params);
@@ -174,7 +183,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
         <div className="flex items-center gap-2 shrink-0 mt-1">
           <Link
             href={`/owner/jobs/${jobId}/files`}
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[13px] font-semibold text-(--ink-2) bg-(--surface) border border-(--border-2) no-underline hover:border-(--border-3) transition-[border-color]"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[13px] font-semibold text-(--accent-deep) bg-(--accent-soft) border border-(--accent) no-underline hover:opacity-85 transition-opacity"
           >
             <FileIcon size={15} weight={1.6} />
             Files
@@ -236,14 +245,14 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
         </div>
 
         {/* Action buttons */}
-        <div className="mt-4 flex gap-2">
-          <div className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[13px] font-semibold text-(--ink) bg-(--surface) border border-(--border-2)">
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <div className="inline-flex items-center gap-1.5 h-9 text-[13px] font-medium text-(--ink-3)">
             <Users size={15} weight={1.8} />
             Painters · {job.painters.length}
           </div>
           <Link
             href={`/owner/jobs/${jobId}/files`}
-            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[13px] font-semibold text-(--ink-2) bg-(--surface) border border-(--border-2) no-underline hover:border-(--border-3) transition-[border-color]"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[13px] font-semibold text-(--accent-deep) bg-(--accent-soft) border border-(--accent) no-underline hover:opacity-85 transition-opacity"
           >
             <FileIcon size={15} weight={1.6} />
             Files
@@ -528,14 +537,25 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
           <ModalHeader title="Generate files" onClose={() => { setGenOpen(false); setGenTypes([]); setGenError(''); setStorageError(null); }} />
           <div className="px-5 py-4 flex flex-col gap-2">
 
+            {/* Select-all header */}
+            {(() => {
+              const allOn = GEN_TYPES.every((t) => genTypes.includes(t));
+              return (
+                <div className="flex items-center justify-between px-1 pb-0.5">
+                  <span className="text-[12px] font-semibold text-(--ink-3)">File types</span>
+                  <button
+                    type="button"
+                    onClick={() => setGenTypes(allOn ? [] : [...GEN_TYPES])}
+                    className="text-[12px] font-semibold text-(--accent-deep) bg-transparent border-0 cursor-pointer hover:opacity-75 transition-opacity"
+                  >
+                    {allOn ? 'Clear all' : 'Select all'}
+                  </button>
+                </div>
+              );
+            })()}
+
             {/* File Type Toggles */}
-            {(['excel', 'excel_painters', 'pdf_photos', 'pdf_file'] as const).map((t) => {
-              const labels: Record<string, string> = { 
-                excel: 'Excel · Master List', 
-                excel_painters: 'Excel · Painter-wise',
-                pdf_photos: 'Photos PDF', 
-                pdf_file: 'File PDF' 
-              };
+            {GEN_TYPES.map((t) => {
               const on = genTypes.includes(t);
               return (
                 <div
@@ -550,7 +570,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                   >
                     {on && <Check size={11} weight={2.8} style={{ color: '#fff' }} />}
                   </div>
-                  <span className="text-[14px] font-medium text-(--ink)">{labels[t]}</span>
+                  <span className="text-[14px] font-medium text-(--ink)">{GEN_TYPE_LABELS[t]}</span>
                 </div>
               );
             })}

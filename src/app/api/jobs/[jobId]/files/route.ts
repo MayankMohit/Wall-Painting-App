@@ -13,6 +13,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
   await connectDB();
 
   try {
+    // Self-heal orphaned generations: a real job finishes in seconds, so anything
+    // still 'generating' after STALE_MINUTES never got picked up by a worker.
+    // Flip those to 'failed' so they don't sit in the UI's "Building" view forever.
+    const STALE_MINUTES = 5;
+    await GeneratedFile.updateMany(
+      { jobId, status: 'generating', createdAt: { $lt: new Date(Date.now() - STALE_MINUTES * 60_000) } },
+      { $set: { status: 'failed' } },
+    );
+
     // Fetch all files for this job, newest first
     const files = await GeneratedFile.find({ jobId })
       .sort({ createdAt: -1 })

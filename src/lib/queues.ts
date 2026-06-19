@@ -23,6 +23,13 @@ function makeQueue(name: string, opts: object): Queue {
   });
 }
 
-export const fileGenQueue     = makeQueue('fileGen',      { defaultJobOptions: { attempts: 2, backoff: { type: 'exponential', delay: 5000 } } });
-export const notifyQueue      = makeQueue('notify',       { defaultJobOptions: { attempts: 5, backoff: { type: 'exponential', delay: 1000 } } });
-export const assetCleanupQueue = makeQueue('assetCleanup', { defaultJobOptions: { attempts: 3, backoff: { type: 'exponential', delay: 2000 } } });
+// Queue names — the single source of truth shared by producers (these exports)
+// and consumers (the worker processes). Import these in workers instead of
+// hardcoding the string so a producer/consumer name can never drift apart.
+export const FILE_GEN_QUEUE      = 'fileGenQueue';
+export const NOTIFY_QUEUE        = 'notify';
+export const ASSET_CLEANUP_QUEUE = 'assetCleanup';
+
+export const fileGenQueue     = makeQueue(FILE_GEN_QUEUE,      { defaultJobOptions: { attempts: 2, backoff: { type: 'exponential', delay: 5000 } } });
+export const notifyQueue      = makeQueue(NOTIFY_QUEUE,        { defaultJobOptions: { attempts: 5, backoff: { type: 'exponential', delay: 1000 } } });
+export const assetCleanupQueue = makeQueue(ASSET_CLEANUP_QUEUE, { defaultJobOptions: { attempts: 3, backoff: { type: 'exponential', delay: 2000 } } });
