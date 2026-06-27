@@ -2,7 +2,7 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Stage 2: Full install + build
 FROM node:22-alpine AS builder
@@ -33,7 +33,7 @@ ENV NEXT_PUBLIC_ADMIN_CONTACT_EMAIL=$NEXT_PUBLIC_ADMIN_CONTACT_EMAIL
 
 COPY package*.json ./
 # Install without prebuilt binaries so sharp compiles natively on ARM64
-RUN npm ci
+RUN npm install
 COPY . .
 RUN npm run build
 
