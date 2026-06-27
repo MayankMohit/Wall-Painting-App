@@ -112,7 +112,7 @@ export default function OwnerSubmissionReviewPage({
   useEffect(() => () => { editUrlsRef.current.forEach(URL.revokeObjectURL); }, []);
 
   const { register: regEdit, handleSubmit: handleEditSubmit, control: editControl, watch: editWatch, reset: editReset, formState: { errors: editErrors } } = useForm<EditFV>({
-    defaultValues: { location: '', sizes: [{ width: '', height: '' }] },
+    defaultValues: { location: '', photoNo: '', sizes: [{ width: '', height: '' }] },
   });
   const { fields: editFields, append: editAppend, remove: editRemove } = useFieldArray({ control: editControl, name: 'sizes' });
   const editLoc  = editWatch('location');
@@ -128,7 +128,7 @@ export default function OwnerSubmissionReviewPage({
   const [approveSubmission, { isLoading: approving }]          = useApproveSubmissionMutation();
   const [rejectSubmission,  { isLoading: rejecting }]          = useRejectSubmissionMutation();
   const [revokeSubmission,  { isLoading: revoking }]           = useRevokeSubmissionMutation();
-  const [updateSubmission]                                      = useUpdateSubmissionMutation();
+  const [updateSubmission]                                     = useUpdateSubmissionMutation();
   const [deleteSubmission,  { isLoading: deletingSubmission }] = useDeleteSubmissionMutation();
 
   // Prev / next within this job's submissions
@@ -151,6 +151,7 @@ export default function OwnerSubmissionReviewPage({
     editUrlsRef.current = [];
     editReset({
       location: sub.location,
+      photoNo: sub.photoNo != null ? String(sub.photoNo) : '',
       sizes: sub.sizes?.map((s) => ({ width: String(s[0]), height: String(s[1]) })) ?? [{ width: '', height: '' }],
     });
     setEditOpen(true);
@@ -204,6 +205,7 @@ export default function OwnerSubmissionReviewPage({
         jobId,
         subId,
         body: {
+          photoNo:        Number(d.photoNo),
           location:       d.location,
           sizes:          d.sizes.map((s) => [Number(s.width), Number(s.height)]),
           uploadedImages,
@@ -770,6 +772,25 @@ export default function OwnerSubmissionReviewPage({
               onSubmit={handleEditSubmit(onEditSubmit)}
               className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5"
             >
+              {/* Photo Number */}
+              <div>
+                <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Photo number</div>
+                <div className={[inputBox, editErrors.photoNo ? 'border-(--rejected)' : ''].join(' ')}>
+                  <input
+                    type="number"
+                    {...regEdit('photoNo', { required: true, min: 1 })}
+                    placeholder="e.g. 12"
+                    disabled={editBusy}
+                    className={innerInput}
+                  />
+                </div>
+                <div className="flex justify-between items-center mt-1.5">
+                  <span className={['text-[11px]', editErrors.photoNo ? 'text-(--rejected)' : 'text-(--ink-3)'].join(' ')}>
+                    {editErrors.photoNo ? 'Valid photo number is required.' : 'The sequence number assigned to this wall.'}
+                  </span>
+                </div>
+              </div>
+
               {/* Location */}
               <div>
                 <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Wall location</div>

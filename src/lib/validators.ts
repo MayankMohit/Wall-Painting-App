@@ -103,6 +103,7 @@ export const CreateSubmissionSchema = z.object({
 });
 
 export const UpdateSubmissionSchema = z.object({
+  photoNo: z.number().int().positive({ error: 'Photo number must be a positive integer' }).optional(),
   location: z.string().min(1).max(100, { error: 'Location must be 100 characters or fewer' }).trim().optional(),
   sizes: z.array(z.tuple([z.number().positive(), z.number().positive()])).optional(),
   uploadedImages: z.array(
