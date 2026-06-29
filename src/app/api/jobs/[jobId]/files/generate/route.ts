@@ -24,8 +24,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
   await connectDB();
 
   try {
-    // Resolve the owner of this job (admin may trigger generation on behalf of an owner)
-    const job = await Job.findById(jobId).select('ownerId').lean();
+    // ADDED `companyName` to the select() so we can use it for the file name
+    const job = await Job.findById(jobId).select('ownerId companyName').lean();
     if (!job) return badRequest('Job not found');
 
     const ownerId = auth.role === 'owner' ? auth.userId : job.ownerId.toString();
@@ -38,17 +38,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
       );
     }
 
+    const safeCompany = job.companyName ? job.companyName.replace(/\s+/g, '_') : 'Job';
+
+    const now = new Date();
+    const dateStr = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+
     const createdFiles = [];
 
     for (const type of types) {
       const ext = type.startsWith('excel') ? 'xlsx' : 'pdf';
-      const fileName = `export_${type}_${Date.now()}.${ext}`;
+      
+      // 4. Clean up the label for the file name
+      let typeLabel = type;
+      if (type === 'excel') typeLabel = 'Report';
+      if (type === 'excel_painters') typeLabel = 'Painter_Report';
+      if (type === 'pdf_file') typeLabel = 'PDF_Report';
+      if (type === 'pdf_photos') typeLabel = 'Photos';
+
+      // Build the final custom file name!
+      const fileName = `${safeCompany}_${typeLabel}_${dateStr}.${ext}`;
 
       const fileDoc = await GeneratedFile.create({
         jobId,
         fileName,
-        fileType: type, // Matching your updated schema
-        status: 'generating', // Matching your updated schema
+        fileType: type,
+        status: 'generating',
         generatedBy: auth.userId,
       });
 
@@ -56,7 +70,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
         jobId,
         fileId: fileDoc._id.toString(),
         type,
-        ownerId, // resolved owner (admins may generate on an owner's behalf)
+        ownerId,
         ownerInput: ownerInput || {}
       });
 
