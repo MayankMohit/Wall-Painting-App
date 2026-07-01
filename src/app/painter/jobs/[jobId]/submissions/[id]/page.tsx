@@ -45,6 +45,7 @@ export default function SubmissionDetailPage({
   }
 
   const canEdit  = sub.status === 'pending' || sub.status === 'rejected';
+  const isLocked = sub.status === 'approved';
   const editHref = `/painter/jobs/${jobId}/submissions/${submissionId}/edit`;
   const viewArea = sub.sizes.reduce((s, sz) => s + sz[0] * sz[1], 0).toFixed(1);
   const photos   = sub.images ?? [];
@@ -86,10 +87,14 @@ export default function SubmissionDetailPage({
           </div>
         </div>
 
-        <SectionHdr title="Wall sizes" />
-        <div className="px-4">
-          <SizesTable sizes={sub.sizes} totalArea={viewArea} />
-        </div>
+        {!isLocked && (
+          <>
+            <SectionHdr title="Wall sizes" />
+            <div className="px-4">
+              <SizesTable sizes={sub.sizes} totalArea={viewArea} />
+            </div>
+          </>
+        )}
 
         <div className="px-4 pt-3.5 grid grid-cols-2 gap-2">
           {[
@@ -203,23 +208,24 @@ export default function SubmissionDetailPage({
                 #{String(sub.photoNo).padStart(4, '0')} · {dateStr} · {timeStr}
               </div>
 
-              {/* Wall sizes */}
-              <div className="rounded-(--r-md) border border-(--border) overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-(--border) bg-(--surface)">
-                  <span className="text-[10px] font-bold text-(--ink-3) uppercase tracking-[.06em]">Wall sizes</span>
-                </div>
-                {sub.sizes.map((sz, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b border-(--border) last:border-0">
-                    <div className="font-mono text-[11px] text-(--ink-4) w-5">{String(i + 1).padStart(2, '0')}</div>
-                    <div className="font-mono text-[14px] font-semibold text-(--ink) flex-1">{sz[0].toFixed(1)} × {sz[1].toFixed(1)} ft</div>
-                    <div className="font-mono text-[12px] text-(--ink-3)">{(sz[0] * sz[1]).toFixed(1)} ft²</div>
+              {!isLocked && (
+                <div className="rounded-(--r-md) border border-(--border) overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-(--border) bg-(--surface)">
+                    <span className="text-[10px] font-bold text-(--ink-3) uppercase tracking-[.06em]">Wall sizes</span>
                   </div>
-                ))}
-                <div className="flex justify-between items-center px-4 py-2.5 bg-(--surface) border-t border-(--border)">
-                  <span className="text-[12px] font-semibold text-(--ink-2)">Total</span>
-                  <span className="font-mono text-[15px] font-bold text-(--ink)">{viewArea} ft²</span>
+                  {sub.sizes.map((sz, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b border-(--border) last:border-0">
+                      <div className="font-mono text-[11px] text-(--ink-4) w-5">{String(i + 1).padStart(2, '0')}</div>
+                      <div className="font-mono text-[14px] font-semibold text-(--ink) flex-1">{sz[0].toFixed(1)} × {sz[1].toFixed(1)} ft</div>
+                      <div className="font-mono text-[12px] text-(--ink-3)">{(sz[0] * sz[1]).toFixed(1)} ft²</div>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center px-4 py-2.5 bg-(--surface) border-t border-(--border)">
+                    <span className="text-[12px] font-semibold text-(--ink-2)">Total</span>
+                    <span className="font-mono text-[15px] font-bold text-(--ink)">{viewArea} ft²</span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Meta grid */}
               <div className="grid grid-cols-2 gap-2">

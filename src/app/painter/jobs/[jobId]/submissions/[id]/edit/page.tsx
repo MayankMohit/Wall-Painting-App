@@ -35,7 +35,7 @@ export default function EditSubmissionPage({
     reset,
     formState: { errors },
   } = useForm<EditFV>({
-    defaultValues: { location: "", sizes: [{ width: "", height: "" }] },
+    defaultValues: { location: "", photoNo: "", sizes: [{ width: "", height: "" }] },
   });
   const { fields, append, remove } = useFieldArray({ control, name: "sizes" });
   const loc  = watch("location");
@@ -61,6 +61,7 @@ export default function EditSubmissionPage({
     setExPhotos(sub.images ?? []);
     reset({
       location: sub.location,
+      photoNo: sub.photoNo != null ? String(sub.photoNo) : "", 
       sizes: sub.sizes?.map((s) => ({ width: String(s[0]), height: String(s[1]) })) ??
         [{ width: "", height: "" }],
     });
@@ -106,6 +107,7 @@ export default function EditSubmissionPage({
         subId,
         body: {
           location: d.location,
+          photoNo: Number(d.photoNo),
           sizes: d.sizes.map((s) => [Number(s.width), Number(s.height)]),
           uploadedImages,
         },
@@ -169,6 +171,26 @@ export default function EditSubmissionPage({
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="px-4 pt-1 pb-26 lg:px-8 lg:pt-0 lg:pb-11 flex flex-col gap-3.5 lg:gap-5 lg:max-w-180 lg:mx-auto">
+          
+          {/* Photo Number */}
+          <div>
+            <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Photo number</div>
+            <div className={[inputBox, errors.photoNo ? "border-(--rejected)" : ""].join(" ")}>
+              <input
+                type="number"
+                {...register("photoNo", { required: true, min: 1 })}
+                placeholder="e.g. 12"
+                disabled={busy}
+                className={innerInput}
+              />
+            </div>
+            <div className="flex justify-between items-center mt-1.5">
+              <span className={["text-[11px]", errors.photoNo ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
+                {errors.photoNo ? "Valid photo number is required." : "The sequence number assigned to this wall."}
+              </span>
+            </div>
+          </div>
+
           {/* Location */}
           <div>
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Wall location</div>

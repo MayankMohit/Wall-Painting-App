@@ -21,7 +21,7 @@ export const GET = withAuth({ access: requireSubmissionAccess })(
 //       Editing a rejected submission re-opens it to pending. Cleans up Cloudinary on any failure.
 export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSubmissionAccess, audit: 'SUBMISSION_UPDATE' })(
   async (req, ctx) => {
-    const { location, sizes, uploadedImages } = ctx.body as z.infer<typeof UpdateSubmissionSchema>;
+    const { location, sizes, uploadedImages, photoNo } = ctx.body as z.infer<typeof UpdateSubmissionSchema>;
     const submission = ctx.submission!;
 
     // Fast path: no new images — nothing in Cloudinary to clean up, so fail fast is safe.
@@ -34,6 +34,7 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
       const wasRejected = submission.status === 'rejected';
       if (location) submission.location = location;
       if (sizes)    submission.sizes    = sizes;
+      if (photoNo !== undefined) submission.photoNo = photoNo;
       if (wasRejected) submission.status = 'pending';
       await submission.save();
 
@@ -82,6 +83,7 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
       wasRejected = submission.status === 'rejected';
       if (location) submission.location = location;
       if (sizes)    submission.sizes    = sizes;
+      if (photoNo !== undefined) submission.photoNo = photoNo;
       if (wasRejected) submission.status = 'pending';
 
       session = await mongoose.startSession();

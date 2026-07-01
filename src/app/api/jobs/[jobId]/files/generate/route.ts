@@ -7,6 +7,14 @@ import { withRole } from '@/lib/middleware';
 import { requireJobOwner } from '@/lib/middleware/requireJobOwner';
 import { GenerateFilesSchema } from '@/lib/validators';
 
+// Friendly download-name labels per file type: <Company>_<Label>_<DD-MM-YYYY>.<ext>
+const TYPE_LABELS: Record<string, string> = {
+  excel:          'Report',
+  excel_painters: 'Painter_Report',
+  pdf_file:       'PDF_Report',
+  pdf_photos:     'Photos',
+};
+
 // POST — enqueue file generation for an owned job. requireJobOwner verifies ownership
 // and populates ctx.job, so we no longer trust a caller-supplied jobId blindly.
 export const POST = withRole(['owner', 'admin'], { access: requireJobOwner, audit: 'FILE_GENERATE' })(
@@ -40,11 +48,16 @@ export const POST = withRole(['owner', 'admin'], { access: requireJobOwner, audi
         );
       }
 
+      // Human-readable download names, e.g. AcmeInteriors_Report_07-06-2026.xlsx
+      const safeCompany = job.companyName ? job.companyName.replace(/\s+/g, '_') : 'Job';
+      const now = new Date();
+      const dateStr = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+
       const createdFiles = [];
 
       for (const type of types) {
         const ext = type.startsWith('excel') ? 'xlsx' : 'pdf';
-        const fileName = `export_${type}_${Date.now()}.${ext}`;
+        const fileName = `${safeCompany}_${TYPE_LABELS[type] ?? type}_${dateStr}.${ext}`;
 
         const fileDoc = await GeneratedFile.create({
           jobId,

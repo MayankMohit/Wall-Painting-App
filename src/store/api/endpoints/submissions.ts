@@ -46,6 +46,7 @@ export interface UpdateSubmissionBody {
   location: string;
   sizes: [number, number][];
   uploadedImages: UploadedImage[];
+  photoNo: number;
 }
 
 const submissionsEndpoints = api.injectEndpoints({

@@ -17,7 +17,7 @@ export function SubmissionRow({ sub, jobId, href: hrefProp }: { sub: Submission;
   const previewUrl = sub.previewUrl;
   const editable   = sub.status === "pending" || sub.status === "rejected";
   const time       = relativeTime(sub.submittedAt || sub.createdAt || "");
-  const size       = sizeLabel(sub.sizes);
+  const size       = sub.status === "approved" ? null : sizeLabel(sub.sizes);
   const href       = hrefProp ?? `/painter/jobs/${jobId}/submissions/${sub._id}`;
 
   return (

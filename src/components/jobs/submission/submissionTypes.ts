@@ -6,5 +6,6 @@ export type FV = {
 
 export type EditFV = {
   location: string;
+  photoNo: string;
   sizes: { width: string; height: string }[];
 };
