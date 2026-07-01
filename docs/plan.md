@@ -8,7 +8,7 @@ The security baseline is genuinely good: a composer middleware pipeline (`withMi
 
 #### 🔴 HIGH
 
-**H-1 — Cross-owner IDOR on generated-file routes**
+**H-1 — Cross-owner IDOR on generated-file routes** — ✅ **RESOLVED**. All six file routes migrated to `withRole(['owner','admin'], { access: requireJobOwner })`; ownership is now enforced via `ctx.job` and audit logging restored (subsumes L-2).
 - **Where:** `src/app/api/jobs/[jobId]/files/route.ts` (GET), `…/files/[fileId]/route.ts` (GET, DELETE), `…/files/[fileId]/download/route.ts` (GET), `…/files/[fileId]/preview/route.ts` (GET), `…/files/generate/route.ts` (POST), `…/files/generation-status/[taskId]/route.ts` (GET).
 - **Problem:** Legacy `requireAuth(request)` + manual `role !== 'owner' && role !== 'admin'` check, then `GeneratedFile.find({ jobId })` / `findOne({ _id, jobId })`. Never verifies the job belongs to the requesting owner. `generate` loads the job (`files/generate/route.ts:43`) only to resolve a storage owner.
 - **Impact:** Any authenticated owner supplying another owner's `jobId` (ObjectIds leak via URLs/responses) can **list, generate, download, preview, and delete** another owner's files — job data, painter PII, photos. Cross-tenant confidentiality + integrity breach.

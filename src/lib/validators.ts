@@ -90,7 +90,8 @@ export const CreateSubmissionSchema = z.object({
   location: z.string().min(1, { error: 'Location is required' }).max(100, { error: 'Location must be 100 characters or fewer' }).trim(),
   sizes: z
     .array(z.tuple([z.number().positive(), z.number().positive()]))
-    .min(1, { error: 'At least one size is required' }),
+    .min(1, { error: 'At least one size is required' })
+    .max(10, { error: 'A submission cannot have more than 10 sizes' }),
   uploadedImages: z.array(
     z.object({
       cloudinaryId        : z.string().min(1),
@@ -104,7 +105,8 @@ export const CreateSubmissionSchema = z.object({
 
 export const UpdateSubmissionSchema = z.object({
   location: z.string().min(1).max(100, { error: 'Location must be 100 characters or fewer' }).trim().optional(),
-  sizes: z.array(z.tuple([z.number().positive(), z.number().positive()])).optional(),
+  sizes: z.array(z.tuple([z.number().positive(), z.number().positive()]))
+    .max(10, { error: 'A submission cannot have more than 10 sizes' }).optional(),
   uploadedImages: z.array(
     z.object({
       cloudinaryId        : z.string().min(1),

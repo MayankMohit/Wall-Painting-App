@@ -3,7 +3,7 @@
 import { useState, use, useEffect, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { useRouter } from "next/navigation";
-import { useCreateSubmissionMutation } from "@/store/api/endpoints/submissions";
+import { useCreateSubmissionMutation, useGetSubmissionsQuery } from "@/store/api/endpoints/submissions";
 import { X } from "@/components/jobs/shared/icons";
 import { SizesField } from "@/components/jobs/submission/SizesField";
 import { PhotoPicker } from "@/components/jobs/submission/PhotoPicker";
@@ -11,6 +11,22 @@ import { SubmitButton } from "@/components/jobs/submission/SubmitButton";
 import { inputBox, innerInput, Suffix } from "@/components/jobs/submission/formStyles";
 import { usePhotoUpload } from "@/hooks/usePhotoUpload";
 import type { FV } from "@/components/jobs/submission/submissionTypes";
+
+// RTK Query surfaces API failures as { status, data: { error: { code, message } } }.
+// These read that envelope safely, falling back to a plain Error's message.
+function errEnvelope(e: unknown): { code?: string; message?: string } {
+  if (e && typeof e === "object" && "data" in e) {
+    const data = (e as { data?: unknown }).data;
+    if (data && typeof data === "object" && "error" in data) {
+      return (data as { error: { code?: string; message?: string } }).error ?? {};
+    }
+  }
+  return {};
+}
+const errCode = (e: unknown): string | undefined => errEnvelope(e).code;
+const errMessage = (e: unknown): string =>
+  errEnvelope(e).message ??
+  (e instanceof Error ? e.message : "Something went wrong. Please try again.");
 
 export default function NewSubmissionPage({
   params,
@@ -21,11 +37,19 @@ export default function NewSubmissionPage({
   const router = useRouter();
   const [createSubmission] = useCreateSubmissionMutation();
 
+  // Photo numbers this painter has already used on this job — used to validate the
+  // photoNo field inline before uploading, so a duplicate never wastes an upload.
+  const { data: mySubmissions } = useGetSubmissionsQuery(jobId);
+  const usedPhotoNos = new Set(
+    (mySubmissions ?? []).map((s) => s.photoNo).filter((n): n is number => n != null),
+  );
+
   const {
     register,
     handleSubmit,
     control,
     watch,
+    setError,
     formState: { errors },
   } = useForm<FV>({
     defaultValues: { location: "", photoNo: "", sizes: [{ width: "", height: "" }] },
@@ -42,6 +66,7 @@ export default function NewSubmissionPage({
   const [files, setFiles]       = useState<File[]>([]);
   const [prevs, setPrevs]       = useState<string[]>([]);
   const [photoErr, setPhotoErr] = useState(false);
+  const [submitErr, setSubmitErr] = useState("");
   const [busy, setBusy]         = useState(false);
   const urlsRef                 = useRef<string[]>([]);
 
@@ -70,6 +95,7 @@ export default function NewSubmissionPage({
 
   const onSubmit = async (d: FV) => {
     if (!files.length) { setPhotoErr(true); return; }
+    setSubmitErr("");
     setBusy(true);
     try {
       const uploadedImages = await uploadFiles(files, jobId);
@@ -86,7 +112,17 @@ export default function NewSubmissionPage({
 
       router.push(`/painter/jobs/${jobId}`);
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Upload failed");
+      const code = errCode(e);
+      if (code === "DUPLICATE_PHOTO_NO") {
+        // Server rejected a photo number that slipped past the inline check (e.g. a
+        // parallel submission). Point the painter straight at the field to fix.
+        setError("photoNo", {
+          type: "duplicate",
+          message: `Photo number ${d.photoNo} is already used on this job. Pick a different one.`,
+        });
+      } else {
+        setSubmitErr(errMessage(e));
+      }
       setBusy(false);
     }
   };
@@ -155,7 +191,13 @@ export default function NewSubmissionPage({
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Photo number</div>
             <div className={[inputBox, "max-w-55 lg:max-w-none lg:w-60", errors.photoNo ? "border-(--rejected)" : ""].join(" ")}>
               <input
-                {...register("photoNo", { required: true })}
+                {...register("photoNo", {
+                  required: "Required.",
+                  validate: (v) =>
+                    usedPhotoNos.has(Number(v))
+                      ? `Photo number ${v} is already used on this job. Pick a different one.`
+                      : true,
+                })}
                 type="number"
                 min="1"
                 placeholder="07"
@@ -165,7 +207,7 @@ export default function NewSubmissionPage({
               <Suffix text="of submission" />
             </div>
             <div className={["text-[11px] mt-1.5", errors.photoNo ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
-              {errors.photoNo ? "Required." : "Sequence number for this submission's photos."}
+              {errors.photoNo?.message ?? "Sequence number for this submission's photos."}
             </div>
           </div>
 
@@ -179,6 +221,13 @@ export default function NewSubmissionPage({
               {photoErr ? "Pick at least one photo." : "Pick photos from your gallery · max 20 per submission."}
             </div>
           </div>
+
+          {/* Submit error (network / server failures that aren't a duplicate photo no.) */}
+          {submitErr && (
+            <div className="rounded-xl border border-(--rejected) bg-(--rejected)/8 px-3.5 py-3 text-[13px] text-(--rejected)">
+              {submitErr}
+            </div>
+          )}
 
           {/* Desktop submit */}
           <div className="hidden lg:block">

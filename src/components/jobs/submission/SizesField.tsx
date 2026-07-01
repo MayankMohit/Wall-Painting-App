@@ -12,7 +12,10 @@ interface SizesFieldProps {
   area: string;
 }
 
+const MAX_SIZES = 10;
+
 export function SizesField({ fields, register, remove, append, busy, area }: SizesFieldProps) {
+  const atMax = fields.length >= MAX_SIZES;
   return (
     <div className="flex flex-col gap-2">
       {fields.map((f, i) => (
@@ -21,7 +24,7 @@ export function SizesField({ fields, register, remove, append, busy, area }: Siz
             {String(i + 1).padStart(2, "0")}
           </div>
           <div className="flex-1 grid grid-cols-2 gap-2">
-            <div className={inputBox}>
+            <label className={[inputBox, "cursor-text"].join(" ")}>
               <input
                 {...register(`sizes.${i}.width` as const, { required: true })}
                 type="number"
@@ -31,8 +34,8 @@ export function SizesField({ fields, register, remove, append, busy, area }: Siz
                 className={innerInput}
               />
               <Suffix text="ft · length" />
-            </div>
-            <div className={inputBox}>
+            </label>
+            <label className={[inputBox, "cursor-text"].join(" ")}>
               <input
                 {...register(`sizes.${i}.height` as const, { required: true })}
                 type="number"
@@ -42,7 +45,7 @@ export function SizesField({ fields, register, remove, append, busy, area }: Siz
                 className={innerInput}
               />
               <Suffix text="ft · height" />
-            </div>
+            </label>
           </div>
           {i > 0 ? (
             <button
@@ -62,15 +65,21 @@ export function SizesField({ fields, register, remove, append, busy, area }: Siz
       <button
         type="button"
         onClick={() => append({ width: "", height: "" })}
-        disabled={busy}
+        disabled={busy || atMax}
         className={[
           "flex items-center gap-2.5 mt-1 px-[14px] py-3 border-[1.5px] border-dashed border-(--border-3) rounded-(--r) bg-transparent text-(--ink-2) text-[13px] font-semibold font-(--font)",
-          busy ? "cursor-not-allowed" : "cursor-pointer",
+          busy || atMax ? "cursor-not-allowed opacity-50" : "cursor-pointer",
         ].join(" ")}
       >
         <Plus size={18} weight={2.2} style={{ color: "var(--accent-deep)" }} />
         Add another size
       </button>
+
+      {atMax && (
+        <div className="text-[11px] text-(--ink-3)">
+          Maximum of {MAX_SIZES} sizes per submission.
+        </div>
+      )}
 
       <div className="mt-1 text-[11px] text-(--ink-3) flex justify-between">
         <span>Total area auto-calculated</span>
