@@ -5,6 +5,7 @@ import { getOwnerStorageBytes, STORAGE_LIMIT_BYTES } from '@/lib/storage';
 import { fileGenQueue } from '@/lib/queues';
 import { withRole } from '@/lib/middleware';
 import { requireJobOwner } from '@/lib/middleware/requireJobOwner';
+import { GenerateFilesSchema } from '@/lib/validators';
 
 // POST — enqueue file generation for an owned job. requireJobOwner verifies ownership
 // and populates ctx.job, so we no longer trust a caller-supplied jobId blindly.
@@ -12,15 +13,17 @@ export const POST = withRole(['owner', 'admin'], { access: requireJobOwner, audi
   async (req, ctx) => {
     const job = ctx.job!;
     const jobId = job._id;
-    const body = await req.json().catch(() => ({}));
+    const rawBody = await req.json().catch(() => ({}));
 
-    // Accepts an array so the UI can request Excel AND PDF at the same time
-    const { types, ownerInput } = body;
-
-    const VALID_TYPES = ['excel', 'excel_painters', 'pdf_file', 'pdf_photos'];
-    if (!Array.isArray(types) || types.length === 0 || !types.every((t) => VALID_TYPES.includes(t))) {
-      return badRequest('Please select at least one valid file type to generate.');
+    // Validate the requested types AND the owner-supplied letterhead text (trimmed,
+    // length-capped). Parsed inline so the response keeps its existing { error: string }
+    // shape (the UI reads body.error directly). Formula-injection is neutralised at
+    // cell-write time by sanitizeCell().
+    const parsed = GenerateFilesSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return badRequest(parsed.error.issues[0]?.message ?? 'Invalid request');
     }
+    const { types, ownerInput } = parsed.data;
 
     await connectDB();
 

@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { SHARED_COLUMNS, applyBordersAndCenter, buildHeaderRow, buildTotalRow } from './excelHelpers';
+import { SHARED_COLUMNS, applyBordersAndCenter, buildHeaderRow, buildTotalRow, sanitizeCell } from './excelHelpers';
 
 export function buildPainterSections(
   wb: ExcelJS.Workbook,
@@ -13,7 +13,7 @@ export function buildPainterSections(
   // 1. Header Row
   ws.mergeCells('A1:G1');
   const titleCell = ws.getCell('A1');
-  titleCell.value = `${header.jobName}`.toUpperCase();
+  titleCell.value = sanitizeCell(`${header.jobName}`.toUpperCase());
   titleCell.font = { bold: true, size: 13, underline: true };
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getRow(1).height = 18;
@@ -37,7 +37,7 @@ export function buildPainterSections(
       stat.walls += 1;
       stat.total += rowTotal;
       grandTotal += rowTotal;
-      stat.rows.push({ photoNo: sub.photoNo, location: sub.location, l: L, x: '×', b: B, total: rowTotal });
+      stat.rows.push({ photoNo: sub.photoNo, location: sanitizeCell(sub.location), l: L, x: '×', b: B, total: rowTotal });
     }
   }
 
@@ -59,7 +59,7 @@ export function buildPainterSections(
 
   let summarySno = 1; 
   for (const p of sortedPainters) {
-    const r = ws.addRow([summarySno++, '', p.name, p.walls, '', p.total, '']);
+    const r = ws.addRow([summarySno++, '', sanitizeCell(p.name), p.walls, '', p.total, '']);
     const rn = r.number;
     ws.mergeCells(`A${rn}:B${rn}`); 
     ws.mergeCells(`D${rn}:E${rn}`); 
@@ -74,7 +74,7 @@ export function buildPainterSections(
 
     ws.addRow([]); ws.addRow([]); 
     
-    const pHeader = ws.addRow([p.name.toUpperCase(), '', '', '', '', '', '']);
+    const pHeader = ws.addRow([sanitizeCell(p.name.toUpperCase()), '', '', '', '', '', '']);
     const phr = pHeader.number;
     ws.mergeCells(`A${phr}:G${phr}`);
     pHeader.font = { bold: true };

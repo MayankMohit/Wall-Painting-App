@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import type { UseFormRegister, FieldArrayWithId } from "react-hook-form";
 import { X, Plus } from "@/components/jobs/shared/icons";
-import { inputBox, innerInput, Suffix } from "./formStyles";
+import { inputBox, innerInput } from "./formStyles";
 
 interface SizesFieldProps {
   fields: FieldArrayWithId<any, any, "id">[];
@@ -29,22 +29,20 @@ export function SizesField({ fields, register, remove, append, busy, area }: Siz
                 {...register(`sizes.${i}.width` as const, { required: true })}
                 type="number"
                 step="any"
-                placeholder="0"
+                placeholder="length"
                 disabled={busy}
                 className={innerInput}
               />
-              <Suffix text="ft · length" />
             </label>
             <label className={[inputBox, "cursor-text"].join(" ")}>
               <input
                 {...register(`sizes.${i}.height` as const, { required: true })}
                 type="number"
                 step="any"
-                placeholder="0"
+                placeholder="height"
                 disabled={busy}
                 className={innerInput}
               />
-              <Suffix text="ft · height" />
             </label>
           </div>
           {i > 0 ? (
@@ -67,7 +65,7 @@ export function SizesField({ fields, register, remove, append, busy, area }: Siz
         onClick={() => append({ width: "", height: "" })}
         disabled={busy || atMax}
         className={[
-          "flex items-center gap-2.5 mt-1 px-[14px] py-3 border-[1.5px] border-dashed border-(--border-3) rounded-(--r) bg-transparent text-(--ink-2) text-[13px] font-semibold font-(--font)",
+          "flex items-center gap-2.5 mt-1 px-3.5 py-3 border-[1.5px] border-dashed border-(--border-3) rounded-(--r) bg-transparent text-(--ink-2) text-[13px] font-semibold",
           busy || atMax ? "cursor-not-allowed opacity-50" : "cursor-pointer",
         ].join(" ")}
       >
@@ -83,7 +81,7 @@ export function SizesField({ fields, register, remove, append, busy, area }: Siz
 
       <div className="mt-1 text-[11px] text-(--ink-3) flex justify-between">
         <span>Total area auto-calculated</span>
-        <span className="font-(--mono) text-(--ink-2) font-semibold">= {area} ft²</span>
+        <span className="font-(--mono) text-(--ink-2)">= {area} ft²</span>
       </div>
     </div>
   );

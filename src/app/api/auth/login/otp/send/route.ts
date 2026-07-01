@@ -4,7 +4,6 @@ import { User } from '@/lib/models';
 import { generateOtp, storeLoginOtp } from '@/lib/otp';
 import { sendOtpEmail } from '@/lib/email';
 import { LoginOtpSendSchema } from '@/lib/validators';
-import { ErrorCodes } from '@/lib/errors';
 import { withMiddleware } from '@/lib/middleware';
 import { checkRateLimit } from '@/lib/middleware/rateLimit';
 import type { z } from 'zod';
@@ -19,24 +18,26 @@ export const POST = withMiddleware({ rateLimit: 'strict', schema: LoginOtpSendSc
 
     await connectDB();
     const user = await User.findOne({ email: identifier.toLowerCase() });
-    if (!user) return ctx.fail(404, ErrorCodes.NOT_FOUND, 'No account found with that email');
 
-    if (!user.emailVerified && user.role !== 'painter') {
-      ctx.fail(403, ErrorCodes.NOT_AUTHORIZED, 'Email not verified — log in with your phone number instead');
-    }
-    if (user.status === 'inactive') ctx.fail(403, ErrorCodes.ACCOUNT_DISABLED, 'Account pending approval');
-    if (user.status === 'suspended') {
-      ctx.fail(403, ErrorCodes.ACCOUNT_DISABLED, `Account suspended. Contact ${process.env.ADMIN_CONTACT_EMAIL} if you think this is a mistake.`);
-    }
-
-    // Email-OTP login requires an email on the account (provisioned painters may not have one).
-    const email = user.email;
-    if (!email) return ctx.fail(401, ErrorCodes.INVALID_CREDENTIALS, 'Invalid credentials');
+    // Always respond with an opaque sessionId, whether or not an eligible account
+    // exists — the response is byte-for-byte identical either way, so an attacker
+    // can't enumerate registered emails (M-1). An OTP is generated and mailed only
+    // for an eligible account; every other case simply never receives a code and the
+    // verify step rejects the (empty) session. Eligibility requires an active account
+    // with a usable email that is either a painter or has a verified email.
+    const eligible =
+      !!user &&
+      !!user.email &&
+      user.status === 'active' &&
+      (user.emailVerified || user.role === 'painter');
 
     const sessionId = crypto.randomUUID();
-    const otp = generateOtp();
-    await storeLoginOtp(sessionId, otp, email);
-    await sendOtpEmail(email, otp, 'login');
+
+    if (eligible) {
+      const otp = generateOtp();
+      await storeLoginOtp(sessionId, otp, user!.email!);
+      await sendOtpEmail(user!.email!, otp, 'login');
+    }
 
     return Response.json({ data: { sessionId } });
   }

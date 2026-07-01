@@ -5,8 +5,9 @@ import { ChevRight, ChevDown, EyeOff } from './icons';
 
 const FIELD_CLS = 'h-11 bg-(--paper-2) border border-(--border-2) rounded-(--r) px-3 flex items-center gap-2';
 
-export function SecurityCard() {
+export function SecurityCard({ requireCurrentPassword = false }: { requireCurrentPassword?: boolean }) {
   const [open, setOpen]           = useState(false);
+  const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw]         = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [showPw, setShowPw]       = useState(false);
@@ -16,10 +17,11 @@ export function SecurityCard() {
 
   const toggle = () => {
     setOpen((o) => !o);
-    setError(null); setSuccess(false); setNewPw(''); setConfirmPw('');
+    setError(null); setSuccess(false); setCurrentPw(''); setNewPw(''); setConfirmPw('');
   };
 
   const handleSave = async () => {
+    if (requireCurrentPassword && !currentPw) { setError('Enter your current password'); return; }
     if (newPw !== confirmPw) { setError('Passwords do not match'); return; }
     if (newPw.length < 8)   { setError('At least 8 characters required'); return; }
     setError(null); setSaving(true);
@@ -28,11 +30,19 @@ export function SecurityCard() {
       const res = await fetch('/api/users/me/password', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword: newPw }),
+        body: JSON.stringify(
+          requireCurrentPassword
+            ? { currentPassword: currentPw, newPassword: newPw }
+            : { newPassword: newPw }
+        ),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error?.message ?? json.error ?? 'Failed'); return; }
-      setSuccess(true); setNewPw(''); setConfirmPw('');
+      // The server rotates tokenVersion on password change (revoking other sessions);
+      // persist the fresh token it returns so this session isn't logged out.
+      const newToken = json.data?.token as string | undefined;
+      if (newToken) localStorage.setItem('wallpainter_token', newToken);
+      setSuccess(true); setCurrentPw(''); setNewPw(''); setConfirmPw('');
     } catch { setError('Network error'); }
     finally   { setSaving(false); }
   };
@@ -59,6 +69,21 @@ export function SecurityCard() {
             <div className="py-2 text-[13px] font-medium text-(--approved)">Password updated successfully.</div>
           ) : (
             <>
+              {requireCurrentPassword && (
+                <div>
+                  <div className="text-[11px] font-semibold text-(--ink-3) mb-1.5">Current password</div>
+                  <div className={FIELD_CLS}>
+                    <input
+                      type="password"
+                      value={currentPw}
+                      onChange={(e) => setCurrentPw(e.target.value)}
+                      disabled={saving}
+                      placeholder="Enter current password"
+                      className="flex-1 bg-transparent border-0 outline-none text-[14px] text-(--ink) placeholder:text-(--ink-4)"
+                    />
+                  </div>
+                </div>
+              )}
               <div>
                 <div className="text-[11px] font-semibold text-(--ink-3) mb-1.5">New password</div>
                 <div className={FIELD_CLS}>
@@ -91,7 +116,7 @@ export function SecurityCard() {
               {error && <div className="text-[11px] text-(--rejected)">{error}</div>}
               <button
                 onClick={handleSave}
-                disabled={saving || !newPw || !confirmPw}
+                disabled={saving || !newPw || !confirmPw || (requireCurrentPassword && !currentPw)}
                 className="w-full h-10 rounded-(--r) bg-(--ink) text-white text-[13px] font-semibold border-0 cursor-pointer disabled:opacity-40"
               >
                 {saving ? 'Updating…' : 'Update password'}

@@ -33,7 +33,7 @@ export const POST = withMiddleware({ rateLimit: 'strict', schema: InviteClaimSch
     invite.lastUsedAt = new Date();
     await invite.save();
 
-    const authToken = signToken({ userId: painter._id.toString(), role: painter.role, name: painter.name });
+    const authToken = signToken({ userId: painter._id.toString(), role: painter.role, name: painter.name, tokenVersion: painter.tokenVersion });
     ctx.setAudit('AUTH_LOGIN_INVITE', undefined, { userId: painter._id.toString(), role: painter.role });
 
     return ok({

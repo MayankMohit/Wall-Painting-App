@@ -181,7 +181,7 @@ export default function NewSubmissionPage({
           {/* Sizes */}
           <div>
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
-              Wall sizes <span className="text-(--ink-4) font-medium">· at least one</span>
+              Wall sizes <span className="text-(--ink-4) font-medium">· at least one · in feet</span>
             </div>
             <SizesField fields={fields} register={register} remove={remove} append={append} busy={busy} area={area} />
           </div>

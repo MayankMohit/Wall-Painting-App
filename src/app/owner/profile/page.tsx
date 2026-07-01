@@ -365,7 +365,7 @@ export default function OwnerProfilePage() {
         {/* Security */}
         <SectionHdr title="Security" />
         <div className="px-4 lg:px-8">
-          <SecurityCard />
+          <SecurityCard requireCurrentPassword />
         </div>
 
         {/* Sign out */}

@@ -69,6 +69,8 @@ export const UpdateProfileSchema = z.object({
 });
 
 export const ChangePasswordSchema = z.object({
+  // Required for owners (re-authentication); optional for other roles. Enforced in the handler.
+  currentPassword: z.string().optional(),
   newPassword: z.string().min(8, { error: 'New password must be at least 8 characters' }),
 });
 
@@ -129,8 +131,20 @@ export const RevokeSubmissionSchema = z.object({
   revokeNote: z.string().optional(),
 });
 
-export const GenerateFileSchema = z.object({
-  type: z.enum(['excel', 'pdf-report', 'pdf-photos']),
+// Owner-supplied letterhead/title text written into generated Excel/PDF files.
+// All optional, trimmed, and length-capped so they can't bloat the document.
+// Formula-injection safety for the Excel cells is handled by sanitizeCell() at write time.
+export const OwnerInputSchema = z.object({
+  companyName: z.string().trim().max(120, { error: 'Company name must be 120 characters or fewer' }).optional(),
+  jobName:     z.string().trim().max(120, { error: 'Job name must be 120 characters or fewer' }).optional(),
+  city:        z.string().trim().max(120, { error: 'City must be 120 characters or fewer' }).optional(),
+  address:     z.string().trim().max(300, { error: 'Address must be 300 characters or fewer' }).optional(),
+});
+
+export const GenerateFilesSchema = z.object({
+  types: z.array(z.enum(['excel', 'excel_painters', 'pdf_file', 'pdf_photos']))
+    .min(1, { error: 'Please select at least one valid file type to generate.' }),
+  ownerInput: OwnerInputSchema.optional(),
 });
 
 export const FCMTokenSchema = z.object({

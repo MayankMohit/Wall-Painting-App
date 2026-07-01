@@ -42,7 +42,10 @@ interface AuthState {
 
 function persistAuth(token: string) {
   localStorage.setItem('wallpainter_token', token);
-  document.cookie = `wallpainter_auth_status=true; path=/; max-age=604800`;
+  // Status hint cookie only (not the bearer token). SameSite=Lax blocks cross-site
+  // sends; Secure is added on HTTPS (omitted on http://localhost so dev still works).
+  const secure = typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `wallpainter_auth_status=true; path=/; max-age=172800; SameSite=Lax${secure}`;
 }
 
 // ── Token refresh scheduling ──────────────────────────────────────────────────

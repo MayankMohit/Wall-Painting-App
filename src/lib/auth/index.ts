@@ -5,6 +5,7 @@ export type TokenPayload = {
   userId: string;
   role: 'painter' | 'owner' | 'admin';
   name?: string;
+  tokenVersion?: number;  // must match User.tokenVersion; a bump revokes older tokens (M-3)
 };
 
 const BCRYPT_ROUNDS = 12;
@@ -19,7 +20,9 @@ export async function comparePassword(plain: string, hash: string): Promise<bool
 }
 
 export function signToken(payload: TokenPayload): string {
-  return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d', algorithm: 'HS256' });
+  // Shorter lifetime limits the window a leaked/XSS-stolen token is usable (M-2).
+  // The client proactively refreshes ~1h before expiry while the app is open.
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '2d', algorithm: 'HS256' });
 }
 
 export function verifyToken(token: string): TokenPayload | null {

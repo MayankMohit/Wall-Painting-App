@@ -1,5 +1,15 @@
 import ExcelJS from 'exceljs';
 
+// Excel/CSV formula-injection guard. A cell whose text begins with one of these
+// characters can be interpreted as a formula when the .xlsx is opened in Excel /
+// Sheets. Prefixing a single quote forces the value to render as literal text.
+// Non-strings (numbers) are returned untouched. Apply to every user-derived string
+// written into a worksheet cell (job/company name, location, painter name, …).
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+export function sanitizeCell<T>(value: T): T | string {
+  return typeof value === 'string' && FORMULA_TRIGGER.test(value) ? `'${value}` : value;
+}
+
 export const SHARED_COLUMNS = [
   { key: 'sno',      width: 6 },
   { key: 'photoNo',  width: 10.5 },

@@ -47,7 +47,7 @@ export const POST = withMiddleware({ rateLimit: 'strict', schema: RegisterSchema
       ]);
     }
 
-    const token = signToken({ userId: user._id.toString(), role: user.role, name: user.name });
+    const token = signToken({ userId: user._id.toString(), role: user.role, name: user.name, tokenVersion: user.tokenVersion });
 
     return Response.json({
       data: {

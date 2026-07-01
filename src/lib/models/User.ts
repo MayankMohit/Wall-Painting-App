@@ -10,6 +10,7 @@ export interface IUser extends Document {
   emailVerified: boolean;
   fcmTokens: string[];
   status: 'active' | 'inactive' | 'suspended';
+  tokenVersion: number;  // bumped to invalidate all previously-issued JWTs (logout, password change, suspend)
   letterhead: { companyName: string; address: string } | null;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
@@ -27,6 +28,7 @@ const UserSchema = new Schema<IUser>(
     emailVerified: { type: Boolean, default: false },
     fcmTokens: { type: [String], default: [] },
     status: { type: String, enum: ['active', 'inactive', 'suspended'], default: 'active' },
+    tokenVersion: { type: Number, default: 0 },
     letterhead: {
       type: { companyName: String, address: String },
       default: null,

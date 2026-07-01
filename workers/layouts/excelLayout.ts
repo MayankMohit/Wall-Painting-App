@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { SHARED_COLUMNS, applyBordersAndCenter, buildHeaderRow, buildTotalRow } from './excelHelpers';
+import { SHARED_COLUMNS, applyBordersAndCenter, buildHeaderRow, buildTotalRow, sanitizeCell } from './excelHelpers';
 
 export function buildMasterSheet(
   wb: ExcelJS.Workbook, 
@@ -13,7 +13,7 @@ export function buildMasterSheet(
   // 1. Header
   ws.mergeCells('A1:G1');
   const titleCell = ws.getCell('A1');
-  titleCell.value = `${header.jobName}`.toUpperCase();
+  titleCell.value = sanitizeCell(`${header.jobName}`.toUpperCase());
   titleCell.font  = { bold: true, size: 13, underline: true };
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getRow(1).height = 18; 
@@ -32,7 +32,7 @@ export function buildMasterSheet(
       const rowData = {
         sno     : sno++,
         photoNo : sub.photoNo,
-        location: sub.location,
+        location: sanitizeCell(sub.location),
         l       : L,
         x       : '×',
         b       : B,

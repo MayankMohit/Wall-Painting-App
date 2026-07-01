@@ -10,13 +10,16 @@ export const POST = withAuth({ audit: 'AUTH_LOGOUT' })(
         ? body.fcmToken.trim()
         : null;
 
-    if (fcmToken) {
-      await connectDB();
-      await User.updateOne(
-        { _id: ctx.user!.userId },
-        { $pull: { fcmTokens: fcmToken } }
-      );
-    }
+    // Always bump tokenVersion so this token (and any other live session) stops
+    // working immediately — logout is now a real server-side revocation (M-3).
+    await connectDB();
+    await User.updateOne(
+      { _id: ctx.user!.userId },
+      {
+        $inc: { tokenVersion: 1 },
+        ...(fcmToken ? { $pull: { fcmTokens: fcmToken } } : {}),
+      }
+    );
 
     return Response.json({ data: { message: 'Logged out' } });
   }

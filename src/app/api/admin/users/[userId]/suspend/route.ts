@@ -28,6 +28,9 @@ export const PATCH = withRole(['admin'], { schema: AdminReasonSchema, audit: 'AD
     }
 
     user.status = 'suspended';
+    // Revoke all of the user's existing tokens immediately (M-3), so a suspended user
+    // is locked out everywhere rather than lingering until their JWT expires.
+    user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
 
     ctx.setAudit('ADMIN_USER_SUSPEND', { type: 'User', id: userId }, { reason });
