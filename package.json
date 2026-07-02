@@ -27,6 +27,7 @@
     "exceljs": "^4.4.0",
     "firebase": "^12.13.0",
     "firebase-admin": "^13.10.0",
+    "heic2any": "^0.0.4",
     "helmet": "^8.1.0",
     "ioredis": "^5.11.1",
     "jimp": "^1.6.1",

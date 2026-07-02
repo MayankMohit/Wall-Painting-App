@@ -10,6 +10,7 @@ import { PhotoPicker } from "@/components/jobs/submission/PhotoPicker";
 import { SubmitButton } from "@/components/jobs/submission/SubmitButton";
 import { inputBox, innerInput, Suffix } from "@/components/jobs/submission/formStyles";
 import { usePhotoUpload } from "@/hooks/usePhotoUpload";
+import { normalizePickedImages, skippedMessage } from "@/components/jobs/submission/imagePick";
 import type { FV } from "@/components/jobs/submission/submissionTypes";
 
 // RTK Query surfaces API failures as { status, data: { error: { code, message } } }.
@@ -66,21 +67,37 @@ export default function NewSubmissionPage({
   const [files, setFiles]       = useState<File[]>([]);
   const [prevs, setPrevs]       = useState<string[]>([]);
   const [photoErr, setPhotoErr] = useState(false);
+  const [pickErr, setPickErr]   = useState("");
+  const [picking, setPicking]   = useState(false);
   const [submitErr, setSubmitErr] = useState("");
   const [busy, setBusy]         = useState(false);
   const urlsRef                 = useRef<string[]>([]);
 
   useEffect(() => () => { urlsRef.current.forEach(URL.revokeObjectURL); }, []);
 
-  const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    urlsRef.current.forEach(URL.revokeObjectURL);
-    const arr  = Array.from(e.target.files);
-    const urls = arr.map((f) => URL.createObjectURL(f));
-    urlsRef.current = urls;
-    setFiles(arr);
-    setPrevs(urls);
-    setPhotoErr(false);
+  const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const arr = Array.from(e.target.files ?? []);
+    // Reset so re-picking the same photos fires another change event.
+    e.target.value = "";
+    if (!arr.length) return;
+    setPicking(true);
+    setPickErr("");
+    try {
+      // Decode-test each photo and convert HEIC → JPEG so previews always
+      // render and compression can't crash at submit (Android can't read HEIC).
+      const { files: good, skipped } = await normalizePickedImages(arr);
+      if (good.length) {
+        urlsRef.current.forEach(URL.revokeObjectURL);
+        const urls = good.map((f) => URL.createObjectURL(f));
+        urlsRef.current = urls;
+        setFiles(good);
+        setPrevs(urls);
+        setPhotoErr(false);
+      }
+      if (skipped) setPickErr(skippedMessage(skipped));
+    } finally {
+      setPicking(false);
+    }
   };
 
   const drop = (i: number) => {
@@ -216,9 +233,13 @@ export default function NewSubmissionPage({
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
               Photos <span className="text-(--ink-4) font-medium">· {files.length} of 20</span>
             </div>
-            <PhotoPicker files={files} prevs={prevs} photoErr={photoErr} busy={busy} onPick={pick} onDrop={drop} />
-            <div className={["text-[11px] mt-1.5", photoErr ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
-              {photoErr ? "Pick at least one photo." : "Pick photos from your gallery · max 20 per submission."}
+            <PhotoPicker files={files} prevs={prevs} photoErr={photoErr} busy={busy || picking} onPick={pick} onDrop={drop} />
+            <div className={["text-[11px] mt-1.5", (photoErr || pickErr) && !picking ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
+              {picking
+                ? "Processing photos…"
+                : photoErr
+                  ? "Pick at least one photo."
+                  : pickErr || "Pick photos from your gallery · max 20 per submission."}
             </div>
           </div>
 

@@ -29,7 +29,17 @@ export function usePhotoUpload() {
     async function worker() {
       while (next < files.length) {
         const i = next++;
-        results[i] = await compressAndUpload(files[i], sig, KEY, CLOUD);
+        try {
+          results[i] = await compressAndUpload(files[i], sig, KEY, CLOUD);
+        } catch (e) {
+          // Cloudinary errors already carry a real reason — pass them through.
+          // Anything else is almost always compression failing to decode the
+          // file (e.g. HEIC); name the photo instead of a generic failure.
+          if (e instanceof Error && /cloudinary/i.test(e.message)) throw e;
+          throw new Error(
+            `Photo ${i + 1} could not be processed — it may be in a format this phone's browser can't read. Remove it and try again.`,
+          );
+        }
         done++;
         setStep(`Uploading ${done} of ${files.length} photo${files.length > 1 ? 's' : ''}…`);
       }

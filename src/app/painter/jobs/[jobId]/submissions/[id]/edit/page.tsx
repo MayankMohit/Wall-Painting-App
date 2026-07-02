@@ -15,6 +15,7 @@ import { EditPhotoPicker } from "@/components/jobs/submission/EditPhotoPicker";
 import { SubmitButton } from "@/components/jobs/submission/SubmitButton";
 import { inputBox, innerInput } from "@/components/jobs/submission/formStyles";
 import { usePhotoUpload } from "@/hooks/usePhotoUpload";
+import { normalizePickedImages, skippedMessage } from "@/components/jobs/submission/imagePick";
 import type { EditFV } from "@/components/jobs/submission/submissionTypes";
 
 export default function EditSubmissionPage({
@@ -49,6 +50,8 @@ export default function EditSubmissionPage({
   const [exPhotos, setExPhotos] = useState<ExPhoto[]>([]);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [newPrevs, setNewPrevs] = useState<string[]>([]);
+  const [pickErr, setPickErr]   = useState("");
+  const [picking, setPicking]   = useState(false);
   const [busy, setBusy]         = useState(false);
   const urlsRef                 = useRef<string[]>([]);
 
@@ -67,14 +70,28 @@ export default function EditSubmissionPage({
     });
   }, [sub, reset]);
 
-  const pickNew = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    urlsRef.current.forEach(URL.revokeObjectURL);
-    const arr  = Array.from(e.target.files);
-    const urls = arr.map((f) => URL.createObjectURL(f));
-    urlsRef.current = urls;
-    setNewFiles(arr);
-    setNewPrevs(urls);
+  const pickNew = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const arr = Array.from(e.target.files ?? []);
+    // Reset so re-picking the same photos fires another change event.
+    e.target.value = "";
+    if (!arr.length) return;
+    setPicking(true);
+    setPickErr("");
+    try {
+      // Decode-test each photo and convert HEIC → JPEG so previews always
+      // render and compression can't crash at save (Android can't read HEIC).
+      const { files: good, skipped } = await normalizePickedImages(arr);
+      if (good.length) {
+        urlsRef.current.forEach(URL.revokeObjectURL);
+        const urls = good.map((f) => URL.createObjectURL(f));
+        urlsRef.current = urls;
+        setNewFiles(good);
+        setNewPrevs(urls);
+      }
+      if (skipped) setPickErr(skippedMessage(skipped));
+    } finally {
+      setPicking(false);
+    }
   };
 
   const dropNew = (i: number) => {
@@ -229,13 +246,15 @@ export default function EditSubmissionPage({
               exPhotos={exPhotos}
               newFiles={newFiles}
               newPrevs={newPrevs}
-              busy={busy}
+              busy={busy || picking}
               onPickNew={pickNew}
               onDropNew={dropNew}
               onDeleteExisting={deleteExisting}
             />
-            <div className="text-[11px] mt-1.5 text-(--ink-3)">
-              Tap the × on a photo to remove it · Add more from your gallery.
+            <div className={["text-[11px] mt-1.5", pickErr && !picking ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
+              {picking
+                ? "Processing photos…"
+                : pickErr || "Tap the × on a photo to remove it · Add more from your gallery."}
             </div>
           </div>
 
