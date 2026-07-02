@@ -27,7 +27,16 @@ export const GET = withAuth()(
     }
 
     if (status && status !== 'all') matchStage.status = status;
-    if (q) matchStage.$text = { $search: q };
+    // Case-insensitive partial match on company name OR description. Regex (not $text)
+    // so typing a few letters filters live and doesn't depend on a text index.
+    const term = q.trim();
+    if (term) {
+      const safe = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      matchStage.$or = [
+        { companyName: { $regex: safe, $options: 'i' } },
+        { description: { $regex: safe, $options: 'i' } },
+      ];
+    }
 
     await connectDB();
 

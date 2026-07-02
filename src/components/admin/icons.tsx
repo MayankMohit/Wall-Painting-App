@@ -49,3 +49,4 @@ export const Cpu        = icon(<><rect x="4" y="4" width="16" height="16" rx="2"
 export const Zap        = icon(<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />);
 export const Menu       = icon(<><circle cx="5" cy="12" r="1.2" fill="currentColor" /><circle cx="12" cy="12" r="1.2" fill="currentColor" /><circle cx="19" cy="12" r="1.2" fill="currentColor" /></>);
 export const List       = icon(<><path d="M4 6h16M4 12h16M4 18h10" /></>);
+export const ChartBar   = icon(<><path d="M3 3v18h18" /><path d="M8 17V9M13 17V5M18 17v-6" /></>);

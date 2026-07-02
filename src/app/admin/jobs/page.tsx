@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Search, Briefcase, ArrowRight } from '@/components/admin/icons';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -132,7 +133,7 @@ export default function AdminJobsPage() {
         ) : (
           <div className="px-4 py-3 flex flex-col gap-2">
             {jobs.map((job) => (
-              <div key={job._id} className="bg-(--surface) border border-(--border) rounded-(--r-md) p-4 shadow-(--shadow-sm)">
+              <Link key={job._id} href={`/admin/jobs/${job._id}`} className="block no-underline text-inherit bg-(--surface) border border-(--border) rounded-(--r-md) p-4 shadow-(--shadow-sm) active:bg-(--paper-2) transition-colors">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-[8px] bg-(--paper-2) border border-(--border) flex items-center justify-center text-(--ink-2) shrink-0">
                     <Briefcase size={18} weight={1.6} />
@@ -148,7 +149,7 @@ export default function AdminJobsPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
@@ -200,9 +201,10 @@ export default function AdminJobsPage() {
               <div className="p-16 text-center text-[13px] text-(--ink-3)">No jobs match your filters.</div>
             ) : (
               jobs.map((job, i) => (
-                <div
+                <Link
                   key={job._id}
-                  className={`grid gap-4 px-5 py-3.5 items-center transition-colors hover:bg-(--paper-2) ${i < jobs.length - 1 ? 'border-b border-(--border)' : ''}`}
+                  href={`/admin/jobs/${job._id}`}
+                  className={`grid gap-4 px-5 py-3.5 items-center no-underline text-inherit transition-colors hover:bg-(--paper-2) ${i < jobs.length - 1 ? 'border-b border-(--border)' : ''}`}
                   style={{ gridTemplateColumns: '2fr 2fr 90px 80px 80px 90px' }}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -218,7 +220,7 @@ export default function AdminJobsPage() {
                     {job.stats?.pending ?? 0}
                   </div>
                   <div><StatusChip status={job.status} /></div>
-                </div>
+                </Link>
               ))
             )}
           </div>

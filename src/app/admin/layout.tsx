@@ -15,7 +15,7 @@ import { api } from '@/store/api/api';
 import { useNotificationUiStore } from '@/store/notificationUiStore';
 import { playNotificationSound } from '@/lib/notificationSound';
 import {
-  LayoutGrid, Terminal, Bell, UserIcon, LogoutIcon, List,
+  LayoutGrid, Terminal, Bell, UserIcon, LogoutIcon, List, ChartBar,
 } from '@/components/admin/icons';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -31,17 +31,19 @@ interface NavItem {
 // ── Nav config ────────────────────────────────────────────────────────────────
 
 const SIDEBAR_LINKS: NavItem[] = [
-  { label: 'System', href: '/admin/dashboard', Icon: LayoutGrid, isActive: (p) => p.startsWith('/admin/dashboard') },
-  { label: 'Logs',   href: '/admin/logs',      Icon: List,       isActive: (p) => p.startsWith('/admin/logs') },
-  { label: 'Inbox',  href: '/admin/inbox',     Icon: Bell,       isActive: (p) => p.startsWith('/admin/inbox'), badge: true },
-  { label: 'Me',     href: '/admin/profile',   Icon: UserIcon,   isActive: (p) => p.startsWith('/admin/profile') },
+  { label: 'System',    href: '/admin/dashboard', Icon: LayoutGrid, isActive: (p) => p.startsWith('/admin/dashboard') },
+  { label: 'Analytics', href: '/admin/analytics', Icon: ChartBar,   isActive: (p) => p.startsWith('/admin/analytics') },
+  { label: 'Logs',      href: '/admin/logs',      Icon: List,       isActive: (p) => p.startsWith('/admin/logs') },
+  { label: 'Inbox',     href: '/admin/inbox',     Icon: Bell,       isActive: (p) => p.startsWith('/admin/inbox'), badge: true },
+  { label: 'Me',        href: '/admin/profile',   Icon: UserIcon,   isActive: (p) => p.startsWith('/admin/profile') },
 ];
 
 const BOTTOM_TABS: NavItem[] = [
-  { label: 'System',  href: '/admin/dashboard',       Icon: LayoutGrid, isActive: (p) => p.startsWith('/admin/dashboard') },
-  { label: 'Logs',    href: '/admin/logs',             Icon: Terminal,   isActive: (p) => p.startsWith('/admin/logs') },
-  { label: 'Inbox',   href: '/admin/inbox',            Icon: Bell,       isActive: (p) => p.startsWith('/admin/inbox'), badge: true },
-  { label: 'Me',      href: '/admin/profile',          Icon: UserIcon,   isActive: (p) => p.startsWith('/admin/profile') },
+  { label: 'System',    href: '/admin/dashboard', Icon: LayoutGrid, isActive: (p) => p.startsWith('/admin/dashboard') },
+  { label: 'Analytics', href: '/admin/analytics', Icon: ChartBar,   isActive: (p) => p.startsWith('/admin/analytics') },
+  { label: 'Logs',      href: '/admin/logs',      Icon: Terminal,   isActive: (p) => p.startsWith('/admin/logs') },
+  { label: 'Inbox',     href: '/admin/inbox',     Icon: Bell,       isActive: (p) => p.startsWith('/admin/inbox'), badge: true },
+  { label: 'Me',        href: '/admin/profile',   Icon: UserIcon,   isActive: (p) => p.startsWith('/admin/profile') },
 ];
 
 // Suppress bottom tabs on deep drilldown pages
