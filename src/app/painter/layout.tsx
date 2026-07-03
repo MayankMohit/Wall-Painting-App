@@ -14,6 +14,7 @@ import {
 import { api } from "@/store/api/api";
 import { useNotificationUiStore } from "@/store/notificationUiStore";
 import { playNotificationSound } from "@/lib/notificationSound";
+import { RouteGuard } from "@/components/auth/RouteGuard";
 
 const MAX_SEEN_IDS = 200;
 const _seenNotifIds = new Set<string>();
@@ -118,7 +119,7 @@ export default function PainterLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout, user, checkAuth } = useAuthStore();
+  const { logout, user } = useAuthStore();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const dispatch = useAppDispatch();
   const muted = useNotificationUiStore((s) => s.muted);
@@ -146,10 +147,6 @@ export default function PainterLayout({
     pollingInterval: 60_000,
   });
   const unreadCount = notifData?.unreadCount ?? 0;
-
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
 
   useEffect(() => {
     if (user?.role === "painter" && user.status !== "active") {
@@ -221,6 +218,7 @@ export default function PainterLayout({
   };
 
   return (
+    <RouteGuard role="painter">
     <div className="flex min-h-screen bg-(--paper)">
       {/* ── Sidebar — desktop only ───────────────────────────────── */}
       <aside className="hidden lg:flex lg:flex-col w-60 shrink-0 bg-(--ink) sticky top-0 h-screen overflow-y-auto">
@@ -321,5 +319,6 @@ export default function PainterLayout({
         })}
       </div>
     </div>
+    </RouteGuard>
   );
 }

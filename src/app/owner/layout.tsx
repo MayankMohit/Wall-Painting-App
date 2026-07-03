@@ -15,6 +15,7 @@ import { api } from '@/store/api/api';
 import { useNotificationUiStore } from '@/store/notificationUiStore';
 import { playNotificationSound } from '@/lib/notificationSound';
 import { Bell, List, LogoutIcon, UserIcon, Users } from '@/components/owner/icons';
+import { RouteGuard } from '@/components/auth/RouteGuard';
 
 const MAX_SEEN_IDS = 200;
 const _seenNotifIds = new Set<string>();
@@ -72,7 +73,7 @@ const NAV_LINKS = [
 export default function OwnerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout, user, checkAuth } = useAuthStore();
+  const { logout, user } = useAuthStore();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const dispatch = useAppDispatch();
   const muted = useNotificationUiStore((s) => s.muted);
@@ -92,8 +93,6 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
     pollingInterval: 60_000,
   });
   const unreadCount = notifData?.unreadCount ?? 0;
-
-  useEffect(() => { checkAuth(); }, [checkAuth]);
 
   useEffect(() => {
     if (user?.role === 'owner' && user.status !== 'active') {
@@ -163,6 +162,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   };
 
   return (
+    <RouteGuard role="owner">
     <div className="flex min-h-screen bg-(--paper)">
 
       {/* ── Desktop sidebar ────────────────────────────────────────── */}
@@ -254,5 +254,6 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
         })}
       </div>
     </div>
+    </RouteGuard>
   );
 }

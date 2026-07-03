@@ -215,6 +215,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (res.ok) {
         const json = await res.json();
         const user = json.data ?? json;
+        // Re-set the auth status cookie: keeps its expiry fresh and restores it
+        // for valid sessions that predate it, so the page guard in proxy.ts
+        // doesn't bounce a logged-in user to /login.
+        persistAuth(token);
         scheduleRefresh(token, () => get().refreshToken());
         set({ user, isAuthenticated: true });
       } else {

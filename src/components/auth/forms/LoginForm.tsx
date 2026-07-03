@@ -18,11 +18,18 @@ function redirectAfterLogin(
   status: string,
   router: ReturnType<typeof useRouter>,
 ) {
-  if (role === "owner") {
-    router.push(status !== "active" ? "/pending-approval" : "/owner/jobs");
-  } else {
-    router.push(`/${role}/dashboard`);
+  if (role === "owner" && status !== "active") {
+    router.push("/pending-approval");
+    return;
   }
+  // Honor ?next= set by the route guards, but only within the user's own role
+  // section — this also rules out open redirects.
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (next && next.startsWith(`/${role}/`)) {
+    router.push(next);
+    return;
+  }
+  router.push(role === "owner" ? "/owner/jobs" : `/${role}/dashboard`);
 }
 
 export default function LoginForm() {

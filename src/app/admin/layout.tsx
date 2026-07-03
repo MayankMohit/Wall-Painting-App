@@ -17,6 +17,7 @@ import { playNotificationSound } from '@/lib/notificationSound';
 import {
   LayoutGrid, Terminal, Bell, UserIcon, LogoutIcon, List, ChartBar,
 } from '@/components/admin/icons';
+import { RouteGuard } from '@/components/auth/RouteGuard';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,7 +72,7 @@ function isInQuietHours(qh: { start: string; end: string; tz: string } | null | 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
-  const { logout, user, checkAuth } = useAuthStore();
+  const { logout, user } = useAuthStore();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const dispatch    = useAppDispatch();
   const muted       = useNotificationUiStore((s) => s.muted);
@@ -90,8 +91,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     pollingInterval: 60_000,
   });
   const unreadCount = notifData?.unreadCount ?? 0;
-
-  useEffect(() => { checkAuth(); }, [checkAuth]);
 
   // SSE real-time notification stream
   useEffect(() => {
@@ -152,6 +151,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
+    <RouteGuard role="admin">
     <div className="flex min-h-screen bg-(--paper)">
 
       {/* ── Desktop sidebar ──────────────────────────────────────────── */}
@@ -254,5 +254,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         })}
       </div>
     </div>
+    </RouteGuard>
   );
 }
