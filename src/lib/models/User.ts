@@ -11,6 +11,7 @@ export interface IUser extends Document {
   fcmTokens: string[];
   status: 'active' | 'inactive' | 'suspended';
   tokenVersion: number;  // bumped to invalidate all previously-issued JWTs (logout, password change, suspend)
+  readOnly: boolean;     // demo/panel accounts: full read access, all write APIs blocked by middleware
   letterhead: { companyName: string; address: string } | null;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
@@ -29,6 +30,7 @@ const UserSchema = new Schema<IUser>(
     fcmTokens: { type: [String], default: [] },
     status: { type: String, enum: ['active', 'inactive', 'suspended'], default: 'active' },
     tokenVersion: { type: Number, default: 0 },
+    readOnly: { type: Boolean, default: false },
     letterhead: {
       type: { companyName: String, address: String },
       default: null,

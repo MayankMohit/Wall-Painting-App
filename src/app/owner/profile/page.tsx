@@ -10,6 +10,7 @@ import { SectionHdr } from '@/components/profile/SectionHdr';
 import { Pill } from '@/components/profile/Pill';
 import { EyeOff } from '@/components/profile/icons';
 import { OtpInput } from '@/components/ui/OtpInput';
+import { apiErrorMessage } from '@/lib/apiError';
 
 // ── Profile data hook ──────────────────────────────────────────────────────
 
@@ -68,7 +69,7 @@ function useOwnerProfile(user: { name?: string; email?: string | null } | null) 
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editName }),
       });
-      if (!res.ok) throw new Error((await res.json()).error ?? 'Failed to update');
+      if (!res.ok) throw new Error(apiErrorMessage(await res.json().catch(() => null), 'Failed to update'));
       setData((p) => p ? { ...p, name: editName } : p);
       setIsEditing(false);
     } catch (e: unknown) {

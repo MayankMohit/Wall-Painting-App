@@ -10,7 +10,7 @@ export const POST = withAuth({ rateLimit: 'standard' })(
     // (logout / password change / suspend bumped tokenVersion) can't be refreshed
     // into a fresh one (M-3).
     await connectDB();
-    const user = await User.findById(ctx.user!.userId).select('role name status tokenVersion').lean();
+    const user = await User.findById(ctx.user!.userId).select('role name status tokenVersion readOnly').lean();
     if (!user || user.status !== 'active') {
       return ctx.fail(401, ErrorCodes.NOT_AUTHORIZED, 'Session expired — please sign in again');
     }
@@ -18,7 +18,7 @@ export const POST = withAuth({ rateLimit: 'standard' })(
       return ctx.fail(401, ErrorCodes.NOT_AUTHORIZED, 'Session expired — please sign in again');
     }
 
-    const token = signToken({ userId: ctx.user!.userId, role: user.role, name: user.name, tokenVersion: user.tokenVersion });
+    const token = signToken({ userId: ctx.user!.userId, role: user.role, name: user.name, tokenVersion: user.tokenVersion, readOnly: user.readOnly || undefined });
     return Response.json({ data: { token } });
   }
 );

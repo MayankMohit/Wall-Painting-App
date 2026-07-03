@@ -126,6 +126,18 @@ async function runPipeline(
       assertRole(ctx.user, config.roles);
     }
 
+    // Step 07b: read-only (demo/panel) accounts can view everything but change
+    // nothing — every non-GET is blocked here so new write routes are covered
+    // automatically. Session upkeep and per-user cosmetic writes stay allowed
+    // so the account remains usable while browsing.
+    if (ctx.user?.readOnly && req.method !== 'GET') {
+      const pathname = new URL(req.url).pathname;
+      const allowed = /^\/api\/(auth\/(refresh|logout)|notifications\/(read-all|[^/]+\/read)|users\/me\/fcm-token)$/.test(pathname);
+      if (!allowed) {
+        throw new HttpError(403, 'READ_ONLY_ACCOUNT', 'This demo account is read-only — write actions are disabled.');
+      }
+    }
+
     // Step 08: resource access checks — run in order, each populates ctx.job / ctx.submission
     const checks = config.access
       ? (Array.isArray(config.access) ? config.access : [config.access])

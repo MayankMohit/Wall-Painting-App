@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Check, X, Alert, Refresh } from '@/components/admin/icons';
 import { Avatar } from '@/components/admin/Avatar';
 import { RolePill, StatusPill, type UserRole, type UserStatus } from '@/components/admin/AdminPills';
+import { apiErrorMessage } from '@/lib/apiError';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -133,7 +134,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ user
         headers: authHeaders(true),
         body: JSON.stringify({ reason: reason.trim() || undefined }),
       });
-      if (!res.ok) throw new Error((await res.json()).error ?? 'Failed');
+      if (!res.ok) throw new Error(apiErrorMessage(await res.json().catch(() => null), 'Failed to suspend'));
       setUser((u) => u ? { ...u, status: 'suspended' } : u);
       setDialog(null);
       setReason('');
@@ -154,7 +155,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ user
       : `/api/admin/users/${userId}/activate`;
     try {
       const res = await fetch(endpoint, { method: 'PATCH', headers: authHeaders(true) });
-      if (!res.ok) throw new Error((await res.json()).error ?? 'Failed');
+      if (!res.ok) throw new Error(apiErrorMessage(await res.json().catch(() => null), 'Failed to activate'));
       setUser((u) => u ? { ...u, status: 'active' } : u);
       setDialog(null);
       setToast({ msg: 'Account activated', ok: true });

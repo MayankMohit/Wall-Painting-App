@@ -266,6 +266,7 @@ export default function AdminLogsPage() {
   const [fromDate,    setFromDate]    = useState('');
   const [toDate,      setToDate]      = useState('');
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  const [exporting,   setExporting]   = useState(false);
 
   const fetchLogs = useCallback(async (pg: number, cat: Category, from: string, to: string) => {
     setIsLoading(true);
@@ -293,7 +294,7 @@ export default function AdminLogsPage() {
   useEffect(() => { fetchLogs(1, category, fromDate, toDate); }, [fetchLogs, category, fromDate, toDate]);
 
   const q = search.trim().toLowerCase();
-  const displayed = logs.filter(l => {
+  const matchesFilters = (l: IAuditLog) => {
     const matchSev = sevFilter === 'ALL' || getSeverity(l.statusCode) === sevFilter;
     const matchQ   = !q ||
       l.action.toLowerCase().includes(q) ||
@@ -302,7 +303,36 @@ export default function AdminLogsPage() {
       (l.userRole ?? '').includes(q) ||
       (l.userName ?? '').toLowerCase().includes(q);
     return matchSev && matchQ;
-  });
+  };
+  const displayed = logs.filter(matchesFilters);
+
+  // Export ALL records matching the active filters, not just the 50 rows loaded
+  // on screen — otherwise older WARN/ERROR entries never make it into the file.
+  const exportAll = async () => {
+    setExporting(true);
+    try {
+      const all: IAuditLog[] = [];
+      let pg = 1;
+      let totalPages = 1;
+      do {
+        const params = new URLSearchParams({ page: String(pg), limit: '100' });
+        if (category !== 'all') params.set('category', category);
+        if (fromDate) params.set('from', new Date(fromDate).toISOString());
+        if (toDate)   params.set('to',   new Date(toDate + 'T23:59:59').toISOString());
+        const res  = await fetch(`/api/admin/logs?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        if (!res.ok) break;
+        all.push(...(json.data?.logs ?? []));
+        totalPages = json.data?.pages ?? 1;
+        pg++;
+      } while (pg <= totalPages && all.length < 5000);
+      exportCSV(all.filter(matchesFilters));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const counts = {
     info:  logs.filter(l => getSeverity(l.statusCode) === 'INFO').length,
@@ -342,14 +372,14 @@ export default function AdminLogsPage() {
             Refresh
           </button>
           <button
-            onClick={() => exportCSV(logs)}
-            disabled={logs.length === 0}
+            onClick={exportAll}
+            disabled={total === 0 || exporting}
             className="flex items-center gap-1.5 h-9 px-4 rounded-full bg-(--ink) text-white text-[13px] font-semibold hover:opacity-85 disabled:opacity-40 transition-opacity cursor-pointer"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            Export
+            {exporting ? 'Exporting…' : 'Export'}
           </button>
         </div>
       </div>

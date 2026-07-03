@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiErrorMessage } from '@/lib/apiError';
 
 export interface ProfileData {
   name: string;
@@ -59,7 +60,7 @@ export function useProfileData(user: { name?: string; email?: string | null } | 
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: editName }),
       });
-      if (!res.ok) throw new Error((await res.json()).error ?? 'Failed to update');
+      if (!res.ok) throw new Error(apiErrorMessage(await res.json().catch(() => null), 'Failed to update'));
       setProfileData((p) => p ? { ...p, name: editName } : p);
       setIsEditing(false);
     } catch (e: unknown) {

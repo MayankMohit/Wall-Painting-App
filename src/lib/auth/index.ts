@@ -6,6 +6,7 @@ export type TokenPayload = {
   role: 'painter' | 'owner' | 'admin';
   name?: string;
   tokenVersion?: number;  // must match User.tokenVersion; a bump revokes older tokens (M-3)
+  readOnly?: boolean;     // demo/panel accounts — middleware blocks all non-GET API calls
 };
 
 const BCRYPT_ROUNDS = 12;
