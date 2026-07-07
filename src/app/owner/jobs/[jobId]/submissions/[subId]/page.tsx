@@ -12,6 +12,7 @@ import {
   useRejectSubmissionMutation,
   useRevokeSubmissionMutation,
   useUpdateSubmissionMutation,
+  useUpdateOwnerSizesMutation,
   useDeleteSubmissionMutation,
   type ExPhoto,
 } from '@/store/api/endpoints/submissions';
@@ -100,6 +101,10 @@ export default function OwnerSubmissionReviewPage({
   const [deletePhotoId, setDeletePhotoId]   = useState<string | null>(null);
   const [deleteSubOpen, setDeleteSubOpen]   = useState(false);
 
+  // Owner's size set (approved submissions only) — null draft = view mode
+  const [ownerDraft, setOwnerDraft]         = useState<{ w: string; h: string }[] | null>(null);
+  const [ownerSizesErr, setOwnerSizesErr]   = useState('');
+
   // ── Edit panel state ───────────────────────────────────────────────────────
   const [editOpen, setEditOpen]             = useState(false);
   const [editExPhotos, setEditExPhotos]     = useState<ExPhoto[]>([]);
@@ -129,6 +134,7 @@ export default function OwnerSubmissionReviewPage({
   const [rejectSubmission,  { isLoading: rejecting }]          = useRejectSubmissionMutation();
   const [revokeSubmission,  { isLoading: revoking }]           = useRevokeSubmissionMutation();
   const [updateSubmission]                                     = useUpdateSubmissionMutation();
+  const [updateOwnerSizes,  { isLoading: savingOwnerSizes }]   = useUpdateOwnerSizesMutation();
   const [deleteSubmission,  { isLoading: deletingSubmission }] = useDeleteSubmissionMutation();
 
   // Prev / next within this job's submissions
@@ -268,6 +274,47 @@ export default function OwnerSubmissionReviewPage({
 
   const handleRevoke = async () => {
     await revokeSubmission({ jobId, subId }).unwrap();
+    setOwnerDraft(null);
+    setOwnerSizesErr('');
+  };
+
+  // ── Owner sizes handlers ───────────────────────────────────────────────────
+
+  const startOwnerSizesEdit = () => {
+    if (!sub) return;
+    const base = sub.ownerSizes?.length ? sub.ownerSizes : sub.sizes;
+    setOwnerSizesErr('');
+    setOwnerDraft(base.map(([w, h]) => ({ w: String(w), h: String(h) })));
+  };
+
+  const cancelOwnerSizesEdit = () => {
+    setOwnerDraft(null);
+    setOwnerSizesErr('');
+  };
+
+  const setOwnerDraftCell = (i: number, key: 'w' | 'h', val: string) => {
+    setOwnerDraft((d) => d && d.map((row, j) => (j === i ? { ...row, [key]: val } : row)));
+  };
+
+  const saveOwnerSizes = async () => {
+    if (!ownerDraft) return;
+    const parsed: [number, number][] = [];
+    for (const { w, h } of ownerDraft) {
+      const wn = Number(w), hn = Number(h);
+      if (!Number.isFinite(wn) || !Number.isFinite(hn) || wn <= 0 || hn <= 0) {
+        setOwnerSizesErr('Every size needs a positive length and height.');
+        return;
+      }
+      parsed.push([wn, hn]);
+    }
+    try {
+      await updateOwnerSizes({ jobId, subId, ownerSizes: parsed }).unwrap();
+      setOwnerDraft(null);
+      setOwnerSizesErr('');
+    } catch (e: unknown) {
+      const msg = (e as { data?: { error?: { message?: string } } })?.data?.error?.message;
+      setOwnerSizesErr(msg ?? 'Could not save sizes. Please try again.');
+    }
   };
 
   const navigate = (id: string) => router.push(`/owner/jobs/${jobId}/submissions/${id}`);
@@ -292,6 +339,14 @@ export default function OwnerSubmissionReviewPage({
   const s = sub;
 
   const totalArea = s.sizes.reduce((acc, sz) => acc + sz[0] * sz[1], 0).toFixed(1);
+
+  // Owner's effective size set (approved only): his edits, else the painter's copy.
+  const ownerEff      = s.ownerSizes?.length ? s.ownerSizes : s.sizes;
+  const ownerTotal    = ownerEff.reduce((acc, sz) => acc + sz[0] * sz[1], 0).toFixed(1);
+  const ownerChanged  = ownerEff.some((sz, i) => sz[0] !== s.sizes[i]?.[0] || sz[1] !== s.sizes[i]?.[1]);
+  const draftTotal    = ownerDraft
+    ? ownerDraft.reduce((acc, r) => acc + (Number(r.w) || 0) * (Number(r.h) || 0), 0).toFixed(1)
+    : ownerTotal;
   const statusTimestamp = s.status === 'approved'
     ? `Approved · ${formatSubmittedAt(s.submittedAt)}`
     : s.status === 'rejected'
@@ -505,24 +560,153 @@ export default function OwnerSubmissionReviewPage({
           </button>
         </div>
 
-        {/* Wall sizes */}
-        <div className="rounded-(--r-md) p-4" style={{ background: 'rgba(255,255,255,.05)' }}>
-          <div className="text-[10px] text-white/50 uppercase tracking-wider mb-2.5">Wall sizes</div>
-          {s.sizes.map((sz, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-3 py-2 border-b border-white/8 last:border-0"
-            >
-              <div className="font-mono text-[11px] text-white/40 w-5">{String(i + 1).padStart(2, '0')}</div>
-              <div className="font-mono text-[14px] font-semibold flex-1">{sz[0].toFixed(1)} × {sz[1].toFixed(1)} ft</div>
-              <div className="font-mono text-[12px] text-white/55">{(sz[0] * sz[1]).toFixed(1)} ft²</div>
+        {/* Wall sizes — single set before approval, painter vs. owner comparison after */}
+        {s.status !== 'approved' ? (
+          <div className="rounded-(--r-md) p-4" style={{ background: 'rgba(255,255,255,.05)' }}>
+            <div className="text-[10px] text-white/50 uppercase tracking-wider mb-2.5">Wall sizes</div>
+            {s.sizes.map((sz, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 py-2 border-b border-white/8 last:border-0"
+              >
+                <div className="font-mono text-[11px] text-white/40 w-5">{String(i + 1).padStart(2, '0')}</div>
+                <div className="font-mono text-[14px] font-semibold flex-1">{sz[0].toFixed(1)} × {sz[1].toFixed(1)} ft</div>
+                <div className="font-mono text-[12px] text-white/55">{(sz[0] * sz[1]).toFixed(1)} ft²</div>
+              </div>
+            ))}
+            <div className="flex justify-between items-center pt-2.5 border-t border-white/8 mt-1">
+              <span className="text-[12px] text-white/65 font-semibold">Total</span>
+              <span className="font-mono text-[17px] font-bold">{totalArea} ft²</span>
             </div>
-          ))}
-          <div className="flex justify-between items-center pt-2.5 border-t border-white/8 mt-1">
-            <span className="text-[12px] text-white/65 font-semibold">Total</span>
-            <span className="font-mono text-[17px] font-bold">{totalArea} ft²</span>
           </div>
-        </div>
+        ) : (
+          <div className="rounded-(--r-md) p-4" style={{ background: 'rgba(255,255,255,.05)' }}>
+            {/* Card header: title + edited chip + adjust / save controls */}
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="text-[10px] text-white/50 uppercase tracking-wider">Wall sizes</div>
+                {ownerChanged && ownerDraft === null && (
+                  <span
+                    className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[.05em]"
+                    style={{ background: 'color-mix(in oklch, var(--accent) 22%, transparent)', color: 'var(--accent)' }}
+                  >
+                    Edited
+                  </span>
+                )}
+              </div>
+              {ownerDraft === null ? (
+                <button
+                  onClick={startOwnerSizesEdit}
+                  className="flex items-center gap-1.5 h-6.5 px-2.5 rounded-full border border-white/25 text-white/70 text-[11px] font-semibold cursor-pointer bg-transparent hover:bg-white/10 transition-colors"
+                >
+                  <PencilIcon size={11} />
+                  Adjust
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={cancelOwnerSizesEdit}
+                    disabled={savingOwnerSizes}
+                    className="h-6.5 px-2.5 rounded-full border border-white/20 text-white/60 text-[11px] font-semibold cursor-pointer bg-transparent disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveOwnerSizes}
+                    disabled={savingOwnerSizes}
+                    className="h-6.5 px-3 rounded-full border-0 text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                    style={{ background: 'var(--accent)', color: '#fff' }}
+                  >
+                    {savingOwnerSizes ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Column labels */}
+            <div className="flex items-center gap-3 pb-1.5 border-b border-white/8">
+              <div className="w-5" />
+              <div className="flex-1 text-[9px] font-bold uppercase tracking-[.08em] text-white/35">Painter</div>
+              <div className="flex-1 text-[9px] font-bold uppercase tracking-[.08em]" style={{ color: 'var(--accent)' }}>Yours</div>
+              <div className="w-13 text-right text-[9px] font-bold uppercase tracking-[.08em] text-white/35">ft²</div>
+            </div>
+
+            {/* Rows */}
+            {s.sizes.map((psz, i) => {
+              const osz = ownerEff[i] ?? psz;
+              const changed = osz[0] !== psz[0] || osz[1] !== psz[1];
+              const rowArea = ownerDraft
+                ? ((Number(ownerDraft[i]?.w) || 0) * (Number(ownerDraft[i]?.h) || 0)).toFixed(1)
+                : (osz[0] * osz[1]).toFixed(1);
+              return (
+                <div key={i} className="flex items-center gap-3 py-2 border-b border-white/8 last:border-0">
+                  <div className="font-mono text-[11px] text-white/40 w-5">{String(i + 1).padStart(2, '0')}</div>
+                  <div className="flex-1 font-mono text-[13px] text-white/50">
+                    {psz[0].toFixed(1)} × {psz[1].toFixed(1)}
+                  </div>
+                  {ownerDraft === null ? (
+                    <div
+                      className="flex-1 font-mono text-[13px] font-semibold"
+                      style={{ color: changed ? 'var(--accent)' : '#fff' }}
+                    >
+                      {osz[0].toFixed(1)} × {osz[1].toFixed(1)}
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex items-center gap-1 min-w-0">
+                      <input
+                        value={ownerDraft[i]?.w ?? ''}
+                        onChange={(e) => setOwnerDraftCell(i, 'w', e.target.value)}
+                        type="number"
+                        step="any"
+                        inputMode="decimal"
+                        disabled={savingOwnerSizes}
+                        className="w-full min-w-0 h-8 px-1 rounded-md bg-white/10 border border-white/20 font-mono text-[13px] text-white text-center outline-none focus:border-(--accent)"
+                      />
+                      <span className="text-white/40 text-[11px] shrink-0">×</span>
+                      <input
+                        value={ownerDraft[i]?.h ?? ''}
+                        onChange={(e) => setOwnerDraftCell(i, 'h', e.target.value)}
+                        type="number"
+                        step="any"
+                        inputMode="decimal"
+                        disabled={savingOwnerSizes}
+                        className="w-full min-w-0 h-8 px-1 rounded-md bg-white/10 border border-white/20 font-mono text-[13px] text-white text-center outline-none focus:border-(--accent)"
+                      />
+                    </div>
+                  )}
+                  <div className="w-13 text-right font-mono text-[12px] text-white/55">{rowArea}</div>
+                </div>
+              );
+            })}
+
+            {/* Totals */}
+            <div className="pt-2.5 border-t border-white/8 mt-1 flex flex-col gap-1">
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] text-white/45">Painter total</span>
+                <span className="font-mono text-[13px] text-white/55">{totalArea} ft²</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[12px] text-white/65 font-semibold">Your total</span>
+                <span
+                  className="font-mono text-[17px] font-bold"
+                  style={{ color: (ownerDraft ? draftTotal !== totalArea : ownerChanged) ? 'var(--accent)' : '#fff' }}
+                >
+                  {ownerDraft ? draftTotal : ownerTotal} ft²
+                </span>
+              </div>
+            </div>
+
+            {ownerSizesErr && (
+              <div className="mt-2 text-[11px] font-medium" style={{ color: 'oklch(0.72 0.17 25)' }}>
+                {ownerSizesErr}
+              </div>
+            )}
+
+            <div className="mt-2.5 text-[10px] text-white/35 leading-[1.5]">
+              &ldquo;Yours&rdquo; is private to you — it goes into the master Excel &amp; PDF. The painter&apos;s own file keeps their sizes.
+            </div>
+          </div>
+        )}
 
         {/* Meta grid */}
         <div className="grid grid-cols-2 gap-2.5">

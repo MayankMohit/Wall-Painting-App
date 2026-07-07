@@ -13,7 +13,10 @@ import { notify } from '@/lib/notify/emit';
 export const GET = withAuth({ access: requireSubmissionAccess })(
   async (req, ctx) => {
     await ctx.submission!.populate('images', 'cloudinaryUrl previewCloudinaryUrl generatedNumber');
-    return ok(ctx.submission!.toObject());
+    const obj = ctx.submission!.toObject();
+    // The owner's size set is never exposed to painters.
+    if (ctx.user!.role === 'painter') delete obj.ownerSizes;
+    return ok(obj);
   }
 );
 
@@ -21,8 +24,28 @@ export const GET = withAuth({ access: requireSubmissionAccess })(
 //       Editing a rejected submission re-opens it to pending. Cleans up Cloudinary on any failure.
 export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSubmissionAccess, audit: 'SUBMISSION_UPDATE' })(
   async (req, ctx) => {
-    const { location, sizes, uploadedImages, photoNo } = ctx.body as z.infer<typeof UpdateSubmissionSchema>;
+    const { location, sizes, uploadedImages, photoNo, ownerSizes } = ctx.body as z.infer<typeof UpdateSubmissionSchema>;
     const submission = ctx.submission!;
+
+    // Owner's size set: owner/admin only, only while approved, and row-for-row with
+    // the painter's sizes (owner may tweak dimensions, not add/remove walls).
+    if (ownerSizes) {
+      if (ctx.user!.role === 'painter') {
+        ctx.fail(403, 'FORBIDDEN', 'Only the owner can edit these sizes');
+      }
+      if (submission.status !== 'approved') {
+        ctx.fail(400, 'NOT_APPROVED', 'Owner sizes can only be edited after the submission is approved');
+      }
+      if (ownerSizes.length !== submission.sizes.length) {
+        ctx.fail(400, 'OWNER_SIZES_MISMATCH', `Owner sizes must have exactly ${submission.sizes.length} row(s), matching the painter's sizes`);
+      }
+    }
+
+    // The painter's submitted sizes are locked once approved — for everyone.
+    // The owner edits his own set instead; revoke to change the painter's.
+    if (sizes && submission.status === 'approved') {
+      ctx.fail(400, 'SIZES_LOCKED', "The painter's sizes are locked after approval. Edit your own sizes, or revoke the approval first.");
+    }
 
     // Fast path: no new images — nothing in Cloudinary to clean up, so fail fast is safe.
     if (!uploadedImages?.length) {
@@ -34,6 +57,7 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
       const wasRejected = submission.status === 'rejected';
       if (location) submission.location = location;
       if (sizes)    submission.sizes    = sizes;
+      if (ownerSizes) submission.ownerSizes = ownerSizes;
       if (photoNo !== undefined) submission.photoNo = photoNo;
       if (wasRejected) submission.status = 'pending';
       await submission.save();
@@ -49,7 +73,9 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
             data: { painter: (painterDoc as { name?: string } | null)?.name ?? 'A painter', code: submission.photoNo },
           }).catch(() => {});
         }).catch(() => {});
-      } else if (ctx.user!.role === 'owner') {
+      } else if (ctx.user!.role === 'owner' && (location || sizes || photoNo !== undefined)) {
+        // Note: pure ownerSizes edits deliberately do NOT notify the painter —
+        // the owner's size set is invisible to painters.
         const fields = [location && 'location', sizes && 'sizes'].filter(Boolean).join(', ');
         notify.emit('submission.edited_by_owner', {
           actorId: ctx.user!.userId,
@@ -83,6 +109,7 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
       wasRejected = submission.status === 'rejected';
       if (location) submission.location = location;
       if (sizes)    submission.sizes    = sizes;
+      if (ownerSizes) submission.ownerSizes = ownerSizes;
       if (photoNo !== undefined) submission.photoNo = photoNo;
       if (wasRejected) submission.status = 'pending';
 

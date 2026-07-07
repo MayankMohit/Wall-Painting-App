@@ -80,6 +80,8 @@ export const PUT = withRole(['owner', 'admin'], {
     submission.status     = 'approved';
     submission.approvedAt = new Date();
     submission.images     = keptPhotoIds;
+    // Owner's size set defaults to whatever the painter's sizes are at approval time.
+    submission.ownerSizes = submission.sizes.map(([w, h]) => [w, h]);
     await submission.save({ session });
 
     await session.commitTransaction();

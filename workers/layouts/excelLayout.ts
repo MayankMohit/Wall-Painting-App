@@ -25,7 +25,9 @@ export function buildMasterSheet(
   // 2. Data Rows
   let sno = 1;
   for (const sub of dataGroups) {
-    for (const [L, B] of sub.sizes) {
+    // Master sheet uses the owner's size set (his edits win); falls back to the
+    // painter's sizes for pre-ownerSizes data. The Painter Wise sheet keeps sub.sizes.
+    for (const [L, B] of (sub.ownerSizes?.length ? sub.ownerSizes : sub.sizes)) {
       const rowTotal = L * B;
       grandTotal += rowTotal; 
 

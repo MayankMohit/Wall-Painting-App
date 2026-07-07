@@ -21,7 +21,7 @@ export const GET = withRole(['owner', 'admin'], { access: requireJobOwner })(
     const [painter, submissions] = await Promise.all([
       User.findById(painterId).select('name').lean(),
       Submission.find({ jobId: ctx.job!._id, painterId: new Types.ObjectId(painterId) })
-        .select('_id location photoNo sizes status submittedAt')
+        .select('_id location photoNo sizes ownerSizes status submittedAt')
         .sort({ submittedAt: -1 })
         .lean(),
     ]);

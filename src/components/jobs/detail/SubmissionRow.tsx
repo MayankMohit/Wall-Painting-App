@@ -17,7 +17,9 @@ export function SubmissionRow({ sub, jobId, href: hrefProp }: { sub: Submission;
   const previewUrl = sub.previewUrl;
   const editable   = sub.status === "pending" || sub.status === "rejected";
   const time       = relativeTime(sub.submittedAt || sub.createdAt || "");
-  const size       = sub.status === "approved" ? null : sizeLabel(sub.sizes);
+  // Owners see their own size set once it exists; painters never receive ownerSizes
+  // from the API, so they always fall back to their submitted sizes.
+  const size       = sizeLabel(sub.ownerSizes?.length ? sub.ownerSizes : sub.sizes);
   const href       = hrefProp ?? `/painter/jobs/${jobId}/submissions/${sub._id}`;
 
   return (

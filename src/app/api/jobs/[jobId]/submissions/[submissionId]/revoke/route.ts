@@ -37,6 +37,8 @@ export const PUT = withRole(['owner', 'admin'], {
 
     submission.status    = 'pending';
     submission.revokedAt = new Date();
+    // Revoke discards the owner's size edits — re-approval re-defaults from painter sizes.
+    submission.ownerSizes = undefined;
     if (revokeNote !== undefined) submission.revokeNote = revokeNote;
     await submission.save({ session });
 

@@ -7,6 +7,9 @@ export interface ISubmission extends Document {
   photoNo: number;
   location: string;
   sizes: [number, number][];
+  // Owner's own copy of the sizes — created on approval (defaults to the painter's
+  // sizes), cleared on revoke, never sent to painters. Used for the master Excel/PDF.
+  ownerSizes?: [number, number][];
   images: Types.ObjectId[];
   status: 'pending' | 'approved' | 'rejected';
   submittedAt: Date;
@@ -26,6 +29,7 @@ const SubmissionSchema = new Schema<ISubmission>(
     photoNo: { type: Number, required: true },
     location: { type: String, required: true, trim: true },
     sizes: { type: [[Number]], required: true },
+    ownerSizes: { type: [[Number]], default: undefined },
     images: {
       type: [{ type: Schema.Types.ObjectId, ref: 'Photo' }],
       validate: {

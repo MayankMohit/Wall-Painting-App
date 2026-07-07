@@ -47,7 +47,8 @@ export async function buildFilePdf(
   for (const s of subs) {
     const key = `${s.painterId}_${s.photoNo}`;
     const g = groups.get(key) ?? { photoNo: s.photoNo, location: s.location, sizes: [], codes: [] };
-    g.sizes.push(...s.sizes);
+    // Owner-facing PDF uses the owner's size set, falling back to the painter's.
+    g.sizes.push(...(s.ownerSizes?.length ? s.ownerSizes : s.sizes));
     
     const imgDocs = s.images as any[];
     g.codes.push(...imgDocs.map(i => i.generatedNumber).filter(Boolean));

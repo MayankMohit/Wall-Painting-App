@@ -8,6 +8,8 @@ export interface Submission {
   previewUrl?: string;
   location: string;
   sizes?: number[][];
+  /** Owner's own size set — present only on approved submissions, never sent to painters. */
+  ownerSizes?: number[][];
   status: 'pending' | 'approved' | 'rejected';
   submittedAt: string;
   createdAt?: string;
@@ -25,6 +27,8 @@ export interface SubmissionDetail {
   location: string;
   photoNo: number;
   sizes: number[][];
+  /** Owner's own size set — present only on approved submissions, never sent to painters. */
+  ownerSizes?: number[][];
   status: 'pending' | 'approved' | 'rejected';
   submittedAt: string;
   createdAt?: string;
@@ -84,6 +88,17 @@ const submissionsEndpoints = api.injectEndpoints({
         { type: 'Submission', id: jobId },
         { type: 'JobDetail', id: jobId },
         'Job',
+      ],
+    }),
+    updateOwnerSizes: builder.mutation<void, { jobId: string; subId: string; ownerSizes: [number, number][] }>({
+      query: ({ jobId, subId, ownerSizes }) => ({
+        url: `/jobs/${jobId}/submissions/${subId}`,
+        method: 'PUT',
+        body: { ownerSizes },
+      }),
+      invalidatesTags: (_, __, { jobId, subId }) => [
+        { type: 'SubmissionDetail', id: subId },
+        { type: 'Submission', id: jobId },
       ],
     }),
     deletePhoto: builder.mutation<void, { jobId: string; subId: string; photoId: string }>({
@@ -154,6 +169,7 @@ export const {
   useGetSubmissionQuery,
   useCreateSubmissionMutation,
   useUpdateSubmissionMutation,
+  useUpdateOwnerSizesMutation,
   useDeletePhotoMutation,
   useApproveSubmissionMutation,
   useRejectSubmissionMutation,

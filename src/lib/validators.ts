@@ -110,6 +110,8 @@ export const UpdateSubmissionSchema = z.object({
   location: z.string().min(1).max(100, { error: 'Location must be 100 characters or fewer' }).trim().optional(),
   sizes: z.array(z.tuple([z.number().positive(), z.number().positive()]))
     .max(10, { error: 'A submission cannot have more than 10 sizes' }).optional(),
+  ownerSizes: z.array(z.tuple([z.number().positive(), z.number().positive()]))
+    .max(10, { error: 'A submission cannot have more than 10 sizes' }).optional(),
   uploadedImages: z.array(
     z.object({
       cloudinaryId        : z.string().min(1),
