@@ -155,6 +155,18 @@ export default function CreateJobPage() {
 
       {/* ══ Mobile single-column form ═════════════════════════════════ */}
       <div className="lg:hidden px-4 pt-4 pb-4 flex flex-col gap-4">
+
+        <div className="w-full pb-2">
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="w-full h-12 rounded-(--r-md) text-white text-[15px] font-semibold cursor-pointer transition-opacity hover:opacity-88 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: 'var(--ink)' }}
+          >
+            {isSubmitting ? 'Creating…' : 'Create job'}
+          </button>
+        </div>
+
         <div>
           <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Company name</div>
           <input
@@ -192,17 +204,6 @@ export default function CreateJobPage() {
         </div>
       </div>
 
-      {/* ══ Mobile sticky bottom CTA ══════════════════════════════════ */}
-      <div className="lg:hidden sticky bottom-0 px-4 py-3 pb-5 border-t border-(--border) bg-(--paper)">
-        <button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          className="w-full h-12 rounded-(--r-md) text-white text-[15px] font-semibold cursor-pointer transition-opacity hover:opacity-88 disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: 'var(--ink)' }}
-        >
-          {isSubmitting ? 'Creating…' : 'Create job'}
-        </button>
-      </div>
     </>
   );
 }

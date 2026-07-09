@@ -170,6 +170,20 @@ export function AddPainterModal({ jobId, existingIds, onClose }: AddPainterModal
                 </div>
               )}
 
+              {/* Pinned: create new painter */}
+              <button
+                onClick={openCreate}
+                className="w-full flex items-center gap-3 px-4 py-3.5 border-t border-(--border) text-left hover:bg-(--paper-2) transition-colors cursor-pointer"
+              >
+                <div className="w-8.5 h-8.5 rounded-full border-[1.5px] border-dashed border-(--border-3) flex items-center justify-center text-(--ink-3) shrink-0" style={{ width: 34, height: 34 }}>
+                  <Plus size={16} weight={2.2} />
+                </div>
+                <div>
+                  <div className="text-[14px] font-semibold text-(--ink)">Create new painter</div>
+                  <div className="text-[11px] text-(--ink-3) mt-0.5">Name + WhatsApp number — they log in by tapping a link</div>
+                </div>
+              </button>
+
               {/* Existing painters */}
               {isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
@@ -202,19 +216,7 @@ export function AddPainterModal({ jobId, existingIds, onClose }: AddPainterModal
                 ))
               )}
 
-              {/* Pinned: create new painter */}
-              <button
-                onClick={openCreate}
-                className="w-full flex items-center gap-3 px-4 py-3.5 border-t border-(--border) text-left hover:bg-(--paper-2) transition-colors cursor-pointer"
-              >
-                <div className="w-8.5 h-8.5 rounded-full border-[1.5px] border-dashed border-(--border-3) flex items-center justify-center text-(--ink-3) shrink-0" style={{ width: 34, height: 34 }}>
-                  <Plus size={16} weight={2.2} />
-                </div>
-                <div>
-                  <div className="text-[14px] font-semibold text-(--ink)">Create new painter</div>
-                  <div className="text-[11px] text-(--ink-3) mt-0.5">Name + WhatsApp number — they log in by tapping a link</div>
-                </div>
-              </button>
+              
             </div>
           </>
         ) : (
