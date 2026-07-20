@@ -88,6 +88,7 @@ export default function JobDetailPage({
           <HeroCard
             companyName={job.companyName}
             description={job.description}
+            jobType={job.jobType}
             approvedCount={approvedCount}
             pendingCount={pendingCount}
             rejectedCount={rejectedCount}
@@ -147,6 +148,7 @@ export default function JobDetailPage({
         <HeroCard
           companyName={job.companyName}
           description={job.description}
+          jobType={job.jobType}
           approvedCount={approvedCount}
           pendingCount={pendingCount}
           rejectedCount={rejectedCount}

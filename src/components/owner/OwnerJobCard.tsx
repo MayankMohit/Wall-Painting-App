@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import type { Job } from '@/store/api/endpoints/jobs';
 import { Building, ArrowRight } from './icons';
-import { JobTypeBadge } from '@/components/dashboards/JobTypeBadge';
 import { JobStatusPill } from './JobStatusPill';
 
 export function OwnerJobCard({ job }: { job: Job }) {
@@ -20,20 +19,22 @@ export function OwnerJobCard({ job }: { job: Job }) {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="text-[15px] font-semibold leading-[1.2] text-(--ink) tracking-[-0.01em]">
+          <div className="text-[15px] font-semibold leading-[1.2] text-(--ink) tracking-[-0.01em] truncate">
             {job.companyName}
           </div>
-          {job.description && (
-            <div className="text-[12px] text-(--ink-3) mt-1 leading-[1.35] line-clamp-1">
-              {job.description}
+          {/* Job Type Tag */}
+          {job.jobType && (
+            <div className="mt-1.5">
+              <span className="inline-flex items-center h-5 px-2 bg-(--paper-2) text-(--ink-2) border border-(--border-2) rounded-full text-[10px] font-bold uppercase tracking-wider">
+                {job.jobType}
+              </span>
             </div>
           )}
           <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
             <JobStatusPill status={job.status} />
-            <JobTypeBadge type={job.type} />
             {pending > 0 && (
               <span
-                className="inline-flex items-center h-[18px] px-[9px] rounded-full text-[11px] font-bold"
+                className="inline-flex items-center h-5 px-2.5 rounded-full text-[11px] font-bold"
                 style={{ background: 'var(--accent-soft)', color: 'var(--accent-deep)' }}
               >
                 <span className="font-(--mono)">{pending}</span>&nbsp;pending

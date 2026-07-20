@@ -1,25 +1,38 @@
 interface HeroCardProps {
   companyName?: string;
   description?: string;
+  jobType?: string;      
   approvedCount: number;
   pendingCount: number;
   rejectedCount: number;
 }
 
-export function HeroCard({ companyName, description, approvedCount, pendingCount, rejectedCount }: HeroCardProps) {
+export function HeroCard({ companyName, description, jobType, approvedCount, pendingCount, rejectedCount }: HeroCardProps) {
   return (
     <div className="rounded-(--r-md) overflow-hidden bg-(--ink) border-0">
       <div className="p-[18px] text-white">
-        <span className="inline-flex items-center gap-1.5 h-[22px] pl-2 pr-2.5 bg-white/[0.12] text-white rounded-full text-[10px] font-bold tracking-[.06em] uppercase">
-          <span className="w-1.5 h-1.5 rounded-full bg-(--accent)" />
-          Current job
-        </span>
+        
+        {/* Top Row: Left Status Pill & Right Job Type Tag */}
+        <div className="flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 h-[22px] pl-2 pr-2.5 bg-white/[0.12] text-white rounded-full text-[10px] font-bold tracking-[.06em] uppercase">
+            <span className="w-1.5 h-1.5 rounded-full bg-(--accent)" />
+            Current job
+          </span>
+          {jobType && (
+            <span className="inline-flex items-center h-[22px] px-2.5 bg-white/[0.12] text-white rounded-full text-[10px] font-bold uppercase tracking-[.06em]">
+              {jobType}
+            </span>
+          )}
+        </div>
+        
         {companyName && (
           <div className="text-[18px] font-bold text-white mt-3 leading-[1.2] tracking-[-0.015em]">{companyName}</div>
         )}
+        
         {description && (
-          <div className="text-[13px] text-white/60 mt-1.5 leading-[1.5]">{description}</div>
+          <div className="text-[13px] text-white/50 mt-2 leading-[1.5]">{description}</div>
         )}
+        
         <div className="flex items-center gap-5 mt-[18px]">
           {[
             { label: "Approved", value: approvedCount },

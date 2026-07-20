@@ -48,6 +48,11 @@ export const GET = withAuth({ access: requireJobAccess })(
       _id        : job._id,
       companyName: job.companyName,
       description: job.description,
+      
+      // NEW CONFIGURATION FIELDS
+      jobType    : job.jobType,
+      pdfFormat  : job.pdfFormat,
+      
       status     : job.status,
       createdAt  : job.createdAt,
       startDate  : job.startDate,

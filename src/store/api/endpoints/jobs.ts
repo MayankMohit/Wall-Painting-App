@@ -4,7 +4,8 @@ export interface Job {
   _id: string;
   companyName: string;
   description?: string;
-  type?: 'wall' | 'shutter' | 'van';
+  jobType: 'Wall' | 'Shutter' | 'Van';
+  pdfFormat: 'A' | 'B';
   status: 'active' | 'completed' | 'invoiced';
   updatedAt: string;
   painters: string[];
@@ -30,6 +31,8 @@ export interface JobDetail {
   _id: string;
   companyName: string;
   description?: string;
+  jobType: 'Wall' | 'Shutter' | 'Van';
+  pdfFormat: 'A' | 'B';
   status: 'active' | 'completed' | 'invoiced';
   createdAt: string;
   startDate?: string;
@@ -103,11 +106,11 @@ const jobsEndpoints = api.injectEndpoints({
       transformResponse: (res: { data: JobDetail }) => res.data,
       providesTags: (_, __, jobId) => [{ type: 'JobDetail', id: jobId }],
     }),
-    createJob: builder.mutation<{ _id: string }, { companyName: string; description?: string; painterIds: string[] }>({
+    createJob: builder.mutation<{ _id: string }, { companyName: string; description?: string; painterIds: string[]; jobType: 'Wall' | 'Shutter' | 'Van'; pdfFormat: 'A' | 'B' }>({
       query: (body) => ({ url: '/jobs', method: 'POST', body }),
       invalidatesTags: ['Job'],
     }),
-    updateJob: builder.mutation<void, { jobId: string; body: { companyName?: string; description?: string; painterIds?: string[]; status?: string } }>({
+    updateJob: builder.mutation<void, { jobId: string; body: { companyName?: string; description?: string; painterIds?: string[]; status?: string; jobType?: 'Wall' | 'Shutter' | 'Van'; pdfFormat?: 'A' | 'B' } }>({
       query: ({ jobId, body }) => ({ url: `/jobs/${jobId}`, method: 'PATCH', body }),
       invalidatesTags: (_, __, { jobId }) => [{ type: 'JobDetail', id: jobId }, 'Job'],
     }),

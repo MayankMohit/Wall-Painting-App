@@ -12,6 +12,10 @@ export default function CreateJobPage() {
   const [companyName, setCompanyName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const [jobType, setJobType] = useState<'Wall' | 'Shutter' | 'Van'>('Wall');
+  const [pdfFormat, setPdfFormat] = useState<'A' | 'B'>('A');
+
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [submitError, setSubmitError] = useState('');
@@ -36,6 +40,8 @@ export default function CreateJobPage() {
         companyName: companyName.trim(),
         description: description.trim() || undefined,
         painterIds: selectedIds,
+        jobType,
+        pdfFormat,
       }).unwrap();
       router.push('/owner/jobs');
     } catch (err: unknown) {
@@ -134,6 +140,67 @@ export default function CreateJobPage() {
             </div>
           </div>
 
+          {/* --- NEW CONFIGURATION UI --- */}
+          <div className="mt-6 mb-6 pt-6 border-t border-(--border-2)">
+            <div className="text-[12px] font-semibold text-(--ink-2) mb-2.5">Job Type</div>
+            <div className="flex gap-3 mb-6">
+              {['Wall', 'Shutter', 'Van'].map((type) => (
+                <label
+                  key={type}
+                  className={`flex-1 flex items-center justify-center h-10 rounded-(--r) border text-[13px] font-medium cursor-pointer transition-colors ${jobType === type
+                      ? 'bg-(--ink) text-white border-(--ink)'
+                      : 'bg-(--surface) text-(--ink-2) border-(--border-2) hover:border-(--border-3)'
+                    }`}
+                >
+                  <input
+                    type="radio"
+                    name="jobType"
+                    value={type}
+                    checked={jobType === type}
+                    onChange={(e) => setJobType(e.target.value as any)}
+                    className="hidden"
+                  />
+                  {type}
+                </label>
+              ))}
+            </div>
+
+            <div className="text-[12px] font-semibold text-(--ink-2) mb-2.5">PDF Output Format</div>
+            <div className="grid grid-cols-2 gap-4">
+
+              {/* Format A Selection Card */}
+              <div
+                onClick={() => setPdfFormat('A')}
+                className={`relative rounded-(--r) border-2 cursor-pointer overflow-hidden transition-colors ${pdfFormat === 'A' ? 'border-(--ink)' : 'border-(--border-2) hover:border-(--border-3)'
+                  }`}
+              >
+                <div className="h-24 bg-gray-100 flex items-center justify-center">
+                  {/* REPLACE WITH YOUR IMAGE TAG */}
+                  <span className="text-xs text-gray-400">Format A Image</span>
+                </div>
+                <div className="p-2 text-center text-[12px] font-medium text-(--ink-2) bg-(--surface)">
+                  Standard Format (A)
+                </div>
+              </div>
+
+              {/* Format B Selection Card */}
+              <div
+                onClick={() => setPdfFormat('B')}
+                className={`relative rounded-(--r) border-2 cursor-pointer overflow-hidden transition-colors ${pdfFormat === 'B' ? 'border-(--ink)' : 'border-(--border-2) hover:border-(--border-3)'
+                  }`}
+              >
+                <div className="h-24 bg-gray-100 flex items-center justify-center">
+                  {/* REPLACE WITH YOUR IMAGE TAG */}
+                  <span className="text-xs text-gray-400">Format B Image</span>
+                </div>
+                <div className="p-2 text-center text-[12px] font-medium text-(--ink-2) bg-(--surface)">
+                  Detailed Format (B)
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* ---------------------------- */}
+
           <div>
             <div className="text-[11px] font-bold text-(--ink-2) uppercase tracking-wider mb-3.5">
               Assign painters{' '}
@@ -187,6 +254,67 @@ export default function CreateJobPage() {
             className="w-full px-3.5 py-3 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] placeholder:text-(--ink-4) resize-none leading-normal"
           />
         </div>
+
+        {/* --- NEW CONFIGURATION UI --- */}
+        <div className="mt-6 mb-6 pt-6 border-t border-(--border-2)">
+          <div className="text-[12px] font-semibold text-(--ink-2) mb-2.5">Job Type</div>
+          <div className="flex gap-3 mb-6">
+            {['Wall', 'Shutter', 'Van'].map((type) => (
+              <label
+                key={type}
+                className={`flex-1 flex items-center justify-center h-10 rounded-(--r) border text-[13px] font-medium cursor-pointer transition-colors ${jobType === type
+                  ? 'bg-(--ink) text-white border-(--ink)'
+                  : 'bg-(--surface) text-(--ink-2) border-(--border-2) hover:border-(--border-3)'
+                  }`}
+              >
+                <input
+                  type="radio"
+                  name="jobType"
+                  value={type}
+                  checked={jobType === type}
+                  onChange={(e) => setJobType(e.target.value as any)}
+                  className="hidden"
+                />
+                {type}
+              </label>
+            ))}
+          </div>
+
+          <div className="text-[12px] font-semibold text-(--ink-2) mb-2.5">PDF Output Format</div>
+          <div className="grid grid-cols-2 gap-4">
+
+            {/* Format A Selection Card */}
+            <div
+              onClick={() => setPdfFormat('A')}
+              className={`relative rounded-(--r) border-2 cursor-pointer overflow-hidden transition-colors ${pdfFormat === 'A' ? 'border-(--ink)' : 'border-(--border-2) hover:border-(--border-3)'
+                }`}
+            >
+              <div className="h-24 bg-gray-100 flex items-center justify-center">
+                {/* REPLACE WITH YOUR IMAGE TAG */}
+                <span className="text-xs text-gray-400">Format A Image</span>
+              </div>
+              <div className="p-2 text-center text-[12px] font-medium text-(--ink-2) bg-(--surface)">
+                Standard Format (A)
+              </div>
+            </div>
+
+            {/* Format B Selection Card */}
+            <div
+              onClick={() => setPdfFormat('B')}
+              className={`relative rounded-(--r) border-2 cursor-pointer overflow-hidden transition-colors ${pdfFormat === 'B' ? 'border-(--ink)' : 'border-(--border-2) hover:border-(--border-3)'
+                }`}
+            >
+              <div className="h-24 bg-gray-100 flex items-center justify-center">
+                {/* REPLACE WITH YOUR IMAGE TAG */}
+                <span className="text-xs text-gray-400">Format B Image</span>
+              </div>
+              <div className="p-2 text-center text-[12px] font-medium text-(--ink-2) bg-(--surface)">
+                Detailed Format (B)
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* ---------------------------- */}
 
         <div>
           <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">

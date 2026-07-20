@@ -42,14 +42,38 @@ export async function buildFilePdf(
     .populate('images', 'generatedNumber') 
     .lean();
 
-  const groups = new Map<string, { photoNo: number; location: string; sizes: number[][]; codes: string[] }>();
+  const groups = new Map<string, { 
+    photoNo: number; 
+    location: string; 
+    sizes: number[][]; 
+    codes: string[];
+    // Format B Fields
+    sizeLabels: string[];
+    shopName?: string;
+    contactNo?: string;
+    vanNo?: string;
+    aboveBelow?: string;
+  }>();
   
   for (const s of subs) {
     const key = `${s.painterId}_${s.photoNo}`;
-    const g = groups.get(key) ?? { photoNo: s.photoNo, location: s.location, sizes: [], codes: [] };
+    const g = groups.get(key) ?? { 
+      photoNo: s.photoNo, 
+      location: s.location, 
+      sizes: [], 
+      codes: [],
+      sizeLabels: [],
+      shopName: s.shopName,
+      contactNo: s.contactNo,
+      vanNo: s.vanNo,
+      aboveBelow: s.aboveBelow
+    };
+    
     // Owner-facing PDF uses the owner's size set, falling back to the painter's.
     g.sizes.push(...(s.ownerSizes?.length ? s.ownerSizes : s.sizes));
+    if (s.sizeLabels?.length) g.sizeLabels.push(...s.sizeLabels);
     
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const imgDocs = s.images as any[];
     g.codes.push(...imgDocs.map(i => i.generatedNumber).filter(Boolean));
     
@@ -65,10 +89,12 @@ export async function buildFilePdf(
   const chunks: Buffer[] = [];
   doc.on('data', c => chunks.push(c));
 
-  // Loop through sections 2 at a time and delegate to the layout file!
+  // Use a tracker so drawPdfPage can track and print the correct page number
+  const pageTracker = { count: 1 };
+
   for (let i = 0; i < sections.length; i += 2) {
     doc.addPage();
-    drawPdfPage(doc, letterhead, sections[i], sections[i + 1]);
+    drawPdfPage(doc, letterhead, sections[i], sections[i + 1], pageTracker);
   }
 
   doc.end();

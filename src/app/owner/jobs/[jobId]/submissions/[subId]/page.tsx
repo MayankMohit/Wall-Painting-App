@@ -116,17 +116,20 @@ export default function OwnerSubmissionReviewPage({
 
   useEffect(() => () => { editUrlsRef.current.forEach(URL.revokeObjectURL); }, []);
 
-  const { register: regEdit, handleSubmit: handleEditSubmit, control: editControl, watch: editWatch, reset: editReset, formState: { errors: editErrors } } = useForm<EditFV>({
+  // CHANGED: Extended type to include labels
+  const { register: regEdit, handleSubmit: handleEditSubmit, control: editControl, watch: editWatch, reset: editReset, formState: { errors: editErrors } } = useForm<EditFV & { sizes: { width: string; height: string; label?: string }[] }>({
     defaultValues: { location: '', photoNo: '', sizes: [{ width: '', height: '' }] },
   });
-  const { fields: editFields, append: editAppend, remove: editRemove } = useFieldArray({ control: editControl, name: 'sizes' });
+  
+  // CHANGED: Extracted `replace`
+  const { fields: editFields, append: editAppend, remove: editRemove, replace: editReplace } = useFieldArray({ control: editControl, name: 'sizes' });
   const editLoc  = editWatch('location');
   const editWs   = editWatch('sizes');
   const editArea = editWs.reduce((s, sz) => s + (Number(sz.width) || 0) * (Number(sz.height) || 0), 0).toFixed(1);
 
   // ── RTK hooks ─────────────────────────────────────────────────────────────
   const { data: sub, isLoading } = useGetSubmissionQuery({ jobId, subId });
-  const { data: job }            = useGetJobQuery(jobId);
+  const { data: job, isLoading: jobLoading } = useGetJobQuery(jobId);
   const { data: allSubs = [] }   = useGetSubmissionsQuery(jobId);
 
   const [deletePhoto,       { isLoading: deletingPhoto }]      = useDeletePhotoMutation();
@@ -147,6 +150,10 @@ export default function OwnerSubmissionReviewPage({
   const safeIdx   = Math.min(activeIdx, Math.max(0, photos.length - 1));
   const activePhoto = photos[safeIdx];
 
+  const isFormatB = job?.pdfFormat === 'B';
+  const isVan = job?.jobType === 'Van';
+  const showSizes = !(isFormatB && isVan);
+
   // ── Edit handlers ─────────────────────────────────────────────────────────
 
   const openEdit = () => {
@@ -155,10 +162,20 @@ export default function OwnerSubmissionReviewPage({
     setEditNewFiles([]);
     setEditNewPrevs([]);
     editUrlsRef.current = [];
+    
+    // CHANGED: Map `sizeLabels` into the default fields if they exist
     editReset({
       location: sub.location,
       photoNo: sub.photoNo != null ? String(sub.photoNo) : '',
-      sizes: sub.sizes?.map((s) => ({ width: String(s[0]), height: String(s[1]) })) ?? [{ width: '', height: '' }],
+      sizes: sub.sizes?.map((s, i) => ({ 
+        width: String(s[0]), 
+        height: String(s[1]),
+        label: (sub as any).sizeLabels?.[i] // Safely grab label from DB model
+      })) ?? [{ width: '', height: '' }],
+      shopName: sub.shopName,
+      contactNo: sub.contactNo,
+      vanNo: sub.vanNo,
+      aboveBelow: sub.aboveBelow as 'Above' | 'Below' | undefined,
     });
     setEditOpen(true);
   };
@@ -202,18 +219,37 @@ export default function OwnerSubmissionReviewPage({
     }
   };
 
-  const onEditSubmit = async (d: EditFV) => {
+  const onEditSubmit = async (d: any) => {
     setEditBusy(true);
     try {
       const uploadedImages = editNewFiles.length ? await uploadFiles(editNewFiles, jobId) : [];
       setEditStep('Saving…');
+
+      // CHANGED: Filter blank arrays just like the painter form
+      let finalSizes: [number, number][] | undefined = undefined;
+      let finalSizeLabels: string[] | undefined = undefined;
+
+      if (showSizes && d.sizes) {
+        const filledSizes = d.sizes.filter((s: any) => s.width && s.height);
+        finalSizes = filledSizes.map((s: any) => [Number(s.width), Number(s.height)]);
+        
+        if (isFormatB) {
+          finalSizeLabels = filledSizes.map((s: any) => s.label).filter(Boolean);
+        }
+      }
+
       await updateSubmission({
         jobId,
         subId,
         body: {
           photoNo:        Number(d.photoNo),
           location:       d.location,
-          sizes:          d.sizes.map((s) => [Number(s.width), Number(s.height)]),
+          sizes:          finalSizes,
+          sizeLabels:     finalSizeLabels,
+          shopName:       isFormatB ? d.shopName : undefined,
+          contactNo:      isFormatB ? d.contactNo : undefined,
+          vanNo:          isFormatB ? d.vanNo : undefined,
+          aboveBelow:     (isFormatB && isVan) ? d.aboveBelow : undefined,
           uploadedImages,
         },
       }).unwrap();
@@ -282,7 +318,7 @@ export default function OwnerSubmissionReviewPage({
 
   const startOwnerSizesEdit = () => {
     if (!sub) return;
-    const base = sub.ownerSizes?.length ? sub.ownerSizes : sub.sizes;
+    const base = sub.ownerSizes?.length ? sub.ownerSizes : (sub.sizes ?? []);
     setOwnerSizesErr('');
     setOwnerDraft(base.map(([w, h]) => ({ w: String(w), h: String(h) })));
   };
@@ -320,7 +356,7 @@ export default function OwnerSubmissionReviewPage({
   const navigate = (id: string) => router.push(`/owner/jobs/${jobId}/submissions/${id}`);
 
   // ── Loading / error ────────────────────────────────────────────────────────
-  if (isLoading) {
+  if (isLoading || jobLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f0f0f' }}>
         <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
@@ -338,12 +374,12 @@ export default function OwnerSubmissionReviewPage({
 
   const s = sub;
 
-  const totalArea = s.sizes.reduce((acc, sz) => acc + sz[0] * sz[1], 0).toFixed(1);
+  const totalArea = (s.sizes ?? []).reduce((acc, sz) => acc + sz[0] * sz[1], 0).toFixed(1);
 
   // Owner's effective size set (approved only): his edits, else the painter's copy.
-  const ownerEff      = s.ownerSizes?.length ? s.ownerSizes : s.sizes;
+  const ownerEff      = s.ownerSizes?.length ? s.ownerSizes : (s.sizes ?? []);
   const ownerTotal    = ownerEff.reduce((acc, sz) => acc + sz[0] * sz[1], 0).toFixed(1);
-  const ownerChanged  = ownerEff.some((sz, i) => sz[0] !== s.sizes[i]?.[0] || sz[1] !== s.sizes[i]?.[1]);
+  const ownerChanged  = ownerEff.some((sz, i) => sz[0] !== s.sizes?.[i]?.[0] || sz[1] !== s.sizes?.[i]?.[1]);
   const draftTotal    = ownerDraft
     ? ownerDraft.reduce((acc, r) => acc + (Number(r.w) || 0) * (Number(r.h) || 0), 0).toFixed(1)
     : ownerTotal;
@@ -354,6 +390,16 @@ export default function OwnerSubmissionReviewPage({
     : `Submitted ${formatSubmittedAt(s.submittedAt)}`;
 
   const navBtn = 'w-8 h-8 rounded-full flex items-center justify-center border border-white/20 transition-[background,opacity] hover:bg-white/10 disabled:opacity-30 disabled:cursor-default cursor-pointer';
+
+  // Dynamic Meta Grid mapping
+  const metaItems = [
+    { label: 'Photo number', value: String(s.photoNo).padStart(2, '0'), isNumeric: true },
+    { label: 'Photos',       value: String(photos.length), isNumeric: true },
+    ...(isFormatB && s.shopName ? [{ label: 'Shop Name', value: s.shopName }] : []),
+    ...(isFormatB && s.contactNo ? [{ label: 'Contact', value: s.contactNo }] : []),
+    ...(isFormatB && s.vanNo ? [{ label: 'Van No.', value: s.vanNo }] : []),
+    ...(isFormatB && isVan && s.aboveBelow ? [{ label: 'Position', value: s.aboveBelow }] : []),
+  ];
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -561,163 +607,165 @@ export default function OwnerSubmissionReviewPage({
         </div>
 
         {/* Wall sizes — single set before approval, painter vs. owner comparison after */}
-        {s.status !== 'approved' ? (
-          <div className="rounded-(--r-md) p-4" style={{ background: 'rgba(255,255,255,.05)' }}>
-            <div className="text-[10px] text-white/50 uppercase tracking-wider mb-2.5">Wall sizes</div>
-            {s.sizes.map((sz, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 py-2 border-b border-white/8 last:border-0"
-              >
-                <div className="font-mono text-[11px] text-white/40 w-5">{String(i + 1).padStart(2, '0')}</div>
-                <div className="font-mono text-[14px] font-semibold flex-1">{sz[0].toFixed(1)} × {sz[1].toFixed(1)} ft</div>
-                <div className="font-mono text-[12px] text-white/55">{(sz[0] * sz[1]).toFixed(1)} ft²</div>
+        {showSizes && (
+          s.status !== 'approved' ? (
+            <div className="rounded-(--r-md) p-4" style={{ background: 'rgba(255,255,255,.05)' }}>
+              <div className="text-[10px] text-white/50 uppercase tracking-wider mb-2.5">{isFormatB ? "Sizes" : "Wall sizes"}</div>
+              {(s.sizes ?? []).map((sz, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 py-2 border-b border-white/8 last:border-0"
+                >
+                  <div className="font-mono text-[11px] text-white/40 w-5">{String(i + 1).padStart(2, '0')}</div>
+                  <div className="font-mono text-[14px] font-semibold flex-1">{sz[0].toFixed(1)} × {sz[1].toFixed(1)} ft</div>
+                  <div className="font-mono text-[12px] text-white/55">{(sz[0] * sz[1]).toFixed(1)} ft²</div>
+                </div>
+              ))}
+              <div className="flex justify-between items-center pt-2.5 border-t border-white/8 mt-1">
+                <span className="text-[12px] text-white/65 font-semibold">Total</span>
+                <span className="font-mono text-[17px] font-bold">{totalArea} ft²</span>
               </div>
-            ))}
-            <div className="flex justify-between items-center pt-2.5 border-t border-white/8 mt-1">
-              <span className="text-[12px] text-white/65 font-semibold">Total</span>
-              <span className="font-mono text-[17px] font-bold">{totalArea} ft²</span>
             </div>
-          </div>
-        ) : (
-          <div className="rounded-(--r-md) p-4" style={{ background: 'rgba(255,255,255,.05)' }}>
-            {/* Card header: title + edited chip + adjust / save controls */}
-            <div className="flex items-center justify-between mb-2.5">
-              <div className="flex items-center gap-2">
-                <div className="text-[10px] text-white/50 uppercase tracking-wider">Wall sizes</div>
-                {ownerChanged && ownerDraft === null && (
-                  <span
-                    className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[.05em]"
-                    style={{ background: 'color-mix(in oklch, var(--accent) 22%, transparent)', color: 'var(--accent)' }}
+          ) : (
+            <div className="rounded-(--r-md) p-4" style={{ background: 'rgba(255,255,255,.05)' }}>
+              {/* Card header: title + edited chip + adjust / save controls */}
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="text-[10px] text-white/50 uppercase tracking-wider">{isFormatB ? "Sizes" : "Wall sizes"}</div>
+                  {ownerChanged && ownerDraft === null && (
+                    <span
+                      className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[.05em]"
+                      style={{ background: 'color-mix(in oklch, var(--accent) 22%, transparent)', color: 'var(--accent)' }}
+                    >
+                      Edited
+                    </span>
+                  )}
+                </div>
+                {ownerDraft === null ? (
+                  <button
+                    onClick={startOwnerSizesEdit}
+                    className="flex items-center gap-1.5 h-6.5 px-2.5 rounded-full border border-white/25 text-white/70 text-[11px] font-semibold cursor-pointer bg-transparent hover:bg-white/10 transition-colors"
                   >
-                    Edited
-                  </span>
+                    <PencilIcon size={11} />
+                    Adjust
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={cancelOwnerSizesEdit}
+                      disabled={savingOwnerSizes}
+                      className="h-6.5 px-2.5 rounded-full border border-white/20 text-white/60 text-[11px] font-semibold cursor-pointer bg-transparent disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveOwnerSizes}
+                      disabled={savingOwnerSizes}
+                      className="h-6.5 px-3 rounded-full border-0 text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                      style={{ background: 'var(--accent)', color: '#fff' }}
+                    >
+                      {savingOwnerSizes ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
                 )}
               </div>
-              {ownerDraft === null ? (
-                <button
-                  onClick={startOwnerSizesEdit}
-                  className="flex items-center gap-1.5 h-6.5 px-2.5 rounded-full border border-white/25 text-white/70 text-[11px] font-semibold cursor-pointer bg-transparent hover:bg-white/10 transition-colors"
-                >
-                  <PencilIcon size={11} />
-                  Adjust
-                </button>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={cancelOwnerSizesEdit}
-                    disabled={savingOwnerSizes}
-                    className="h-6.5 px-2.5 rounded-full border border-white/20 text-white/60 text-[11px] font-semibold cursor-pointer bg-transparent disabled:opacity-50"
+
+              {/* Column labels */}
+              <div className="flex items-center gap-3 pb-1.5 border-b border-white/8">
+                <div className="w-5" />
+                <div className="flex-1 text-[9px] font-bold uppercase tracking-[.08em] text-white/35">Painter</div>
+                <div className="flex-1 text-[9px] font-bold uppercase tracking-[.08em]" style={{ color: 'var(--accent)' }}>Yours</div>
+                <div className="w-13 text-right text-[9px] font-bold uppercase tracking-[.08em] text-white/35">ft²</div>
+              </div>
+
+              {/* Rows */}
+              {(s.sizes ?? []).map((psz, i) => {
+                const osz = ownerEff[i] ?? psz;
+                const changed = osz[0] !== psz[0] || osz[1] !== psz[1];
+                const rowArea = ownerDraft
+                  ? ((Number(ownerDraft[i]?.w) || 0) * (Number(ownerDraft[i]?.h) || 0)).toFixed(1)
+                  : (osz[0] * osz[1]).toFixed(1);
+                return (
+                  <div key={i} className="flex items-center gap-3 py-2 border-b border-white/8 last:border-0">
+                    <div className="font-mono text-[11px] text-white/40 w-5">{String(i + 1).padStart(2, '0')}</div>
+                    <div className="flex-1 font-mono text-[13px] text-white/50">
+                      {psz[0].toFixed(1)} × {psz[1].toFixed(1)}
+                    </div>
+                    {ownerDraft === null ? (
+                      <div
+                        className="flex-1 font-mono text-[13px] font-semibold"
+                        style={{ color: changed ? 'var(--accent)' : '#fff' }}
+                      >
+                        {osz[0].toFixed(1)} × {osz[1].toFixed(1)}
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex items-center gap-1 min-w-0">
+                        <input
+                          value={ownerDraft[i]?.w ?? ''}
+                          onChange={(e) => setOwnerDraftCell(i, 'w', e.target.value)}
+                          type="number"
+                          step="any"
+                          inputMode="decimal"
+                          disabled={savingOwnerSizes}
+                          className="w-full min-w-0 h-8 px-1 rounded-md bg-white/10 border border-white/20 font-mono text-[13px] text-white text-center outline-none focus:border-(--accent)"
+                        />
+                        <span className="text-white/40 text-[11px] shrink-0">×</span>
+                        <input
+                          value={ownerDraft[i]?.h ?? ''}
+                          onChange={(e) => setOwnerDraftCell(i, 'h', e.target.value)}
+                          type="number"
+                          step="any"
+                          inputMode="decimal"
+                          disabled={savingOwnerSizes}
+                          className="w-full min-w-0 h-8 px-1 rounded-md bg-white/10 border border-white/20 font-mono text-[13px] text-white text-center outline-none focus:border-(--accent)"
+                        />
+                      </div>
+                    )}
+                    <div className="w-13 text-right font-mono text-[12px] text-white/55">{rowArea}</div>
+                  </div>
+                );
+              })}
+
+              {/* Totals */}
+              <div className="pt-2.5 border-t border-white/8 mt-1 flex flex-col gap-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-[11px] text-white/45">Painter total</span>
+                  <span className="font-mono text-[13px] text-white/55">{totalArea} ft²</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[12px] text-white/65 font-semibold">Your total</span>
+                  <span
+                    className="font-mono text-[17px] font-bold"
+                    style={{ color: (ownerDraft ? draftTotal !== totalArea : ownerChanged) ? 'var(--accent)' : '#fff' }}
                   >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={saveOwnerSizes}
-                    disabled={savingOwnerSizes}
-                    className="h-6.5 px-3 rounded-full border-0 text-[11px] font-bold cursor-pointer disabled:opacity-50"
-                    style={{ background: 'var(--accent)', color: '#fff' }}
-                  >
-                    {savingOwnerSizes ? 'Saving…' : 'Save'}
-                  </button>
+                    {ownerDraft ? draftTotal : ownerTotal} ft²
+                  </span>
+                </div>
+              </div>
+
+              {ownerSizesErr && (
+                <div className="mt-2 text-[11px] font-medium" style={{ color: 'oklch(0.72 0.17 25)' }}>
+                  {ownerSizesErr}
                 </div>
               )}
-            </div>
 
-            {/* Column labels */}
-            <div className="flex items-center gap-3 pb-1.5 border-b border-white/8">
-              <div className="w-5" />
-              <div className="flex-1 text-[9px] font-bold uppercase tracking-[.08em] text-white/35">Painter</div>
-              <div className="flex-1 text-[9px] font-bold uppercase tracking-[.08em]" style={{ color: 'var(--accent)' }}>Yours</div>
-              <div className="w-13 text-right text-[9px] font-bold uppercase tracking-[.08em] text-white/35">ft²</div>
-            </div>
-
-            {/* Rows */}
-            {s.sizes.map((psz, i) => {
-              const osz = ownerEff[i] ?? psz;
-              const changed = osz[0] !== psz[0] || osz[1] !== psz[1];
-              const rowArea = ownerDraft
-                ? ((Number(ownerDraft[i]?.w) || 0) * (Number(ownerDraft[i]?.h) || 0)).toFixed(1)
-                : (osz[0] * osz[1]).toFixed(1);
-              return (
-                <div key={i} className="flex items-center gap-3 py-2 border-b border-white/8 last:border-0">
-                  <div className="font-mono text-[11px] text-white/40 w-5">{String(i + 1).padStart(2, '0')}</div>
-                  <div className="flex-1 font-mono text-[13px] text-white/50">
-                    {psz[0].toFixed(1)} × {psz[1].toFixed(1)}
-                  </div>
-                  {ownerDraft === null ? (
-                    <div
-                      className="flex-1 font-mono text-[13px] font-semibold"
-                      style={{ color: changed ? 'var(--accent)' : '#fff' }}
-                    >
-                      {osz[0].toFixed(1)} × {osz[1].toFixed(1)}
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex items-center gap-1 min-w-0">
-                      <input
-                        value={ownerDraft[i]?.w ?? ''}
-                        onChange={(e) => setOwnerDraftCell(i, 'w', e.target.value)}
-                        type="number"
-                        step="any"
-                        inputMode="decimal"
-                        disabled={savingOwnerSizes}
-                        className="w-full min-w-0 h-8 px-1 rounded-md bg-white/10 border border-white/20 font-mono text-[13px] text-white text-center outline-none focus:border-(--accent)"
-                      />
-                      <span className="text-white/40 text-[11px] shrink-0">×</span>
-                      <input
-                        value={ownerDraft[i]?.h ?? ''}
-                        onChange={(e) => setOwnerDraftCell(i, 'h', e.target.value)}
-                        type="number"
-                        step="any"
-                        inputMode="decimal"
-                        disabled={savingOwnerSizes}
-                        className="w-full min-w-0 h-8 px-1 rounded-md bg-white/10 border border-white/20 font-mono text-[13px] text-white text-center outline-none focus:border-(--accent)"
-                      />
-                    </div>
-                  )}
-                  <div className="w-13 text-right font-mono text-[12px] text-white/55">{rowArea}</div>
-                </div>
-              );
-            })}
-
-            {/* Totals */}
-            <div className="pt-2.5 border-t border-white/8 mt-1 flex flex-col gap-1">
-              <div className="flex justify-between items-center">
-                <span className="text-[11px] text-white/45">Painter total</span>
-                <span className="font-mono text-[13px] text-white/55">{totalArea} ft²</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[12px] text-white/65 font-semibold">Your total</span>
-                <span
-                  className="font-mono text-[17px] font-bold"
-                  style={{ color: (ownerDraft ? draftTotal !== totalArea : ownerChanged) ? 'var(--accent)' : '#fff' }}
-                >
-                  {ownerDraft ? draftTotal : ownerTotal} ft²
-                </span>
+              <div className="mt-2.5 text-[10px] text-white/35 leading-[1.5]">
+                &ldquo;Yours&rdquo; is private to you — it goes into the master Excel &amp; PDF. The painter&apos;s own file keeps their sizes.
               </div>
             </div>
-
-            {ownerSizesErr && (
-              <div className="mt-2 text-[11px] font-medium" style={{ color: 'oklch(0.72 0.17 25)' }}>
-                {ownerSizesErr}
-              </div>
-            )}
-
-            <div className="mt-2.5 text-[10px] text-white/35 leading-[1.5]">
-              &ldquo;Yours&rdquo; is private to you — it goes into the master Excel &amp; PDF. The painter&apos;s own file keeps their sizes.
-            </div>
-          </div>
+          )
         )}
 
         {/* Meta grid */}
         <div className="grid grid-cols-2 gap-2.5">
-          <div className="rounded-(--r) p-3" style={{ background: 'rgba(255,255,255,.05)' }}>
-            <div className="text-[10px] text-white/50 uppercase tracking-wider">Photo number</div>
-            <div className="font-mono text-[20px] font-bold mt-1">{String(s.photoNo).padStart(2, '0')}</div>
-          </div>
-          <div className="rounded-(--r) p-3" style={{ background: 'rgba(255,255,255,.05)' }}>
-            <div className="text-[10px] text-white/50 uppercase tracking-wider">Photos</div>
-            <div className="font-mono text-[20px] font-bold mt-1">{photos.length}</div>
-          </div>
+          {metaItems.map(({ label, value, isNumeric }) => (
+            <div key={label} className="rounded-(--r) p-3 overflow-hidden" style={{ background: 'rgba(255,255,255,.05)' }}>
+              <div className="text-[10px] text-white/50 uppercase tracking-wider">{label}</div>
+              <div className={`mt-1 text-white truncate ${isNumeric ? 'font-mono text-[20px] font-bold' : 'text-[15px] font-semibold'}`}>
+                {value}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Rejection reason */}
@@ -956,6 +1004,132 @@ export default function OwnerSubmissionReviewPage({
               onSubmit={handleEditSubmit(onEditSubmit)}
               className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5"
             >
+              {/* Format B: Shop Name */}
+              {isFormatB && (
+                <div>
+                  <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Name of the Shop/Office/Person</div>
+                  <div className={[inputBox, editErrors.shopName ? 'border-(--rejected)' : ''].join(' ')}>
+                    <input
+                      {...regEdit('shopName', { required: true })}
+                      placeholder="e.g. Ramesh Hardware"
+                      disabled={editBusy}
+                      className={innerInput}
+                    />
+                  </div>
+                  {editErrors.shopName && <div className="text-[11px] text-(--rejected) mt-1.5">Name is required.</div>}
+                </div>
+              )}
+
+              {/* Location / Address */}
+              <div>
+                <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">{isFormatB ? "Address" : "Wall location"}</div>
+                <div className={[inputBox, editErrors.location ? 'border-(--rejected)' : ''].join(' ')}>
+                  <input
+                    {...regEdit('location', { required: true, maxLength: 100 })}
+                    placeholder={isFormatB ? "123 Main St, City" : "Hallway 8A — north wall"}
+                    disabled={editBusy}
+                    className={innerInput}
+                  />
+                </div>
+                <div className="flex justify-between items-center mt-1.5">
+                  <span className={['text-[11px]', editErrors.location ? 'text-(--rejected)' : 'text-(--ink-3)'].join(' ')}>
+                    {editErrors.location?.type === 'maxLength' ? '100 character limit reached.' : editErrors.location ? `${isFormatB ? "Address" : "Location"} is required.` : isFormatB ? "Provide the full address." : 'Where is this wall on the job site? Be specific.'}
+                  </span>
+                  <span className={['text-[11px] font-(--mono) tabular-nums shrink-0 ml-2', (editLoc?.length ?? 0) > 100 ? 'text-(--rejected)' : (editLoc?.length ?? 0) > 80 ? 'text-amber-500' : 'text-(--ink-4)'].join(' ')}>
+                    {editLoc?.length ?? 0} / 100
+                  </span>
+                </div>
+              </div>
+
+              {/* Format B: Contact No. */}
+              {isFormatB && (
+                <div>
+                  <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Contact No.</div>
+                  <div className={[inputBox, editErrors.contactNo ? 'border-(--rejected)' : ''].join(' ')}>
+                    <input
+                      {...regEdit('contactNo', { required: true })}
+                      placeholder="+91..."
+                      disabled={editBusy}
+                      className={innerInput}
+                    />
+                  </div>
+                  {editErrors.contactNo && <div className="text-[11px] text-(--rejected) mt-1.5">Contact number is required.</div>}
+                </div>
+              )}
+
+              {/* Format B: Van No */}
+              {isFormatB && (
+                <div>
+                  <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
+                    Van No. {isVan ? "" : <span className="text-(--ink-4) font-medium">· optional</span>}
+                  </div>
+                  <div className={[inputBox, editErrors.vanNo ? 'border-(--rejected)' : ''].join(' ')}>
+                    <input
+                      {...regEdit('vanNo', { required: isVan })}
+                      placeholder="e.g. MH01AB1234"
+                      disabled={editBusy}
+                      className={innerInput}
+                    />
+                  </div>
+                  {editErrors.vanNo && <div className="text-[11px] text-(--rejected) mt-1.5">Van number is required for Van jobs.</div>}
+                </div>
+              )}
+
+              {/* Format B + Van ONLY: Above / Below Radio */}
+              {isFormatB && isVan && (() => {
+                const selectedPosition = editWatch("aboveBelow");
+                return (
+                  <div>
+                    <div className="text-[12px] font-semibold text-(--ink-2) mb-2.5">Position</div>
+                    <div className="flex gap-3 mb-1">
+                      {['Above', 'Below'].map((pos) => {
+                        const isSelected = selectedPosition === pos;
+                        return (
+                          <label 
+                            key={pos} 
+                            className={`flex-1 flex items-center justify-center h-10 rounded-(--r) border text-[13px] font-medium cursor-pointer transition-colors ${
+                              isSelected 
+                                ? 'bg-(--ink) text-white border-(--ink)' 
+                                : 'bg-(--surface) text-(--ink-2) border-(--border-2) hover:border-(--border-3)'
+                            }`}
+                          >
+                            <input 
+                              type="radio" 
+                              value={pos}
+                              {...regEdit("aboveBelow", { required: true })}
+                              className="hidden"
+                            />
+                            {pos}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {editErrors.aboveBelow && <div className="text-[11px] text-(--rejected) mt-1.5">Please select a position.</div>}
+                  </div>
+                );
+              })()}
+
+              {/* Sizes */}
+              {showSizes && (
+                <div>
+                  <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
+                    {isFormatB ? "Sizes" : "Wall sizes"} <span className="text-(--ink-4) font-medium">· at least one · in feet</span>
+                  </div>
+                  {/* CHANGED: Passing new props to SizesField */}
+                  <SizesField
+                    fields={editFields}
+                    register={regEdit}
+                    remove={editRemove}
+                    append={editAppend}
+                    replace={editReplace}
+                    busy={editBusy}
+                    area={editArea}
+                    isFormatB={isFormatB}
+                    jobType={job?.jobType as "Wall" | "Shutter" | "Van"}
+                  />
+                </div>
+              )}
+
               {/* Photo Number */}
               <div>
                 <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Photo number</div>
@@ -973,42 +1147,6 @@ export default function OwnerSubmissionReviewPage({
                     {editErrors.photoNo ? 'Valid photo number is required.' : 'The sequence number assigned to this wall.'}
                   </span>
                 </div>
-              </div>
-
-              {/* Location */}
-              <div>
-                <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Wall location</div>
-                <div className={[inputBox, editErrors.location ? 'border-(--rejected)' : ''].join(' ')}>
-                  <input
-                    {...regEdit('location', { required: true, maxLength: 100 })}
-                    placeholder="Hallway 8A — north wall"
-                    disabled={editBusy}
-                    className={innerInput}
-                  />
-                </div>
-                <div className="flex justify-between items-center mt-1.5">
-                  <span className={['text-[11px]', editErrors.location ? 'text-(--rejected)' : 'text-(--ink-3)'].join(' ')}>
-                    {editErrors.location?.type === 'maxLength' ? '100 character limit reached.' : editErrors.location ? 'Location is required.' : 'Where is this wall on the job site? Be specific.'}
-                  </span>
-                  <span className={['text-[11px] font-(--mono) tabular-nums shrink-0 ml-2', (editLoc?.length ?? 0) > 100 ? 'text-(--rejected)' : (editLoc?.length ?? 0) > 80 ? 'text-amber-500' : 'text-(--ink-4)'].join(' ')}>
-                    {editLoc?.length ?? 0} / 100
-                  </span>
-                </div>
-              </div>
-
-              {/* Sizes */}
-              <div>
-                <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
-                  Wall sizes <span className="text-(--ink-4) font-medium">· at least one · in feet</span>
-                </div>
-                <SizesField
-                  fields={editFields}
-                  register={regEdit}
-                  remove={editRemove}
-                  append={editAppend}
-                  busy={editBusy}
-                  area={editArea}
-                />
               </div>
 
               {/* Photos */}

@@ -7,9 +7,16 @@ export interface Submission {
   imageCount?: number;
   previewUrl?: string;
   location: string;
-  sizes?: number[][];
+  sizes?: number[][]; // Made optional
   /** Owner's own size set — present only on approved submissions, never sent to painters. */
   ownerSizes?: number[][];
+  
+  // FORMAT B FIELDS
+  shopName?: string;
+  contactNo?: string;
+  vanNo?: string;
+  aboveBelow?: 'Above' | 'Below';
+
   status: 'pending' | 'approved' | 'rejected';
   submittedAt: string;
   createdAt?: string;
@@ -26,9 +33,17 @@ export interface SubmissionDetail {
   _id: string;
   location: string;
   photoNo: number;
-  sizes: number[][];
+  sizes?: number[][]; // Made optional
+  sizeLabels?: string[];
   /** Owner's own size set — present only on approved submissions, never sent to painters. */
   ownerSizes?: number[][];
+  
+  // FORMAT B FIELDS
+  shopName?: string;
+  contactNo?: string;
+  vanNo?: string;
+  aboveBelow?: 'Above' | 'Below';
+
   status: 'pending' | 'approved' | 'rejected';
   submittedAt: string;
   createdAt?: string;
@@ -42,15 +57,31 @@ export type { UploadedImage };
 export interface CreateSubmissionBody {
   photoNo: number;
   location: string;
-  sizes: [number, number][];
+  sizes?: [number, number][]; // Made optional
+  sizeLabels?: string[];
+  
+  // FORMAT B FIELDS
+  shopName?: string;
+  contactNo?: string;
+  vanNo?: string;
+  aboveBelow?: 'Above' | 'Below';
+
   uploadedImages: UploadedImage[];
 }
 
 export interface UpdateSubmissionBody {
-  location: string;
-  sizes: [number, number][];
-  uploadedImages: UploadedImage[];
-  photoNo: number;
+  location?: string;
+  photoNo?: number;
+  sizes?: [number, number][]; // Made optional
+  sizeLabels?: string[];
+  
+  // FORMAT B FIELDS
+  shopName?: string;
+  contactNo?: string;
+  vanNo?: string;
+  aboveBelow?: 'Above' | 'Below';
+
+  uploadedImages?: UploadedImage[];
 }
 
 const submissionsEndpoints = api.injectEndpoints({

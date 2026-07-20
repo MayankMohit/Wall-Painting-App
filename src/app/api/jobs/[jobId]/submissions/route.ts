@@ -37,9 +37,12 @@ export const GET = withAuth({ access: requireJobAccess })(
       },
       {
         $project: {
-          photoNo: 1, location: 1, sizes: 1, status: 1, submittedAt: 1, painterId: 1,
+          photoNo: 1, location: 1, sizes: 1, sizeLabels: 1, status: 1, submittedAt: 1, painterId: 1,
           imageCount: 1,
-          // The owner's size set is never exposed to painters.
+          
+          // NEW FORMAT B FIELDS ADDED
+          shopName: 1, contactNo: 1, vanNo: 1, aboveBelow: 1,
+          
           ...(ctx.user!.role !== 'painter' ? { ownerSizes: 1 } : {}),
           previewUrl: { $arrayElemAt: ['$firstPhoto.previewCloudinaryUrl', 0] },
         },
@@ -55,8 +58,7 @@ export const GET = withAuth({ access: requireJobAccess })(
 //        failure so uploaded images never become orphaned.
 export const POST = withRole(['painter'], { schema: CreateSubmissionSchema, access: [requireJobAccess, requireActiveAccount], audit: 'SUBMISSION_CREATE' })(
   async (req, ctx) => {
-    const { photoNo, location, sizes, uploadedImages } = ctx.body as z.infer<typeof CreateSubmissionSchema>;
-
+    const { photoNo, location, sizes, sizeLabels, uploadedImages, shopName, contactNo, vanNo, aboveBelow } = ctx.body as z.infer<typeof CreateSubmissionSchema>;
     // Everything from here is wrapped in try so the compensating Cloudinary cleanup
     // runs on any failure, including job status rejection and DB errors.
     let session: mongoose.ClientSession | null = null;
@@ -94,6 +96,12 @@ export const POST = withRole(['painter'], { schema: CreateSubmissionSchema, acce
         photoNo,
         location,
         sizes,
+        sizeLabels,
+        shopName,
+        contactNo,
+        vanNo,
+        aboveBelow,
+      
         images  : savedPhotos.map(p => p._id),
       }], { session });
 

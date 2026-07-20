@@ -78,6 +78,8 @@ export const CreateJobSchema = z.object({
   companyName: z.string().trim().min(1, { error: 'Company name is required' }),
   description: z.string().trim().optional(),
   painterIds: z.array(z.string()).default([]),
+  jobType: z.enum(['Wall', 'Shutter', 'Van']),
+  pdfFormat: z.enum(['A', 'B']),
 });
 
 export const UpdateJobSchema = z.object({
@@ -85,6 +87,8 @@ export const UpdateJobSchema = z.object({
   description: z.string().trim().optional(),
   painterIds: z.array(z.string()).optional(),
   status: z.enum(['active', 'completed', 'invoiced']).optional(),
+  jobType: z.enum(['Wall', 'Shutter', 'Van']).optional(),
+  pdfFormat: z.enum(['A', 'B']).optional(),
 });
 
 export const CreateSubmissionSchema = z.object({
@@ -92,8 +96,16 @@ export const CreateSubmissionSchema = z.object({
   location: z.string().min(1, { error: 'Location is required' }).max(100, { error: 'Location must be 100 characters or fewer' }).trim(),
   sizes: z
     .array(z.tuple([z.number().positive(), z.number().positive()]))
-    .min(1, { error: 'At least one size is required' })
-    .max(10, { error: 'A submission cannot have more than 10 sizes' }),
+    .max(10, { error: 'A submission cannot have more than 10 sizes' })
+    .optional(),
+
+  // --- NEW FORMAT B FIELDS ---
+  sizeLabels: z.array(z.string()).optional(),
+  shopName: z.string().trim().optional(),
+  contactNo: z.string().trim().optional(),
+  vanNo: z.string().trim().optional(),
+  aboveBelow: z.enum(['Above', 'Below']).optional(),
+  
   uploadedImages: z.array(
     z.object({
       cloudinaryId        : z.string().min(1),
@@ -112,6 +124,14 @@ export const UpdateSubmissionSchema = z.object({
     .max(10, { error: 'A submission cannot have more than 10 sizes' }).optional(),
   ownerSizes: z.array(z.tuple([z.number().positive(), z.number().positive()]))
     .max(10, { error: 'A submission cannot have more than 10 sizes' }).optional(),
+    
+  // --- NEW FORMAT B FIELDS ---
+  sizeLabels: z.array(z.string()).optional(), // Added sizeLabels
+  shopName: z.string().trim().optional(),
+  contactNo: z.string().trim().optional(),
+  vanNo: z.string().trim().optional(),
+  aboveBelow: z.enum(['Above', 'Below']).optional(),
+
   uploadedImages: z.array(
     z.object({
       cloudinaryId        : z.string().min(1),

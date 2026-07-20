@@ -3,6 +3,11 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 export interface IJob extends Document {
   _id: Types.ObjectId;
   companyName: string;
+  
+  // For the new format B and job type.
+  jobType: 'Wall' | 'Shutter' | 'Van';
+  pdfFormat: 'A' | 'B';
+  
   ownerId: Types.ObjectId;
   description?: string;
   status: 'active' | 'completed' | 'invoiced';
@@ -20,6 +25,8 @@ export interface IJob extends Document {
 const JobSchema = new Schema<IJob>(
   {
     companyName: { type: String, required: true, trim: true },
+    jobType: { type: String, enum: ['Wall', 'Shutter', 'Van'], required: true },
+    pdfFormat: { type: String, enum: ['A', 'B'], required: true },
     ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     description: { type: String, trim: true },
     status: { type: String, enum: ['active', 'completed', 'invoiced'], default: 'active' },

@@ -24,7 +24,7 @@ export const GET = withAuth({ access: requireSubmissionAccess })(
 //       Editing a rejected submission re-opens it to pending. Cleans up Cloudinary on any failure.
 export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSubmissionAccess, audit: 'SUBMISSION_UPDATE' })(
   async (req, ctx) => {
-    const { location, sizes, uploadedImages, photoNo, ownerSizes } = ctx.body as z.infer<typeof UpdateSubmissionSchema>;
+    const { location, sizes, sizeLabels, uploadedImages, photoNo, ownerSizes, shopName, contactNo, vanNo, aboveBelow } = ctx.body as z.infer<typeof UpdateSubmissionSchema>;
     const submission = ctx.submission!;
 
     // Owner's size set: owner/admin only, only while approved, and row-for-row with
@@ -47,6 +47,18 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
       ctx.fail(400, 'SIZES_LOCKED', "The painter's sizes are locked after approval. Edit your own sizes, or revoke the approval first.");
     }
 
+    const applyUpdates = () => {
+      if (location) submission.location = location;
+      if (sizes)    submission.sizes    = sizes;
+      if (sizeLabels) submission.sizeLabels = sizeLabels;
+      if (ownerSizes) submission.ownerSizes = ownerSizes;
+      if (photoNo !== undefined) submission.photoNo = photoNo;
+      if (shopName !== undefined) submission.shopName = shopName;
+      if (contactNo !== undefined) submission.contactNo = contactNo;
+      if (vanNo !== undefined) submission.vanNo = vanNo;
+      if (aboveBelow !== undefined) submission.aboveBelow = aboveBelow;
+    };
+
     // Fast path: no new images — nothing in Cloudinary to clean up, so fail fast is safe.
     if (!uploadedImages?.length) {
       if (submission.status === 'approved' && ctx.user!.role !== 'owner') {
@@ -55,10 +67,7 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
 
       await connectDB();
       const wasRejected = submission.status === 'rejected';
-      if (location) submission.location = location;
-      if (sizes)    submission.sizes    = sizes;
-      if (ownerSizes) submission.ownerSizes = ownerSizes;
-      if (photoNo !== undefined) submission.photoNo = photoNo;
+      applyUpdates();
       if (wasRejected) submission.status = 'pending';
       await submission.save();
 
@@ -73,7 +82,7 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
             data: { painter: (painterDoc as { name?: string } | null)?.name ?? 'A painter', code: submission.photoNo },
           }).catch(() => {});
         }).catch(() => {});
-      } else if (ctx.user!.role === 'owner' && (location || sizes || photoNo !== undefined)) {
+      } else if (ctx.user!.role === 'owner' && (location || sizes || photoNo !== undefined || shopName || vanNo)) {
         // Note: pure ownerSizes edits deliberately do NOT notify the painter —
         // the owner's size set is invisible to painters.
         const fields = [location && 'location', sizes && 'sizes'].filter(Boolean).join(', ');
@@ -107,10 +116,7 @@ export const PUT = withAuth({ schema: UpdateSubmissionSchema, access: requireSub
       await connectDB();
 
       wasRejected = submission.status === 'rejected';
-      if (location) submission.location = location;
-      if (sizes)    submission.sizes    = sizes;
-      if (ownerSizes) submission.ownerSizes = ownerSizes;
-      if (photoNo !== undefined) submission.photoNo = photoNo;
+      applyUpdates();
       if (wasRejected) submission.status = 'pending';
 
       session = await mongoose.startSession();

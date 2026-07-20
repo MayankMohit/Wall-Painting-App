@@ -32,7 +32,7 @@ function Avatar({ name, size = 34 }: { name: string; size?: number }) {
 // ── table column layout ───────────────────────────────────────────────────────
 const PAINTER_COLS = 'grid-cols-[2fr_1fr_1fr_1fr_1fr_52px]';
 
-// ── generatable file types (single source of truth for the toggles + select-all)
+// ── generatable file types
 const GEN_TYPES = ['excel', 'excel_painters', 'pdf_photos', 'pdf_file'] as const;
 const GEN_TYPE_LABELS: Record<(typeof GEN_TYPES)[number], string> = {
   excel:          'Excel · Master List',
@@ -64,16 +64,22 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const [updateJob, { isLoading: saving }] = useUpdateJobMutation();
   const [deleteJob, { isLoading: deleting }] = useDeleteJobMutation();
 
-  // painterId → active invite (with its share link). Painters without one fall back
-  // to a "Regenerate" button.
   const inviteMap = new Map(
     (invites ?? []).filter((iv) => iv.status === 'active').map((iv) => [iv.painterId, iv] as const),
   );
 
-  const { register, handleSubmit, formState: { isSubmitting: editSubmitting } } = useForm({
-    values: { companyName: job?.companyName ?? '', description: job?.description ?? '' },
+  // CHANGED: Added jobType and pdfFormat to the edit form
+  const { register, handleSubmit, watch, formState: { isSubmitting: editSubmitting } } = useForm({
+    values: { 
+      companyName: job?.companyName ?? '', 
+      description: job?.description ?? '',
+      jobType: job?.jobType ?? 'Wall',
+      pdfFormat: job?.pdfFormat ?? 'A'
+    },
   });
 
+  const watchJobType = watch('jobType');
+  const watchPdfFormat = watch('pdfFormat');
 
   if (isLoading) {
     return (
@@ -96,8 +102,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const startDate = job.startDate ?? job.createdAt;
   const jobRejected = job.stats.submitted - job.stats.approved - job.stats.pending;
 
-  const handleEditSave = async (data: { companyName: string; description: string }) => {
-    await updateJob({ jobId, body: { companyName: data.companyName, description: data.description } }).unwrap();
+  // CHANGED: Include jobType and pdfFormat in the update request
+  const handleEditSave = async (data: any) => {
+    await updateJob({ jobId, body: data }).unwrap();
     setEditOpen(false);
   };
 
@@ -175,9 +182,23 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               {job.companyName}
             </h1>
             <JobStatusPill status={job.status} size="sm" />
+            {(job.jobType || job.pdfFormat) && (
+              <div className="flex items-center gap-1.5">
+                {job.jobType && (
+                  <span className="inline-flex items-center h-5 px-2 bg-(--paper-2) text-(--ink-2) border border-(--border-2) rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    {job.jobType}
+                  </span>
+                )}
+                {job.pdfFormat && (
+                  <span className="inline-flex items-center h-5 px-2 bg-(--paper-2) text-(--ink-2) border border-(--border-2) rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    Type {job.pdfFormat}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           {job.description && (
-            <p className="text-[13px] text-(--ink-3) mt-0.5 line-clamp-1">{job.description}</p>
+            <p className="text-[13px] text-(--ink-3) mt-1 line-clamp-1">{job.description}</p>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0 mt-1">
@@ -214,18 +235,30 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
 
       {/* ══ Mobile body ═══════════════════════════════════════════════ */}
       <div className="lg:hidden px-4 pt-5 pb-40">
-        {/* Title + status inline */}
         <div className="flex items-center gap-2.5 flex-wrap mb-0">
           <h1 className="text-[24px] font-bold text-(--ink) tracking-tight leading-[1.15]">
             {job.companyName}
           </h1>
           <JobStatusPill status={job.status} size="sm" />
         </div>
+        {(job.jobType || job.pdfFormat) && (
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+            {job.jobType && (
+              <span className="inline-flex items-center h-5 px-2 bg-(--paper-2) text-(--ink-2) border border-(--border-2) rounded-full text-[10px] font-bold uppercase tracking-wider">
+                {job.jobType}
+              </span>
+            )}
+            {job.pdfFormat && (
+              <span className="inline-flex items-center h-5 px-2 bg-(--paper-2) text-(--ink-2) border border-(--border-2) rounded-full text-[10px] font-bold uppercase tracking-wider">
+                Type {job.pdfFormat}
+              </span>
+            )}
+          </div>
+        )}
         {job.description && (
           <p className="text-[13px] text-(--ink-3) mt-1.5 leading-normal">{job.description}</p>
         )}
 
-        {/* Dates */}
         <div className="mt-3 flex items-center gap-1 text-[12px] text-(--ink-3)">
           <Clock size={12} style={{ display: 'inline', marginRight: 4 }} />
           Started {fmt(startDate)}
@@ -234,7 +267,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
           )}
         </div>
 
-        {/* Stat tiles */}
         <div className="mt-4 grid grid-cols-3 gap-2">
           <MobileStat label="Submitted" value={job.stats.submitted} color="var(--ink)" accent="var(--border-3)" />
           <MobileStat label="Approved" value={job.stats.approved} color="var(--approved)" accent="var(--approved)" />
@@ -244,7 +276,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
           )}
         </div>
 
-        {/* Action buttons */}
         <div className="mt-4 flex items-center justify-between gap-2">
           <div className="inline-flex items-center gap-1.5 h-9 text-[13px] font-medium text-(--ink-3)">
             <Users size={15} weight={1.8} />
@@ -259,7 +290,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
           </Link>
         </div>
 
-        {/* Painters list */}
         <div className="mt-6">
           <div className="flex items-center justify-between mb-3">
             <div className="text-[12px] font-bold text-(--ink-2) uppercase tracking-wider">
@@ -322,7 +352,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
         </div>
       </div>
 
-      {/* Mobile sticky bottom CTA — fixed above the bottom nav (bottom nav ≈ 84px) */}
+      {/* Mobile CTA */}
       <div className="lg:hidden fixed bottom-17.5 left-0 right-0 z-30 px-4 py-3 border-t border-(--border) bg-(--paper)">
         <button
           onClick={() => {
@@ -341,8 +371,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
       {/* ══ Desktop 2-col content ═════════════════════════════════════ */}
       <div className="hidden lg:block px-8 pt-7 pb-10">
         <div className="grid gap-6" style={{ gridTemplateColumns: '1fr 360px' }}>
-
-          {/* Left: painters table */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="text-[13px] font-bold text-(--ink-2)">
@@ -359,7 +387,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             </div>
 
             <div className="bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden">
-              {/* Table header */}
               <div
                 className={`grid ${PAINTER_COLS} px-4 py-2.5 border-b border-(--border)`}
                 style={{ background: 'oklch(0.972 0.005 75)' }}
@@ -422,7 +449,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             </div>
           </div>
 
-          {/* Right: stats sidebar */}
           <div>
             <div className="text-[13px] font-bold text-(--ink-2) mb-3">Job stats</div>
             <div className="flex flex-col gap-2.5">
@@ -432,8 +458,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               {jobRejected > 0 && (
                 <StatCard label="Rejected" value={jobRejected} color="var(--rejected)" />
               )}
-
-              {/* Dates */}
               <div className="bg-(--paper-2) border border-(--border) rounded-(--r-md) px-4 py-3 flex flex-col gap-2">
                 <div className="flex items-center justify-between text-[12px]">
                   <span className="text-(--ink-3)">Started</span>
@@ -446,13 +470,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                   </div>
                 )}
               </div>
-
             </div>
           </div>
         </div>
       </div>
 
-      {/* ══ Add painter modal ═════════════════════════════════════════ */}
       {addPainterOpen && (
         <AddPainterModal
           jobId={jobId}
@@ -465,7 +487,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
       {editOpen && (
         <Modal onClose={() => setEditOpen(false)}>
           <ModalHeader title="Edit job" onClose={() => setEditOpen(false)} />
-          <form id="edit-form" onSubmit={handleSubmit(handleEditSave)} className="px-5 py-4 flex flex-col gap-4">
+          
+          <form id="edit-form" onSubmit={handleSubmit(handleEditSave)} className="px-5 py-4 max-h-[75vh] overflow-y-auto flex flex-col gap-4">
             <div>
               <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Company name</div>
               <input
@@ -477,11 +500,59 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Description</div>
               <textarea
                 {...register('description')}
-                rows={4}
+                rows={3}
                 className="w-full px-3.5 py-3 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] resize-none leading-normal"
               />
             </div>
+
+            {/* CHANGED: Job Type and PDF Format Blocks added here */}
+            <div className="mt-2 pt-5 border-t border-(--border-2)">
+              <div className="text-[12px] font-semibold text-(--ink-2) mb-2.5">Job Type</div>
+              <div className="flex gap-3 mb-6">
+                {['Wall', 'Shutter', 'Van'].map((type) => (
+                  <label
+                    key={type}
+                    className={`flex-1 flex items-center justify-center h-10 rounded-(--r) border text-[13px] font-medium cursor-pointer transition-colors ${watchJobType === type
+                        ? 'bg-(--ink) text-white border-(--ink)'
+                        : 'bg-(--surface) text-(--ink-2) border-(--border-2) hover:border-(--border-3)'
+                      }`}
+                  >
+                    <input
+                      type="radio"
+                      {...register('jobType')}
+                      value={type}
+                      className="hidden"
+                    />
+                    {type}
+                  </label>
+                ))}
+              </div>
+
+              <div className="text-[12px] font-semibold text-(--ink-2) mb-2.5">PDF Output Format</div>
+              <div className="grid grid-cols-2 gap-4">
+                <label className={`relative rounded-(--r) border-2 cursor-pointer overflow-hidden transition-colors ${watchPdfFormat === 'A' ? 'border-(--ink)' : 'border-(--border-2) hover:border-(--border-3)'}`}>
+                  <input type="radio" {...register('pdfFormat')} value="A" className="hidden" />
+                  <div className="h-20 bg-gray-100 flex items-center justify-center">
+                    <span className="text-[10px] text-gray-400">Format A Image</span>
+                  </div>
+                  <div className="p-2 text-center text-[11px] font-bold uppercase tracking-wider text-(--ink-2) bg-(--surface)">
+                    Standard (A)
+                  </div>
+                </label>
+
+                <label className={`relative rounded-(--r) border-2 cursor-pointer overflow-hidden transition-colors ${watchPdfFormat === 'B' ? 'border-(--ink)' : 'border-(--border-2) hover:border-(--border-3)'}`}>
+                  <input type="radio" {...register('pdfFormat')} value="B" className="hidden" />
+                  <div className="h-20 bg-gray-100 flex items-center justify-center">
+                    <span className="text-[10px] text-gray-400">Format B Image</span>
+                  </div>
+                  <div className="p-2 text-center text-[11px] font-bold uppercase tracking-wider text-(--ink-2) bg-(--surface)">
+                    Detailed (B)
+                  </div>
+                </label>
+              </div>
+            </div>
           </form>
+
           <ModalFooter>
             <button onClick={() => setEditOpen(false)} className="h-9 px-4 rounded-full text-[13px] font-semibold text-(--ink-2) bg-(--surface) border border-(--border-2) hover:border-(--border-3) transition-[border-color] cursor-pointer">
               Cancel
@@ -500,7 +571,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
         </Modal>
       )}
 
-      {/* ══ Delete confirm modal ══════════════════════════════════════ */}
       {deleteOpen && (
         <Modal onClose={() => setDeleteOpen(false)}>
           <div className="px-5 pt-6 pb-5 text-center">
@@ -531,13 +601,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
         </Modal>
       )}
 
-      {/* ══ Generate files modal ══════════════════════════════════════ */}
       {genOpen && (
         <Modal onClose={() => { setGenOpen(false); setGenTypes([]); setGenError(''); setStorageError(null); }}>
           <ModalHeader title="Generate files" onClose={() => { setGenOpen(false); setGenTypes([]); setGenError(''); setStorageError(null); }} />
           <div className="px-5 py-4 flex flex-col gap-2">
 
-            {/* Select-all header */}
             {(() => {
               const allOn = GEN_TYPES.every((t) => genTypes.includes(t));
               return (
@@ -554,7 +622,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               );
             })()}
 
-            {/* File Type Toggles */}
             {GEN_TYPES.map((t) => {
               const on = genTypes.includes(t);
               return (
@@ -578,7 +645,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             {genTypes.includes('pdf_file') && (
               <div className="mt-2 pt-4 border-t border-(--border) flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="text-[13px] font-bold text-(--ink-2) mb-1">Letterhead Details</div>
-
                 <div>
                   <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Header Name</div>
                   <input
@@ -588,7 +654,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                     className="w-full h-11 px-3.5 rounded-full border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color]"
                   />
                 </div>
-
                 <div>
                   <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Address</div>
                   <input
@@ -619,7 +684,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                       <p className="text-[12px] mt-0.5 leading-normal" style={{ color: 'oklch(0.48 0.08 40)' }}>
                         You&apos;re using <strong>{usedMB} MB</strong> of your <strong>{limitMB} MB</strong> limit. Delete old files to make room for new ones.
                       </p>
-                      {/* Usage bar */}
                       <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: 'oklch(0.88 0.06 40)' }}>
                         <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'oklch(0.55 0.18 30)' }} />
                       </div>
@@ -698,7 +762,6 @@ function StatCard({ label, value, color }: { label: string; value: number; color
 function DropdownMenu({ onEdit, onDelete, onClose }: { onEdit: () => void; onDelete: () => void; onClose: () => void }) {
   return (
     <>
-      {/* Backdrop — closes menu on outside click */}
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
         className="absolute top-full right-0 mt-1.5 w-44 bg-(--surface) border border-(--border) rounded-(--r-md) overflow-hidden z-50"

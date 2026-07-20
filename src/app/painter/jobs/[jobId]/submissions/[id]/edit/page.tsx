@@ -3,6 +3,7 @@
 import { useState, useEffect, use, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { useRouter } from "next/navigation";
+import { useGetJobQuery } from "@/store/api/endpoints/jobs";
 import {
   useGetSubmissionQuery,
   useUpdateSubmissionMutation,
@@ -25,9 +26,12 @@ export default function EditSubmissionPage({
 }) {
   const { jobId, id: subId } = use(params);
   const router = useRouter();
+  
+  const { data: job, isLoading: jobLoading } = useGetJobQuery(jobId);
   const [updateSubmission] = useUpdateSubmissionMutation();
   const [deletePhoto]      = useDeletePhotoMutation();
 
+  // CHANGED: Added labels to the generic type
   const {
     register,
     handleSubmit,
@@ -35,12 +39,15 @@ export default function EditSubmissionPage({
     watch,
     reset,
     formState: { errors },
-  } = useForm<EditFV>({
+  } = useForm<EditFV & { sizes: { width: string; height: string; label?: string }[] }>({
     defaultValues: { location: "", photoNo: "", sizes: [{ width: "", height: "" }] },
   });
-  const { fields, append, remove } = useFieldArray({ control, name: "sizes" });
+  
+  // CHANGED: Extracted replace
+  const { fields, append, remove, replace } = useFieldArray({ control, name: "sizes" });
   const loc  = watch("location");
   const ws   = watch("sizes");
+  const selectedPosition = watch("aboveBelow");
   const area = ws
     .reduce((s, sz) => s + (Number(sz.width) || 0) * (Number(sz.height) || 0), 0)
     .toFixed(1);
@@ -57,22 +64,37 @@ export default function EditSubmissionPage({
 
   useEffect(() => () => { urlsRef.current.forEach(URL.revokeObjectURL); }, []);
 
-  const { data: sub, isLoading, isError, error } = useGetSubmissionQuery({ jobId, subId });
+  const { data: sub, isLoading: subLoading, isError, error } = useGetSubmissionQuery({ jobId, subId });
+
+  const isFormatB = job?.pdfFormat === 'B';
+  const isVan = job?.jobType === 'Van';
+  const showSizes = !(isFormatB && isVan);
 
   useEffect(() => {
     if (!sub) return;
     setExPhotos(sub.images ?? []);
+    
+    // CHANGED: Map existing sizeLabels if they exist so the boxes stay properly labeled
     reset({
       location: sub.location,
       photoNo: sub.photoNo != null ? String(sub.photoNo) : "", 
-      sizes: sub.sizes?.map((s) => ({ width: String(s[0]), height: String(s[1]) })) ??
-        [{ width: "", height: "" }],
+      sizes: sub.sizes?.length 
+        ? sub.sizes.map((s, i) => ({ 
+            width: String(s[0]), 
+            height: String(s[1]),
+            label: (sub as any).sizeLabels?.[i]
+          })) 
+        : [{ width: "", height: "" }],
+      shopName: sub.shopName,
+      contactNo: sub.contactNo,
+      vanNo: sub.vanNo,
+      aboveBelow: sub.aboveBelow as "Above" | "Below" | undefined,
     });
   }, [sub, reset]);
 
   const pickNew = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const arr = Array.from(e.target.files ?? []);
-    // Reset so re-picking the same photos fires another change event.
+    
     e.target.value = "";
     if (!arr.length) return;
     setPicking(true);
@@ -114,18 +136,37 @@ export default function EditSubmissionPage({
     }
   };
 
-  const onSubmit = async (d: EditFV) => {
+  const onSubmit = async (d: any) => {
     setBusy(true);
     try {
       const uploadedImages = newFiles.length ? await uploadFiles(newFiles, jobId) : [];
       setStep("Saving…");
+
+      // CHANGED: Filter blank arrays just like the "new" page
+      let finalSizes: [number, number][] | undefined = undefined;
+      let finalSizeLabels: string[] | undefined = undefined;
+
+      if (showSizes && d.sizes) {
+        const filledSizes = d.sizes.filter((s: any) => s.width && s.height);
+        finalSizes = filledSizes.map((s: any) => [Number(s.width), Number(s.height)]);
+        
+        if (isFormatB) {
+          finalSizeLabels = filledSizes.map((s: any) => s.label).filter(Boolean);
+        }
+      }
+
       await updateSubmission({
         jobId,
         subId,
         body: {
           location: d.location,
           photoNo: Number(d.photoNo),
-          sizes: d.sizes.map((s) => [Number(s.width), Number(s.height)]),
+          sizes: finalSizes,
+          sizeLabels: finalSizeLabels,
+          shopName: isFormatB ? d.shopName : undefined,
+          contactNo: isFormatB ? d.contactNo : undefined,
+          vanNo: isFormatB ? d.vanNo : undefined,
+          aboveBelow: (isFormatB && isVan) ? d.aboveBelow : undefined,
           uploadedImages,
         },
       }).unwrap();
@@ -137,7 +178,7 @@ export default function EditSubmissionPage({
     }
   };
 
-  if (isLoading) {
+  if (subLoading || jobLoading) {
     return (
       <div className="flex justify-center py-20">
         <div className="landing-spinner" />
@@ -189,6 +230,138 @@ export default function EditSubmissionPage({
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="px-4 pt-1 pb-26 lg:px-8 lg:pt-0 lg:pb-11 flex flex-col gap-3.5 lg:gap-5 lg:max-w-180 lg:mx-auto">
           
+          {/* Format B: Shop Name */}
+          {isFormatB && (
+            <div>
+              <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Name of the Shop/Office/Person</div>
+              <div className={[inputBox, errors.shopName ? "border-(--rejected)" : ""].join(" ")}>
+                <input
+                  {...register("shopName", { required: true })}
+                  placeholder="e.g. Ramesh Hardware"
+                  disabled={busy}
+                  className={innerInput}
+                />
+              </div>
+              {errors.shopName && <div className="text-[11px] text-(--rejected) mt-1.5">Name is required.</div>}
+            </div>
+          )}
+
+          {/* Location / Address */}
+          <div>
+            <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
+              {isFormatB ? "Address" : "Wall location"}
+            </div>
+            <div className={[inputBox, errors.location ? "border-(--rejected)" : ""].join(" ")}>
+              <input
+                {...register("location", { required: true, maxLength: 100 })}
+                placeholder={isFormatB ? "123 Main St, City" : "Hallway 8A — north wall"}
+                disabled={busy}
+                className={innerInput}
+              />
+            </div>
+            <div className="flex justify-between items-center mt-1.5">
+              <span className={["text-[11px]", errors.location ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
+                {errors.location?.type === "maxLength" 
+                  ? "100 character limit reached." 
+                  : errors.location 
+                    ? `${isFormatB ? "Address" : "Location"} is required.` 
+                    : isFormatB ? "Provide the full address." : "Where is this wall on the job site? Be specific."}
+              </span>
+              <span className={["text-[11px] font-(--mono) tabular-nums shrink-0 ml-2", (loc?.length ?? 0) > 100 ? "text-(--rejected)" : (loc?.length ?? 0) > 80 ? "text-amber-500" : "text-(--ink-4)"].join(" ")}>
+                {loc?.length ?? 0} / 100
+              </span>
+            </div>
+          </div>
+
+          {/* Format B: Contact No. */}
+          {isFormatB && (
+            <div>
+              <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Contact No.</div>
+              <div className={[inputBox, errors.contactNo ? "border-(--rejected)" : ""].join(" ")}>
+                <input
+                  {...register("contactNo", { required: true })}
+                  placeholder="+91..."
+                  disabled={busy}
+                  className={innerInput}
+                />
+              </div>
+              {errors.contactNo && <div className="text-[11px] text-(--rejected) mt-1.5">Contact number is required.</div>}
+            </div>
+          )}
+
+          {/* Format B: Van No */}
+          {isFormatB && (
+            <div>
+              <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
+                Van No. {isVan ? "" : <span className="text-(--ink-4) font-medium">· optional</span>}
+              </div>
+              <div className={[inputBox, errors.vanNo ? "border-(--rejected)" : ""].join(" ")}>
+                <input
+                  {...register("vanNo", { required: isVan })}
+                  placeholder="e.g. MH01AB1234"
+                  disabled={busy}
+                  className={innerInput}
+                />
+              </div>
+              {errors.vanNo && <div className="text-[11px] text-(--rejected) mt-1.5">Van number is required for Van jobs.</div>}
+            </div>
+          )}
+
+          {/* Format B + Van ONLY: Above / Below Radio */}
+          {isFormatB && isVan && (() => {
+            const selectedPosition = watch("aboveBelow");
+            return (
+              <div>
+                <div className="text-[12px] font-semibold text-(--ink-2) mb-2.5">Position</div>
+                <div className="flex gap-3 mb-1">
+                  {['Above', 'Below'].map((pos) => {
+                    const isSelected = selectedPosition === pos;
+                    return (
+                      <label 
+                        key={pos} 
+                        className={`flex-1 flex items-center justify-center h-10 rounded-(--r) border text-[13px] font-medium cursor-pointer transition-colors ${
+                          isSelected 
+                            ? 'bg-(--ink) text-(--bg-1) border-(--ink)' 
+                            : 'bg-transparent text-(--ink-2) border-(--border-3) hover:border-(--ink-4)'
+                        }`}
+                      >
+                        <input 
+                          type="radio" 
+                          value={pos}
+                          {...register("aboveBelow", { required: true })}
+                          className="hidden"
+                        />
+                        {pos}
+                      </label>
+                    );
+                  })}
+                </div>
+                {errors.aboveBelow && <div className="text-[11px] text-(--rejected) mt-1.5">Please select a position.</div>}
+              </div>
+            );
+          })()}
+
+          {/* Sizes */}
+          {showSizes && (
+            <div>
+              <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
+                {isFormatB ? "Sizes" : "Wall sizes"} <span className="text-(--ink-4) font-medium">· at least one · in feet</span>
+              </div>
+              {/* CHANGED: Passed the new props */}
+              <SizesField 
+                fields={fields} 
+                register={register} 
+                remove={remove} 
+                append={append} 
+                replace={replace}
+                busy={busy} 
+                area={area}
+                isFormatB={isFormatB}
+                jobType={job?.jobType as "Wall" | "Shutter" | "Van"} 
+              />
+            </div>
+          )}
+
           {/* Photo Number */}
           <div>
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Photo number</div>
@@ -206,35 +379,6 @@ export default function EditSubmissionPage({
                 {errors.photoNo ? "Valid photo number is required." : "The sequence number assigned to this wall."}
               </span>
             </div>
-          </div>
-
-          {/* Location */}
-          <div>
-            <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Wall location</div>
-            <div className={[inputBox, errors.location ? "border-(--rejected)" : ""].join(" ")}>
-              <input
-                {...register("location", { required: true, maxLength: 100 })}
-                placeholder="Hallway 8A — north wall"
-                disabled={busy}
-                className={innerInput}
-              />
-            </div>
-            <div className="flex justify-between items-center mt-1.5">
-              <span className={["text-[11px]", errors.location ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
-                {errors.location?.type === "maxLength" ? "100 character limit reached." : errors.location ? "Location is required." : "Where is this wall on the job site? Be specific."}
-              </span>
-              <span className={["text-[11px] font-(--mono) tabular-nums shrink-0 ml-2", (loc?.length ?? 0) > 100 ? "text-(--rejected)" : (loc?.length ?? 0) > 80 ? "text-amber-500" : "text-(--ink-4)"].join(" ")}>
-                {loc?.length ?? 0} / 100
-              </span>
-            </div>
-          </div>
-
-          {/* Sizes */}
-          <div>
-            <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
-              Wall sizes <span className="text-(--ink-4) font-medium">· at least one · in feet</span>
-            </div>
-            <SizesField fields={fields} register={register} remove={remove} append={append} busy={busy} area={area} />
           </div>
 
           {/* Photos */}

@@ -4,6 +4,7 @@ import { useState, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useGetSubmissionQuery } from '@/store/api/endpoints/submissions';
+import { useGetJobQuery } from '@/store/api/endpoints/jobs';
 import { ArrowL, Brush } from '@/components/jobs/shared/icons';
 import { StatusPill } from '@/components/jobs/shared/StatusPill';
 import { SectionHdr } from '@/components/jobs/view/SectionHdr';
@@ -20,12 +21,13 @@ export default function SubmissionDetailPage({
   const router = useRouter();
   const [activePhoto, setActivePhoto] = useState(0);
 
-  const { data: sub, isLoading, isError, error } = useGetSubmissionQuery(
+  const { data: job, isLoading: jobLoading } = useGetJobQuery(jobId);
+  const { data: sub, isLoading: subLoading, isError, error } = useGetSubmissionQuery(
     { jobId, subId: submissionId },
     { pollingInterval: 30_000 },
   );
 
-  if (isLoading) {
+  if (subLoading || jobLoading) {
     return (
       <div className="flex justify-center py-20">
         <div className="landing-spinner" />
@@ -44,13 +46,27 @@ export default function SubmissionDetailPage({
     );
   }
 
+  const isFormatB = job?.pdfFormat === 'B';
+  const isVan = job?.jobType === 'Van';
+  const showSizes = !(isFormatB && isVan);
+
   const canEdit  = sub.status === 'pending' || sub.status === 'rejected';
   const editHref = `/painter/jobs/${jobId}/submissions/${submissionId}/edit`;
-  const viewArea = sub.sizes.reduce((s, sz) => s + sz[0] * sz[1], 0).toFixed(1);
+  const viewArea = (sub.sizes ?? []).reduce((s, sz) => s + sz[0] * sz[1], 0).toFixed(1);
   const photos   = sub.images ?? [];
   const safeIdx  = Math.min(activePhoto, Math.max(0, photos.length - 1));
   const curPhoto = photos[safeIdx];
   const { date: dateStr, time: timeStr } = formatSubmissionDate(sub.submittedAt || sub.createdAt || '');
+
+  // Added isNumeric flag to isolate the monospace styling to numbers only
+  const metaItems = [
+    { label: 'Photo number', value: String(sub.photoNo).padStart(2, '0'), isNumeric: true },
+    { label: 'Photos',       value: String(photos.length), isNumeric: true },
+    ...(isFormatB && sub.shopName ? [{ label: 'Shop Name', value: sub.shopName }] : []),
+    ...(isFormatB && sub.contactNo ? [{ label: 'Contact', value: sub.contactNo }] : []),
+    ...(isFormatB && sub.vanNo ? [{ label: 'Van No.', value: sub.vanNo }] : []),
+    ...(isFormatB && isVan && sub.aboveBelow ? [{ label: 'Position', value: sub.aboveBelow }] : []),
+  ];
 
   return (
     <>
@@ -86,19 +102,23 @@ export default function SubmissionDetailPage({
           </div>
         </div>
 
-        <SectionHdr title="Wall sizes" />
-        <div className="px-4">
-          <SizesTable sizes={sub.sizes} totalArea={viewArea} />
-        </div>
+        {showSizes && (
+          <>
+            <SectionHdr title={isFormatB ? "Sizes" : "Wall sizes"} />
+            <div className="px-4">
+              <SizesTable sizes={sub.sizes ?? []} totalArea={viewArea} />
+            </div>
+          </>
+        )}
 
         <div className="px-4 pt-3.5 grid grid-cols-2 gap-2">
-          {[
-            { label: 'Photo number', value: String(sub.photoNo).padStart(2, '0') },
-            { label: 'Photos',       value: String(photos.length)                },
-          ].map(({ label, value }) => (
-            <div key={label} className="bg-(--surface) border border-(--border) rounded-(--r) p-3">
+          {metaItems.map(({ label, value, isNumeric }) => (
+            <div key={label} className="bg-(--surface) border border-(--border) rounded-(--r) p-3 overflow-hidden">
               <div className="text-[10px] font-semibold text-(--ink-3) uppercase tracking-wider">{label}</div>
-              <div className="font-(--mono) text-[20px] mt-1 text-(--ink)">{value}</div>
+              {/* Conditionally render mono 20px for numbers, standard 15px for text */}
+              <div className={`mt-1 text-(--ink) truncate ${isNumeric ? 'font-(--mono) text-[20px]' : 'text-[15px] font-semibold'}`}>
+                {value}
+              </div>
             </div>
           ))}
         </div>
@@ -203,32 +223,34 @@ export default function SubmissionDetailPage({
                 #{String(sub.photoNo).padStart(4, '0')} · {dateStr} · {timeStr}
               </div>
 
-              <div className="rounded-(--r-md) border border-(--border) overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-(--border) bg-(--surface)">
-                  <span className="text-[10px] font-bold text-(--ink-3) uppercase tracking-[.06em]">Wall sizes</span>
-                </div>
-                {sub.sizes.map((sz, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b border-(--border) last:border-0">
-                    <div className="font-mono text-[11px] text-(--ink-4) w-5">{String(i + 1).padStart(2, '0')}</div>
-                    <div className="font-mono text-[14px] font-semibold text-(--ink) flex-1">{sz[0].toFixed(1)} × {sz[1].toFixed(1)} ft</div>
-                    <div className="font-mono text-[12px] text-(--ink-3)">{(sz[0] * sz[1]).toFixed(1)} ft²</div>
+              {showSizes && (
+                <div className="rounded-(--r-md) border border-(--border) overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-(--border) bg-(--surface)">
+                    <span className="text-[10px] font-bold text-(--ink-3) uppercase tracking-[.06em]">{isFormatB ? "Sizes" : "Wall sizes"}</span>
                   </div>
-                ))}
-                <div className="flex justify-between items-center px-4 py-2.5 bg-(--surface) border-t border-(--border)">
-                  <span className="text-[12px] font-semibold text-(--ink-2)">Total</span>
-                  <span className="font-mono text-[15px] font-bold text-(--ink)">{viewArea} ft²</span>
+                  {(sub.sizes ?? []).map((sz, i) => (
+                    <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b border-(--border) last:border-0">
+                      <div className="font-mono text-[11px] text-(--ink-4) w-5">{String(i + 1).padStart(2, '0')}</div>
+                      <div className="font-mono text-[14px] font-semibold text-(--ink) flex-1">{sz[0].toFixed(1)} × {sz[1].toFixed(1)} ft</div>
+                      <div className="font-mono text-[12px] text-(--ink-3)">{(sz[0] * sz[1]).toFixed(1)} ft²</div>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center px-4 py-2.5 bg-(--surface) border-t border-(--border)">
+                    <span className="text-[12px] font-semibold text-(--ink-2)">Total</span>
+                    <span className="font-mono text-[15px] font-bold text-(--ink)">{viewArea} ft²</span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Meta grid */}
               <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: 'Photo number', value: String(sub.photoNo).padStart(2, '0') },
-                  { label: 'Photos',       value: String(photos.length)                },
-                ].map(({ label, value }) => (
-                  <div key={label} className="bg-(--surface) border border-(--border) rounded-(--r) px-4 py-3">
+                {metaItems.map(({ label, value, isNumeric }) => (
+                  <div key={label} className="bg-(--surface) border border-(--border) rounded-(--r) px-4 py-3 overflow-hidden">
                     <div className="text-[10px] font-semibold text-(--ink-3) uppercase tracking-wider">{label}</div>
-                    <div className="font-(--mono) text-[22px] mt-1 text-(--ink)">{value}</div>
+                    {/* Conditionally render mono 22px for numbers, standard 15px for text */}
+                    <div className={`mt-1 text-(--ink) truncate ${isNumeric ? 'font-(--mono) text-[22px]' : 'text-[15px] font-semibold'}`}>
+                      {value}
+                    </div>
                   </div>
                 ))}
               </div>

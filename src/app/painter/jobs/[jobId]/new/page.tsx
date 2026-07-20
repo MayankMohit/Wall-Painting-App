@@ -4,6 +4,7 @@ import { useState, use, useEffect, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { useCreateSubmissionMutation, useGetSubmissionsQuery } from "@/store/api/endpoints/submissions";
+import { useGetJobQuery } from "@/store/api/endpoints/jobs";
 import { X } from "@/components/jobs/shared/icons";
 import { SizesField } from "@/components/jobs/submission/SizesField";
 import { PhotoPicker } from "@/components/jobs/submission/PhotoPicker";
@@ -36,6 +37,9 @@ export default function NewSubmissionPage({
 }) {
   const { jobId } = use(params);
   const router = useRouter();
+
+  // Fetch Job Details to drive the UI logic (e.g. jobType, pdfFormat, etc.)
+  const { data: job, isLoading: jobLoading } = useGetJobQuery(jobId);
   const [createSubmission] = useCreateSubmissionMutation();
 
   // Photo numbers this painter has already used on this job — used to validate the
@@ -52,12 +56,16 @@ export default function NewSubmissionPage({
     watch,
     setError,
     formState: { errors },
-  } = useForm<FV>({
+  } = useForm<FV & { sizes: { width: string; height: string; label?: string }[] }>({
     defaultValues: { location: "", photoNo: "", sizes: [{ width: "", height: "" }] },
   });
-  const { fields, append, remove } = useFieldArray({ control, name: "sizes" });
+  
+  // CHANGED: Added `replace` here so SizesField can completely swap the array for Format B
+  const { fields, append, remove, replace } = useFieldArray({ control, name: "sizes" });
+  
   const loc = watch("location");
   const ws = watch("sizes");
+  const selectedPosition = watch("aboveBelow");
   const area = ws
     .reduce((s, sz) => s + (Number(sz.width) || 0) * (Number(sz.height) || 0), 0)
     .toFixed(1);
@@ -74,6 +82,11 @@ export default function NewSubmissionPage({
   const urlsRef                 = useRef<string[]>([]);
 
   useEffect(() => () => { urlsRef.current.forEach(URL.revokeObjectURL); }, []);
+
+  // Boolean logic for Matrix
+  const isFormatB = job?.pdfFormat === 'B';
+  const isVan = job?.jobType === 'Van';
+  const showSizes = !(isFormatB && isVan); // Hide sizes ONLY if Format B + Van
 
   const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const arr = Array.from(e.target.files ?? []);
@@ -110,19 +123,45 @@ export default function NewSubmissionPage({
     });
   };
 
-  const onSubmit = async (d: FV) => {
+  const onSubmit = async (d: any) => {
     if (!files.length) { setPhotoErr(true); return; }
     setSubmitErr("");
     setBusy(true);
     try {
       const uploadedImages = await uploadFiles(files, jobId);
       setStep("Saving…");
+
+      // CHANGED: Filter out empty rows and separate the labels
+      let finalSizes: [number, number][] | undefined = undefined;
+      let finalSizeLabels: string[] | undefined = undefined;
+
+      if (showSizes && d.sizes) {
+        // Ignore boxes where the painter left width or height blank
+        const filledSizes = d.sizes.filter((s: any) => s.width && s.height);
+        
+        finalSizes = filledSizes.map((s: any) => [Number(s.width), Number(s.height)]);
+        
+        // Only map labels if we are in Format B (Format A ignores labels completely)
+        if (isFormatB) {
+          finalSizeLabels = filledSizes.map((s: any) => s.label).filter(Boolean);
+        }
+      }
+
       await createSubmission({
         jobId,
         body: {
           photoNo: Number(d.photoNo),
-          location: d.location,
-          sizes: d.sizes.map((s) => [Number(s.width), Number(s.height)]),
+          location: d.location, // In Format B, this acts as the "Address"
+          
+          sizes: finalSizes,
+          sizeLabels: finalSizeLabels,
+
+          // Inject Format B fields if applicable
+          shopName: isFormatB ? d.shopName : undefined,
+          contactNo: isFormatB ? d.contactNo : undefined,
+          vanNo: isFormatB ? d.vanNo : undefined,
+          aboveBelow: (isFormatB && isVan) ? d.aboveBelow : undefined,
+
           uploadedImages,
         },
       }).unwrap();
@@ -144,14 +183,15 @@ export default function NewSubmissionPage({
     }
   };
 
+  if (jobLoading) {
+    return <div className="p-8 text-center text-sm text-(--ink-3)">Loading...</div>;
+  }
+
   return (
     <div className="bg-(--paper) min-h-svh">
       {/* ── MOBILE TopBar ────────────────────────────────────────────────── */}
       <div className="lg:hidden sticky top-0 z-10 bg-(--paper) border-b border-(--border) px-4 py-2.5 flex items-center gap-2.5">
-        <button
-          onClick={() => router.back()}
-          className="w-9 h-9 border-0 rounded-full bg-transparent text-(--ink) cursor-pointer flex items-center justify-center shrink-0"
-        >
+        <button onClick={() => router.back()} className="w-9 h-9 border-0 rounded-full bg-transparent text-(--ink) cursor-pointer flex items-center justify-center shrink-0">
           <X size={22} weight={1.8} />
         </button>
         <div className="text-[17px] font-semibold tracking-[-0.015em] text-(--ink)">
@@ -161,10 +201,7 @@ export default function NewSubmissionPage({
 
       {/* ── DESKTOP Header ───────────────────────────────────────────────── */}
       <div className="hidden lg:flex items-center gap-3 max-w-180 mx-auto px-8 pt-11 pb-7">
-        <button
-          onClick={() => router.back()}
-          className="w-9 h-9 border border-(--border-2) rounded-full bg-transparent text-(--ink) cursor-pointer flex items-center justify-center shrink-0"
-        >
+        <button onClick={() => router.back()} className="w-9 h-9 border border-(--border-2) rounded-full bg-transparent text-(--ink) cursor-pointer flex items-center justify-center shrink-0">
           <X size={18} weight={1.8} />
         </button>
         <div className="text-[22px] font-bold tracking-[-0.02em] text-(--ink)">
@@ -174,20 +211,43 @@ export default function NewSubmissionPage({
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="px-4 pt-1 pb-26 lg:px-8 lg:pt-0 lg:pb-11 flex flex-col gap-3.5 lg:gap-5 lg:max-w-180 lg:mx-auto">
-          {/* Location */}
+          
+          {/* Format B: Shop Name */}
+          {isFormatB && (
+            <div>
+              <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Name of the Shop/Office/Person</div>
+              <div className={[inputBox, errors.shopName ? "border-(--rejected)" : ""].join(" ")}>
+                <input
+                  {...register("shopName", { required: true })}
+                  placeholder="e.g. Prashad Hardware"
+                  disabled={busy}
+                  className={innerInput}
+                />
+              </div>
+              {errors.shopName && <div className="text-[11px] text-(--rejected) mt-1.5">Name is required.</div>}
+            </div>
+          )}
+
+          {/* Location / Address (Reused Field) */}
           <div>
-            <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Wall location</div>
+            <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
+              {isFormatB ? "Address" : "Wall location"}
+            </div>
             <div className={[inputBox, errors.location ? "border-(--rejected)" : ""].join(" ")}>
               <input
                 {...register("location", { required: true, maxLength: 100 })}
-                placeholder="Hallway 8A — north wall"
+                placeholder="e.g. Main Road - Ranchi"
                 disabled={busy}
                 className={innerInput}
               />
             </div>
             <div className="flex justify-between items-center mt-1.5">
               <span className={["text-[11px]", errors.location ? "text-(--rejected)" : "text-(--ink-3)"].join(" ")}>
-                {errors.location?.type === "maxLength" ? "100 character limit reached." : errors.location ? "Location is required." : "Where is this wall on the job site? Be specific."}
+                {errors.location?.type === "maxLength" 
+                  ? "100 character limit reached." 
+                  : errors.location 
+                    ? `${isFormatB ? "Address" : "Location"} is required.` 
+                    : isFormatB ? "Provide the full address." : "Where is this wall on the job site? Be specific."}
               </span>
               <span className={["text-[11px] font-(--mono) tabular-nums shrink-0 ml-2", (loc?.length ?? 0) > 100 ? "text-(--rejected)" : (loc?.length ?? 0) > 80 ? "text-amber-500" : "text-(--ink-4)"].join(" ")}>
                 {loc?.length ?? 0} / 100
@@ -195,13 +255,91 @@ export default function NewSubmissionPage({
             </div>
           </div>
 
-          {/* Sizes */}
-          <div>
-            <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
-              Wall sizes <span className="text-(--ink-4) font-medium">· at least one · in feet</span>
+          {/* Format B: Contact No. */}
+          {isFormatB && (
+            <div>
+              <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Contact No.</div>
+              <div className={[inputBox, errors.contactNo ? "border-(--rejected)" : ""].join(" ")}>
+                <input
+                  {...register("contactNo", { required: true })}
+                  placeholder="+91..."
+                  disabled={busy}
+                  className={innerInput}
+                />
+              </div>
+              {errors.contactNo && <div className="text-[11px] text-(--rejected) mt-1.5">Contact number is required.</div>}
             </div>
-            <SizesField fields={fields} register={register} remove={remove} append={append} busy={busy} area={area} />
-          </div>
+          )}
+
+          {/* Format B: Van No (Optional for Wall/Shutter, Required for Van) */}
+          {isFormatB && (
+            <div>
+              <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
+                Van No. {isVan ? "" : <span className="text-(--ink-4) font-medium">· optional</span>}
+              </div>
+              <div className={[inputBox, errors.vanNo ? "border-(--rejected)" : ""].join(" ")}>
+                <input
+                  {...register("vanNo", { required: isVan })}
+                  placeholder="e.g. JH01AB-1234"
+                  disabled={busy}
+                  className={innerInput}
+                />
+              </div>
+              {errors.vanNo && <div className="text-[11px] text-(--rejected) mt-1.5">Van number is required for Van jobs.</div>}
+            </div>
+          )}
+
+          {/* Format B + Van ONLY: Above / Below Radio */}
+          {isFormatB && isVan && (
+            <div>
+              <div className="text-[12px] font-semibold text-(--ink-2) mb-2.5">Position</div>
+              <div className="flex gap-3 mb-1">
+                {['Above', 'Below'].map((pos) => {
+                  const isSelected = selectedPosition === pos;
+                  return (
+                    <label 
+                      key={pos} 
+                      className={`flex-1 flex items-center justify-center h-10 rounded-(--r) border text-[13px] font-medium cursor-pointer transition-colors ${
+                        isSelected 
+                          ? 'bg-(--ink) text-(--bg-1) border-(--ink)' 
+                          : 'bg-transparent text-(--ink-2) border-(--border-3) hover:border-(--ink-4)'
+                      }`}
+                    >
+                      <input 
+                        type="radio" 
+                        value={pos}
+                        {...register("aboveBelow", { required: true })}
+                        className="hidden"
+                      />
+                      {pos}
+                    </label>
+                  );
+                })}
+              </div>
+              {errors.aboveBelow && <div className="text-[11px] text-(--rejected) mt-1.5">Please select a position.</div>}
+            </div>
+          )}
+
+          {/* Sizes (Hidden for Format B + Van) */}
+          {showSizes && (
+            <div>
+              <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
+                {isFormatB ? "Sizes" : "Wall sizes"} <span className="text-(--ink-4) font-medium">· at least one · in feet</span>
+              </div>
+              {/* CHANGED: Passed replace, isFormatB, and jobType to SizesField */}
+              <SizesField 
+                fields={fields} 
+                register={register} 
+                remove={remove} 
+                append={append} 
+                replace={replace}
+                busy={busy} 
+                area={area} 
+                isFormatB={isFormatB}
+                jobType={job?.jobType as "Wall" | "Shutter" | "Van"}
+              />
+            </div>
+          )}
 
           {/* Photo number */}
           <div>

@@ -17,23 +17,25 @@ async function fetchJobData(jobId: string) {
   return { 
     actualJobName, 
     subs, 
-    allPainters: (jobDoc?.painters as any[]) || [] 
+    allPainters: (jobDoc?.painters as any[]) || [],
+    pdfFormat: jobDoc?.pdfFormat,
+    jobType: jobDoc?.jobType
   };
 }
 
 export async function buildExcel(jobId: string, header: { companyName: string; jobName: string; city: string }) {
-  const { actualJobName, subs } = await fetchJobData(jobId);
+  const { actualJobName, subs, pdfFormat, jobType } = await fetchJobData(jobId);
   const wb = new ExcelJS.Workbook();
-  const flattenedRows = buildMasterSheet(wb, { ...header, jobName: actualJobName }, subs);
+  const flattenedRows = buildMasterSheet(wb, { ...header, jobName: actualJobName }, subs, pdfFormat, jobType);
 
   return { buffer: Buffer.from(await wb.xlsx.writeBuffer()), rows: flattenedRows };
 }
 
 export async function buildPainterWiseExcel(jobId: string, header: { companyName: string; jobName: string; city: string }) {
-  const { actualJobName, subs, allPainters } = await fetchJobData(jobId);
+  const { actualJobName, subs, allPainters, pdfFormat, jobType } = await fetchJobData(jobId);
   const wb = new ExcelJS.Workbook();
   
-  buildPainterSections(wb, { ...header, jobName: actualJobName }, subs, allPainters);
+  buildPainterSections(wb, { ...header, jobName: actualJobName }, subs, allPainters, pdfFormat, jobType);
 
   return { buffer: Buffer.from(await wb.xlsx.writeBuffer()) };
 }
