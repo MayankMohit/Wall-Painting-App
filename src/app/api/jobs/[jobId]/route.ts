@@ -73,6 +73,9 @@ export const PATCH = withRole(['owner'], { schema: UpdateJobSchema, access: requ
 
     const update: Record<string, unknown> = { ...rest };
 
+    delete update.jobType;
+    delete update.pdfFormat;
+
     if (painterIds !== undefined) {
       if (painterIds.some(id => !Types.ObjectId.isValid(id))) {
         ctx.fail(400, 'INVALID_PAINTERS', 'One or more painter IDs are invalid');

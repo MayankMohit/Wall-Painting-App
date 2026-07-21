@@ -22,6 +22,9 @@ export function SubmissionRow({ sub, jobId, href: hrefProp }: { sub: Submission;
   const size       = sizeLabel(sub.ownerSizes?.length ? sub.ownerSizes : sub.sizes);
   const href       = hrefProp ?? `/painter/jobs/${jobId}/submissions/${sub._id}`;
 
+  // NEW: Combine shopName and location if shopName exists
+  const displayTitle = sub.shopName ? `${sub.shopName} - ${sub.location}` : sub.location;
+
   return (
     <Link
       href={href}
@@ -38,7 +41,7 @@ export function SubmissionRow({ sub, jobId, href: hrefProp }: { sub: Submission;
           <StatusPill status={sub.status} />
           {editable && <NeutralPill>editable</NeutralPill>}
         </div>
-        <div className="text-[14px] font-semibold mt-[3px] text-(--ink)">{sub.location}</div>
+        <div className="text-[14px] font-semibold mt-[3px] text-(--ink) truncate">{displayTitle}</div>
         <div className="text-[12px] text-(--ink-3) mt-px flex items-center gap-1.5">
           {size && (
             <>

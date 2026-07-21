@@ -68,18 +68,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     (invites ?? []).filter((iv) => iv.status === 'active').map((iv) => [iv.painterId, iv] as const),
   );
 
-  // CHANGED: Added jobType and pdfFormat to the edit form
-  const { register, handleSubmit, watch, formState: { isSubmitting: editSubmitting } } = useForm({
+  const { register, handleSubmit, formState: { isSubmitting: editSubmitting } } = useForm({
     values: { 
       companyName: job?.companyName ?? '', 
-      description: job?.description ?? '',
-      jobType: job?.jobType ?? 'Wall',
-      pdfFormat: job?.pdfFormat ?? 'A'
+      description: job?.description ?? ''
     },
   });
-
-  const watchJobType = watch('jobType');
-  const watchPdfFormat = watch('pdfFormat');
 
   if (isLoading) {
     return (
@@ -102,7 +96,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const startDate = job.startDate ?? job.createdAt;
   const jobRejected = job.stats.submitted - job.stats.approved - job.stats.pending;
 
-  // CHANGED: Include jobType and pdfFormat in the update request
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEditSave = async (data: any) => {
     await updateJob({ jobId, body: data }).unwrap();
     setEditOpen(false);
@@ -503,53 +497,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                 rows={3}
                 className="w-full px-3.5 py-3 rounded-(--r) border border-(--border-2) bg-(--surface) text-[14px] text-(--ink) outline-none focus:border-(--border-3) transition-[border-color] resize-none leading-normal"
               />
-            </div>
-
-            {/* CHANGED: Job Type and PDF Format Blocks added here */}
-            <div className="mt-2 pt-5 border-t border-(--border-2)">
-              <div className="text-[12px] font-semibold text-(--ink-2) mb-2.5">Job Type</div>
-              <div className="flex gap-3 mb-6">
-                {['Wall', 'Shutter', 'Van'].map((type) => (
-                  <label
-                    key={type}
-                    className={`flex-1 flex items-center justify-center h-10 rounded-(--r) border text-[13px] font-medium cursor-pointer transition-colors ${watchJobType === type
-                        ? 'bg-(--ink) text-white border-(--ink)'
-                        : 'bg-(--surface) text-(--ink-2) border-(--border-2) hover:border-(--border-3)'
-                      }`}
-                  >
-                    <input
-                      type="radio"
-                      {...register('jobType')}
-                      value={type}
-                      className="hidden"
-                    />
-                    {type}
-                  </label>
-                ))}
-              </div>
-
-              <div className="text-[12px] font-semibold text-(--ink-2) mb-2.5">PDF Output Format</div>
-              <div className="grid grid-cols-2 gap-4">
-                <label className={`relative rounded-(--r) border-2 cursor-pointer overflow-hidden transition-colors ${watchPdfFormat === 'A' ? 'border-(--ink)' : 'border-(--border-2) hover:border-(--border-3)'}`}>
-                  <input type="radio" {...register('pdfFormat')} value="A" className="hidden" />
-                  <div className="h-20 bg-gray-100 flex items-center justify-center">
-                    <span className="text-[10px] text-gray-400">Format A Image</span>
-                  </div>
-                  <div className="p-2 text-center text-[11px] font-bold uppercase tracking-wider text-(--ink-2) bg-(--surface)">
-                    Standard (A)
-                  </div>
-                </label>
-
-                <label className={`relative rounded-(--r) border-2 cursor-pointer overflow-hidden transition-colors ${watchPdfFormat === 'B' ? 'border-(--ink)' : 'border-(--border-2) hover:border-(--border-3)'}`}>
-                  <input type="radio" {...register('pdfFormat')} value="B" className="hidden" />
-                  <div className="h-20 bg-gray-100 flex items-center justify-center">
-                    <span className="text-[10px] text-gray-400">Format B Image</span>
-                  </div>
-                  <div className="p-2 text-center text-[11px] font-bold uppercase tracking-wider text-(--ink-2) bg-(--surface)">
-                    Detailed (B)
-                  </div>
-                </label>
-              </div>
             </div>
           </form>
 

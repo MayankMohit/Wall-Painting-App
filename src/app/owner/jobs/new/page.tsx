@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useCreateJobMutation } from '@/store/api/endpoints/jobs';
 import { PainterPicker } from '@/components/owner/PainterPicker';
@@ -157,6 +158,7 @@ export default function CreateJobPage() {
                     name="jobType"
                     value={type}
                     checked={jobType === type}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e) => setJobType(e.target.value as any)}
                     className="hidden"
                   />
@@ -174,9 +176,14 @@ export default function CreateJobPage() {
                 className={`relative rounded-(--r) border-2 cursor-pointer overflow-hidden transition-colors ${pdfFormat === 'A' ? 'border-(--ink)' : 'border-(--border-2) hover:border-(--border-3)'
                   }`}
               >
-                <div className="h-24 bg-gray-100 flex items-center justify-center">
-                  {/* REPLACE WITH YOUR IMAGE TAG */}
-                  <span className="text-xs text-gray-400">Format A Image</span>
+                {/* Changed h-24 to h-40 */}
+                <div className="relative h-40 bg-gray-100 w-full border-b border-(--border-2)">
+                  <Image 
+                    src="/format_A.jpg" 
+                    alt="Format A Preview" 
+                    fill
+                    className="object-contain opacity-90 py-2"
+                  />
                 </div>
                 <div className="p-2 text-center text-[12px] font-medium text-(--ink-2) bg-(--surface)">
                   Standard Format (A)
@@ -189,9 +196,14 @@ export default function CreateJobPage() {
                 className={`relative rounded-(--r) border-2 cursor-pointer overflow-hidden transition-colors ${pdfFormat === 'B' ? 'border-(--ink)' : 'border-(--border-2) hover:border-(--border-3)'
                   }`}
               >
-                <div className="h-24 bg-gray-100 flex items-center justify-center">
-                  {/* REPLACE WITH YOUR IMAGE TAG */}
-                  <span className="text-xs text-gray-400">Format B Image</span>
+                {/* Changed h-24 to h-40 */}
+                <div className="relative h-40 bg-gray-100 w-full border-b border-(--border-2)">
+                  <Image 
+                    src="/format_B.jpg" 
+                    alt="Format B Preview" 
+                    fill
+                    className="object-contain opacity-90 py-2"
+                  />
                 </div>
                 <div className="p-2 text-center text-[12px] font-medium text-(--ink-2) bg-(--surface)">
                   Detailed Format (B)
@@ -272,6 +284,7 @@ export default function CreateJobPage() {
                   name="jobType"
                   value={type}
                   checked={jobType === type}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e) => setJobType(e.target.value as any)}
                   className="hidden"
                 />
@@ -289,9 +302,14 @@ export default function CreateJobPage() {
               className={`relative rounded-(--r) border-2 cursor-pointer overflow-hidden transition-colors ${pdfFormat === 'A' ? 'border-(--ink)' : 'border-(--border-2) hover:border-(--border-3)'
                 }`}
             >
-              <div className="h-24 bg-gray-100 flex items-center justify-center">
-                {/* REPLACE WITH YOUR IMAGE TAG */}
-                <span className="text-xs text-gray-400">Format A Image</span>
+              {/* Changed h-24 to h-40 */}
+              <div className="relative h-40 bg-gray-100 w-full border-b border-(--border-2)">
+                <Image 
+                  src="/format_A.jpg" 
+                  alt="Format A Preview" 
+                  fill
+                  className="object-contain opacity-90 py-2"
+                />
               </div>
               <div className="p-2 text-center text-[12px] font-medium text-(--ink-2) bg-(--surface)">
                 Standard Format (A)
@@ -304,9 +322,14 @@ export default function CreateJobPage() {
               className={`relative rounded-(--r) border-2 cursor-pointer overflow-hidden transition-colors ${pdfFormat === 'B' ? 'border-(--ink)' : 'border-(--border-2) hover:border-(--border-3)'
                 }`}
             >
-              <div className="h-24 bg-gray-100 flex items-center justify-center">
-                {/* REPLACE WITH YOUR IMAGE TAG */}
-                <span className="text-xs text-gray-400">Format B Image</span>
+              {/* Changed h-24 to h-40 */}
+              <div className="relative h-40 bg-gray-100 w-full border-b border-(--border-2)">
+                <Image 
+                  src="/format_B.jpg" 
+                  alt="Format B Preview" 
+                  fill
+                  className="object-contain opacity-90 py-2"
+                />
               </div>
               <div className="p-2 text-center text-[12px] font-medium text-(--ink-2) bg-(--surface)">
                 Detailed Format (B)
@@ -331,7 +354,6 @@ export default function CreateJobPage() {
           />
         </div>
       </div>
-
     </>
   );
 }
