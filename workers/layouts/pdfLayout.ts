@@ -144,12 +144,12 @@ function drawFormatB_FullPage(doc: typeof PDFDocument, letterhead: any, sec: any
   ty += 15;
   doc.font('Helvetica-Bold').fontSize(10).text("Particulars :", LEFT_MARGIN, ty);
   ty += 15;
+
+  const pColW = [40, 260, 110, MAX_W - 410]; 
+  const pColX = [LEFT_MARGIN, LEFT_MARGIN + pColW[0], LEFT_MARGIN + pColW[0] + pColW[1], LEFT_MARGIN + pColW[0] + pColW[1] + pColW[2]];
   
-  // FIX: Detect if this is a Pure Van Job (has aboveBelow, OR has vanNo without sizes)
   const isPureVan = !!sec.aboveBelow || (!sec.sizes?.length && !!sec.vanNo);
 
-  const pColW = [40, 260, 110, MAX_W - 410]; // Auto-scales Qty width based on available room
-  const pColX = [LEFT_MARGIN, LEFT_MARGIN + pColW[0], LEFT_MARGIN + pColW[0] + pColW[1], LEFT_MARGIN + pColW[0] + pColW[1] + pColW[2]];
   const pHeaders = ["S.No.", "Type Materials & Job details", "Size", isPureVan ? "Amount" : "Qty."];
 
   for (let c = 0; c < 4; c++) {
@@ -159,10 +159,9 @@ function drawFormatB_FullPage(doc: typeof PDFDocument, letterhead: any, sec: any
   }
   ty += rowH;
 
-  doc.font('Helvetica').fontSize(9); 
+  doc.font('Helvetica').fontSize(9);
 
   if (isPureVan) {
-    // Determine Van Price based on position
     let vanPrice = "-";
     if (sec.aboveBelow?.toLowerCase() === 'above') vanPrice = "Rs. 3350";
     else if (sec.aboveBelow?.toLowerCase() === 'below') vanPrice = "Rs. 2350";
@@ -175,7 +174,6 @@ function drawFormatB_FullPage(doc: typeof PDFDocument, letterhead: any, sec: any
       if (i === 1) {
         doc.text("1", pColX[0], ty + 4, { width: pColW[0], align: 'center' });
         doc.text("Van Painting", pColX[1], ty + 4, { width: pColW[1], align: 'center' });
-        // Size column uses Position (Above/Below)
         doc.text(sec.aboveBelow || '-', pColX[2], ty + 4, { width: pColW[2], align: 'center' });
         doc.text(vanPrice, pColX[3], ty + 4, { width: pColW[3], align: 'center' });
       }
@@ -205,18 +203,20 @@ function drawFormatB_FullPage(doc: typeof PDFDocument, letterhead: any, sec: any
         const labelStr = sec.sizeLabels?.[i] || "Wall Painting";
         const isRowVan = labelStr.toLowerCase().includes('van');
           
-        const sizeStr = isRowVan 
-          ? (sec.aboveBelow || '') 
+        // Default to dimensions, override with aboveBelow ONLY if it exists
+        const sizeStr = (isRowVan && sec.aboveBelow) 
+          ? sec.aboveBelow 
           : `${sec.sizes[i][0]} x ${sec.sizes[i][1]}`;
           
         doc.text(labelStr, pColX[1], ty + 4, { width: pColW[1], align: 'center' });
         doc.text(sizeStr, pColX[2], ty + 4, { width: pColW[2], align: 'center' });
 
-        // If it is a van row mixed in, apply flat rate instead of sqft
-        if (isRowVan) {
+        // Apply flat rate ONLY if it's a Van AND it actually has an Above/Below value.
+        // Otherwise, calculate standard square footage.
+        if (isRowVan && sec.aboveBelow) {
           hasVanRowPrice = true;
-          if (sec.aboveBelow?.toLowerCase() === 'above') mixedVanPrice = "3350";
-          else if (sec.aboveBelow?.toLowerCase() === 'below') mixedVanPrice = "2350";
+          if (sec.aboveBelow.toLowerCase() === 'above') mixedVanPrice = "Rs. 3350";
+          else if (sec.aboveBelow.toLowerCase() === 'below') mixedVanPrice = "Rs. 2350";
           doc.text(mixedVanPrice, pColX[3], ty + 4, { width: pColW[3], align: 'center' });
         } else {
           const sqft = sec.sizes[i][0] * sec.sizes[i][1];

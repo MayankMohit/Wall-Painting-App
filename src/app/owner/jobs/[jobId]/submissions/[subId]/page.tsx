@@ -101,46 +101,46 @@ export default function OwnerSubmissionReviewPage({
   const [deletePhotoId, setDeletePhotoId]   = useState<string | null>(null);
   const [deleteSubOpen, setDeleteSubOpen]   = useState(false);
 
-  // Owner's size set (approved submissions only) — null draft = view mode
   const [ownerDraft, setOwnerDraft]         = useState<{ w: string; h: string }[] | null>(null);
   const [ownerSizesErr, setOwnerSizesErr]   = useState('');
 
-  // ── Edit panel state ───────────────────────────────────────────────────────
   const [editOpen, setEditOpen]             = useState(false);
   const [editExPhotos, setEditExPhotos]     = useState<ExPhoto[]>([]);
   const [editNewFiles, setEditNewFiles]     = useState<File[]>([]);
   const [editNewPrevs, setEditNewPrevs]     = useState<string[]>([]);
   const { uploadFiles, step: editStep, setStep: setEditStep } = usePhotoUpload();
   const [editBusy, setEditBusy]             = useState(false);
+  const [sizeErr, setSizeErr]               = useState('');
   const editUrlsRef                         = useRef<string[]>([]);
 
   useEffect(() => () => { editUrlsRef.current.forEach(URL.revokeObjectURL); }, []);
 
-  // CHANGED: Extended type to include labels
   const { register: regEdit, handleSubmit: handleEditSubmit, control: editControl, watch: editWatch, reset: editReset, formState: { errors: editErrors } } = useForm<EditFV & { sizes: { width: string; height: string; label?: string }[] }>({
     defaultValues: { location: '', photoNo: '', sizes: [{ width: '', height: '' }] },
   });
   
-  // CHANGED: Extracted `replace`
   const { fields: editFields, append: editAppend, remove: editRemove, replace: editReplace } = useFieldArray({ control: editControl, name: 'sizes' });
   const editLoc  = editWatch('location');
   const editWs   = editWatch('sizes');
   const editArea = editWs.reduce((s, sz) => s + (Number(sz.width) || 0) * (Number(sz.height) || 0), 0).toFixed(1);
 
-  // ── RTK hooks ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const hasFilled = editWs.some((s) => s.width && s.height);
+    if (hasFilled) setSizeErr("");
+  }, [editWs]);
+
   const { data: sub, isLoading } = useGetSubmissionQuery({ jobId, subId });
   const { data: job, isLoading: jobLoading } = useGetJobQuery(jobId);
   const { data: allSubs = [] }   = useGetSubmissionsQuery(jobId);
 
-  const [deletePhoto,       { isLoading: deletingPhoto }]      = useDeletePhotoMutation();
-  const [approveSubmission, { isLoading: approving }]          = useApproveSubmissionMutation();
-  const [rejectSubmission,  { isLoading: rejecting }]          = useRejectSubmissionMutation();
-  const [revokeSubmission,  { isLoading: revoking }]           = useRevokeSubmissionMutation();
-  const [updateSubmission]                                     = useUpdateSubmissionMutation();
-  const [updateOwnerSizes,  { isLoading: savingOwnerSizes }]   = useUpdateOwnerSizesMutation();
-  const [deleteSubmission,  { isLoading: deletingSubmission }] = useDeleteSubmissionMutation();
+  const [deletePhoto,        { isLoading: deletingPhoto }]      = useDeletePhotoMutation();
+  const [approveSubmission, { isLoading: approving }]           = useApproveSubmissionMutation();
+  const [rejectSubmission,  { isLoading: rejecting }]           = useRejectSubmissionMutation();
+  const [revokeSubmission,  { isLoading: revoking }]            = useRevokeSubmissionMutation();
+  const [updateSubmission]                                      = useUpdateSubmissionMutation();
+  const [updateOwnerSizes,  { isLoading: savingOwnerSizes }]    = useUpdateOwnerSizesMutation();
+  const [deleteSubmission,  { isLoading: deletingSubmission }]  = useDeleteSubmissionMutation();
 
-  // Prev / next within this job's submissions
   const subIds      = useMemo(() => allSubs.map((s) => s._id), [allSubs]);
   const currentPos  = subIds.indexOf(subId);
   const prevId      = currentPos > 0 ? subIds[currentPos - 1] : null;
@@ -153,8 +153,12 @@ export default function OwnerSubmissionReviewPage({
   const isFormatB = job?.pdfFormat === 'B';
   const isVan = job?.jobType === 'Van';
   const showSizes = !(isFormatB && isVan);
+  // NEW: Precise check to only show the tag on Type B Wall jobs
+  const isFormatBWall = isFormatB && job?.jobType === 'Wall';
 
-  // ── Edit handlers ─────────────────────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isVanSubmission = job?.jobType === 'Van' || !!sub?.vanNo || (sub as any)?.sizeLabels?.some((l: string) => l.includes('Van'));
+  const subTypeTag = isVanSubmission ? 'Van' : 'Wall';
 
   const openEdit = () => {
     if (!sub) return;
@@ -162,15 +166,16 @@ export default function OwnerSubmissionReviewPage({
     setEditNewFiles([]);
     setEditNewPrevs([]);
     editUrlsRef.current = [];
+    setSizeErr('');
     
-    // CHANGED: Map `sizeLabels` into the default fields if they exist
     editReset({
       location: sub.location,
       photoNo: sub.photoNo != null ? String(sub.photoNo) : '',
       sizes: sub.sizes?.map((s, i) => ({ 
         width: String(s[0]), 
         height: String(s[1]),
-        label: (sub as any).sizeLabels?.[i] // Safely grab label from DB model
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        label: (sub as any).sizeLabels?.[i] 
       })) ?? [{ width: '', height: '' }],
       shopName: sub.shopName,
       contactNo: sub.contactNo,
@@ -187,6 +192,7 @@ export default function OwnerSubmissionReviewPage({
     setEditNewPrevs([]);
     setEditBusy(false);
     setEditStep('');
+    setSizeErr('');
     setEditOpen(false);
   };
 
@@ -219,24 +225,34 @@ export default function OwnerSubmissionReviewPage({
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const onEditSubmit = async (d: any) => {
     setEditBusy(true);
     try {
-      const uploadedImages = editNewFiles.length ? await uploadFiles(editNewFiles, jobId) : [];
-      setEditStep('Saving…');
-
-      // CHANGED: Filter blank arrays just like the painter form
       let finalSizes: [number, number][] | undefined = undefined;
       let finalSizeLabels: string[] | undefined = undefined;
 
       if (showSizes && d.sizes) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const filledSizes = d.sizes.filter((s: any) => s.width && s.height);
+        
+        if (filledSizes.length === 0) {
+          setSizeErr("Please enter at least one complete size.");
+          setEditBusy(false);
+          return;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         finalSizes = filledSizes.map((s: any) => [Number(s.width), Number(s.height)]);
         
         if (isFormatB) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           finalSizeLabels = filledSizes.map((s: any) => s.label).filter(Boolean);
         }
       }
+
+      const uploadedImages = editNewFiles.length ? await uploadFiles(editNewFiles, jobId) : [];
+      setEditStep('Saving…');
 
       await updateSubmission({
         jobId,
@@ -246,9 +262,9 @@ export default function OwnerSubmissionReviewPage({
           location:       d.location,
           sizes:          finalSizes,
           sizeLabels:     finalSizeLabels,
-          shopName:       isFormatB ? d.shopName : undefined,
-          contactNo:      isFormatB ? d.contactNo : undefined,
-          vanNo:          isFormatB ? d.vanNo : undefined,
+          shopName:       isFormatB ? (d.shopName || "") : undefined,
+          contactNo:      isFormatB ? (d.contactNo || "") : undefined,
+          vanNo:          isFormatB ? (d.vanNo || "") : undefined,
           aboveBelow:     (isFormatB && isVan) ? d.aboveBelow : undefined,
           uploadedImages,
         },
@@ -261,8 +277,6 @@ export default function OwnerSubmissionReviewPage({
       setEditStep('');
     }
   };
-
-  // ── Other handlers ────────────────────────────────────────────────────────
 
   const handleDeletePhoto = async () => {
     if (!deletePhotoId) return;
@@ -314,8 +328,6 @@ export default function OwnerSubmissionReviewPage({
     setOwnerSizesErr('');
   };
 
-  // ── Owner sizes handlers ───────────────────────────────────────────────────
-
   const startOwnerSizesEdit = () => {
     if (!sub) return;
     const base = sub.ownerSizes?.length ? sub.ownerSizes : (sub.sizes ?? []);
@@ -355,7 +367,6 @@ export default function OwnerSubmissionReviewPage({
 
   const navigate = (id: string) => router.push(`/owner/jobs/${jobId}/submissions/${id}`);
 
-  // ── Loading / error ────────────────────────────────────────────────────────
   if (isLoading || jobLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f0f0f' }}>
@@ -376,7 +387,6 @@ export default function OwnerSubmissionReviewPage({
 
   const totalArea = (s.sizes ?? []).reduce((acc, sz) => acc + sz[0] * sz[1], 0).toFixed(1);
 
-  // Owner's effective size set (approved only): his edits, else the painter's copy.
   const ownerEff      = s.ownerSizes?.length ? s.ownerSizes : (s.sizes ?? []);
   const ownerTotal    = ownerEff.reduce((acc, sz) => acc + sz[0] * sz[1], 0).toFixed(1);
   const ownerChanged  = ownerEff.some((sz, i) => sz[0] !== s.sizes?.[i]?.[0] || sz[1] !== s.sizes?.[i]?.[1]);
@@ -391,7 +401,6 @@ export default function OwnerSubmissionReviewPage({
 
   const navBtn = 'w-8 h-8 rounded-full flex items-center justify-center border border-white/20 transition-[background,opacity] hover:bg-white/10 disabled:opacity-30 disabled:cursor-default cursor-pointer';
 
-  // Dynamic Meta Grid mapping
   const metaItems = [
     { label: 'Photo number', value: String(s.photoNo).padStart(2, '0'), isNumeric: true },
     { label: 'Photos',       value: String(photos.length), isNumeric: true },
@@ -400,8 +409,6 @@ export default function OwnerSubmissionReviewPage({
     ...(isFormatB && s.vanNo ? [{ label: 'Van No.', value: s.vanNo }] : []),
     ...(isFormatB && isVan && s.aboveBelow ? [{ label: 'Position', value: s.aboveBelow }] : []),
   ];
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
 
   const downloadPhoto = async (url: string, index: number) => {
     try {
@@ -420,8 +427,6 @@ export default function OwnerSubmissionReviewPage({
     }
   };
 
-  // ── Shared sub-components ──────────────────────────────────────────────────
-
   function PhotoViewer() {
     const openFs = () => { setFsIdx(safeIdx); setFsOpen(true); };
     return (
@@ -437,7 +442,6 @@ export default function OwnerSubmissionReviewPage({
             ) : (
               <div className="w-full h-full flex items-center justify-center text-white/30 text-[13px]">No photos</div>
             )}
-            {/* Expand button — top left */}
             {activePhoto && (
               <button
                 onClick={openFs}
@@ -447,7 +451,6 @@ export default function OwnerSubmissionReviewPage({
                 <ExpandIcon size={14} />
               </button>
             )}
-            {/* Download button — top right */}
             {activePhoto && (
               <button
                 onClick={() => downloadPhoto(activePhoto.cloudinaryUrl, safeIdx)}
@@ -493,7 +496,6 @@ export default function OwnerSubmissionReviewPage({
           )}
         </div>
 
-        {/* ── Fullscreen overlay ────────────────────────────────── */}
         {fsOpen && (
           <div className="fixed inset-0 z-200 flex flex-col" style={{ background: '#000' }}>
             <div className="flex items-center justify-between px-4 py-3 shrink-0">
@@ -610,7 +612,14 @@ export default function OwnerSubmissionReviewPage({
         {showSizes && (
           s.status !== 'approved' ? (
             <div className="rounded-(--r-md) p-4" style={{ background: 'rgba(255,255,255,.05)' }}>
-              <div className="text-[10px] text-white/50 uppercase tracking-wider mb-2.5">{isFormatB ? "Sizes" : "Wall sizes"}</div>
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="text-[10px] text-white/50 uppercase tracking-wider">Sizes</div>
+                {isFormatBWall && (
+                  <span className="px-1.5 py-0.5 rounded-sm text-[9px] font-bold uppercase tracking-[.05em] bg-white/10 text-white/70">
+                    {subTypeTag}
+                  </span>
+                )}
+              </div>
               {(s.sizes ?? []).map((sz, i) => (
                 <div
                   key={i}
@@ -631,7 +640,12 @@ export default function OwnerSubmissionReviewPage({
               {/* Card header: title + edited chip + adjust / save controls */}
               <div className="flex items-center justify-between mb-2.5">
                 <div className="flex items-center gap-2">
-                  <div className="text-[10px] text-white/50 uppercase tracking-wider">{isFormatB ? "Sizes" : "Wall sizes"}</div>
+                  <div className="text-[10px] text-white/50 uppercase tracking-wider">Sizes</div>
+                  {isFormatBWall && (
+                    <span className="px-1.5 py-0.5 rounded-sm text-[9px] font-bold uppercase tracking-[.05em] bg-white/10 text-white/70">
+                      {subTypeTag}
+                    </span>
+                  )}
                   {ownerChanged && ownerDraft === null && (
                     <span
                       className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[.05em]"
@@ -818,12 +832,8 @@ export default function OwnerSubmissionReviewPage({
     );
   }
 
-  // ── Edit panel ─────────────────────────────────────────────────────────────
-
   const inputBox   = 'flex items-center gap-2 h-12 px-3.5 rounded-(--r) border border-(--border-2) bg-(--paper) focus-within:border-(--border-3)';
   const innerInput = 'flex-1 bg-transparent border-0 outline-none text-[14px] text-(--ink) placeholder:text-(--ink-4) font-(--font) w-full';
-
-  // ── Main render ────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen" style={{ background: '#0f0f0f', color: '#fff' }}>
@@ -1004,7 +1014,6 @@ export default function OwnerSubmissionReviewPage({
               onSubmit={handleEditSubmit(onEditSubmit)}
               className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5"
             >
-              {/* Format B: Shop Name */}
               {isFormatB && (
                 <div>
                   <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Name of the Shop/Office/Person</div>
@@ -1020,7 +1029,6 @@ export default function OwnerSubmissionReviewPage({
                 </div>
               )}
 
-              {/* Location / Address */}
               <div>
                 <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">{isFormatB ? "Address" : "Wall location"}</div>
                 <div className={[inputBox, editErrors.location ? 'border-(--rejected)' : ''].join(' ')}>
@@ -1041,7 +1049,6 @@ export default function OwnerSubmissionReviewPage({
                 </div>
               </div>
 
-              {/* Format B: Contact No. */}
               {isFormatB && (
                 <div>
                   <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Contact No.</div>
@@ -1057,25 +1064,6 @@ export default function OwnerSubmissionReviewPage({
                 </div>
               )}
 
-              {/* Format B: Van No */}
-              {isFormatB && (
-                <div>
-                  <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
-                    Van No. {isVan ? "" : <span className="text-(--ink-4) font-medium">· optional</span>}
-                  </div>
-                  <div className={[inputBox, editErrors.vanNo ? 'border-(--rejected)' : ''].join(' ')}>
-                    <input
-                      {...regEdit('vanNo', { required: isVan })}
-                      placeholder="e.g. MH01AB1234"
-                      disabled={editBusy}
-                      className={innerInput}
-                    />
-                  </div>
-                  {editErrors.vanNo && <div className="text-[11px] text-(--rejected) mt-1.5">Van number is required for Van jobs.</div>}
-                </div>
-              )}
-
-              {/* Format B + Van ONLY: Above / Below Radio */}
               {isFormatB && isVan && (() => {
                 const selectedPosition = editWatch("aboveBelow");
                 return (
@@ -1109,13 +1097,18 @@ export default function OwnerSubmissionReviewPage({
                 );
               })()}
 
-              {/* Sizes */}
               {showSizes && (
                 <div>
-                  <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
-                    {isFormatB ? "Sizes" : "Wall sizes"} <span className="text-(--ink-4) font-medium">· at least one · in feet</span>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="text-[12px] font-semibold text-(--ink-2)">
+                      Sizes <span className="text-(--ink-4) font-medium">· at least one · in feet</span>
+                    </div>
+                    {isFormatBWall && (
+                      <span className="px-1.5 py-0.5 rounded-sm text-[9px] font-bold uppercase tracking-[.05em] bg-(--surface) border border-(--border-2) text-(--ink-3)">
+                        {subTypeTag}
+                      </span>
+                    )}
                   </div>
-                  {/* CHANGED: Passing new props to SizesField */}
                   <SizesField
                     fields={editFields}
                     register={regEdit}
@@ -1126,11 +1119,16 @@ export default function OwnerSubmissionReviewPage({
                     area={editArea}
                     isFormatB={isFormatB}
                     jobType={job?.jobType as "Wall" | "Shutter" | "Van"}
+                    errors={editErrors}
                   />
+                  {sizeErr && (
+                    <div className="text-[12px] text-(--rejected) mt-2 font-bold">
+                      {sizeErr}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Photo Number */}
               <div>
                 <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Photo number</div>
                 <div className={[inputBox, editErrors.photoNo ? 'border-(--rejected)' : ''].join(' ')}>
@@ -1149,7 +1147,6 @@ export default function OwnerSubmissionReviewPage({
                 </div>
               </div>
 
-              {/* Photos */}
               <div>
                 <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
                   Photos <span className="text-(--ink-4) font-medium">· {editExPhotos.length + editNewFiles.length} of 20</span>
@@ -1172,7 +1169,7 @@ export default function OwnerSubmissionReviewPage({
         </div>
       )}
 
-      {/* ══ Approve dialog ══════════════════════════════════════════ */}
+      {/* Dialogs... */}
       {approveOpen && (
         <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center p-4" style={{ background: 'rgba(0,0,0,.55)' }}>
           <div className="w-full max-w-sm rounded-(--r-lg) overflow-hidden shadow-2xl" style={{ background: 'var(--surface)' }}>
@@ -1197,7 +1194,6 @@ export default function OwnerSubmissionReviewPage({
         </div>
       )}
 
-      {/* ══ Reject dialog ═══════════════════════════════════════════ */}
       {rejectOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end lg:items-center justify-center p-4"
@@ -1264,7 +1260,6 @@ export default function OwnerSubmissionReviewPage({
         </div>
       )}
 
-      {/* ══ Delete photo dialog ══════════════════════════════════════ */}
       {deletePhotoId && (
         <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center p-4" style={{ background: 'rgba(0,0,0,.55)' }}>
           <div className="w-full max-w-sm rounded-(--r-lg) overflow-hidden shadow-2xl" style={{ background: 'var(--surface)' }}>
@@ -1289,7 +1284,6 @@ export default function OwnerSubmissionReviewPage({
         </div>
       )}
 
-      {/* ══ Delete submission dialog ═════════════════════════════════ */}
       {deleteSubOpen && (
         <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center p-4" style={{ background: 'rgba(0,0,0,.55)' }}>
           <div className="w-full max-w-sm rounded-(--r-lg) overflow-hidden shadow-2xl" style={{ background: 'var(--surface)' }}>

@@ -7,7 +7,6 @@ import { useGetSubmissionQuery } from '@/store/api/endpoints/submissions';
 import { useGetJobQuery } from '@/store/api/endpoints/jobs';
 import { ArrowL, Brush } from '@/components/jobs/shared/icons';
 import { StatusPill } from '@/components/jobs/shared/StatusPill';
-import { SectionHdr } from '@/components/jobs/view/SectionHdr';
 import { PhotoViewer } from '@/components/jobs/view/PhotoViewer';
 import { SizesTable } from '@/components/jobs/view/SizesTable';
 import { formatSubmissionDate } from '@/components/jobs/shared/submissionHelpers';
@@ -49,6 +48,12 @@ export default function SubmissionDetailPage({
   const isFormatB = job?.pdfFormat === 'B';
   const isVan = job?.jobType === 'Van';
   const showSizes = !(isFormatB && isVan);
+  // NEW: Precise check to only show the tag on Type B Wall jobs
+  const isFormatBWall = isFormatB && job?.jobType === 'Wall';
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isVanSubmission = job?.jobType === 'Van' || !!sub?.vanNo || (sub as any)?.sizeLabels?.some((l: string) => l.includes('Van'));
+  const subTypeTag = isVanSubmission ? 'Van' : 'Wall';
 
   const canEdit  = sub.status === 'pending' || sub.status === 'rejected';
   const editHref = `/painter/jobs/${jobId}/submissions/${submissionId}/edit`;
@@ -58,7 +63,6 @@ export default function SubmissionDetailPage({
   const curPhoto = photos[safeIdx];
   const { date: dateStr, time: timeStr } = formatSubmissionDate(sub.submittedAt || sub.createdAt || '');
 
-  // Added isNumeric flag to isolate the monospace styling to numbers only
   const metaItems = [
     { label: 'Photo number', value: String(sub.photoNo).padStart(2, '0'), isNumeric: true },
     { label: 'Photos',       value: String(photos.length), isNumeric: true },
@@ -104,7 +108,14 @@ export default function SubmissionDetailPage({
 
         {showSizes && (
           <>
-            <SectionHdr title={isFormatB ? "Sizes" : "Wall sizes"} />
+            <div className="px-4 pt-5 pb-2 flex items-center gap-2">
+              <h2 className="text-[14px] font-bold text-(--ink)">Sizes</h2>
+              {isFormatBWall && (
+                <span className="px-1.5 py-0.5 rounded-sm text-[9px] font-bold uppercase tracking-wider bg-(--surface) border border-(--border-2) text-(--ink-3)">
+                  {subTypeTag}
+                </span>
+              )}
+            </div>
             <div className="px-4">
               <SizesTable sizes={sub.sizes ?? []} totalArea={viewArea} />
             </div>
@@ -115,7 +126,6 @@ export default function SubmissionDetailPage({
           {metaItems.map(({ label, value, isNumeric }) => (
             <div key={label} className="bg-(--surface) border border-(--border) rounded-(--r) p-3 overflow-hidden">
               <div className="text-[10px] font-semibold text-(--ink-3) uppercase tracking-wider">{label}</div>
-              {/* Conditionally render mono 20px for numbers, standard 15px for text */}
               <div className={`mt-1 text-(--ink) truncate ${isNumeric ? 'font-(--mono) text-[20px]' : 'text-[15px] font-semibold'}`}>
                 {value}
               </div>
@@ -125,7 +135,9 @@ export default function SubmissionDetailPage({
 
         {sub.notes && (
           <>
-            <SectionHdr title="Notes" />
+            <div className="px-4 pt-5 pb-2">
+              <h2 className="text-[14px] font-bold text-(--ink)">Notes</h2>
+            </div>
             <div className="px-4 pb-2 text-[13px] text-(--ink-2) leading-normal">{sub.notes}</div>
           </>
         )}
@@ -225,8 +237,13 @@ export default function SubmissionDetailPage({
 
               {showSizes && (
                 <div className="rounded-(--r-md) border border-(--border) overflow-hidden">
-                  <div className="px-4 py-2.5 border-b border-(--border) bg-(--surface)">
-                    <span className="text-[10px] font-bold text-(--ink-3) uppercase tracking-[.06em]">{isFormatB ? "Sizes" : "Wall sizes"}</span>
+                  <div className="px-4 py-2.5 border-b border-(--border) bg-(--surface) flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-(--ink-3) uppercase tracking-[.06em]">Sizes</span>
+                    {isFormatBWall && (
+                      <span className="px-1.5 py-0.5 rounded-sm text-[9px] font-bold uppercase tracking-[.05em] bg-(--paper) border border-(--border-2) text-(--ink-3)">
+                        {subTypeTag}
+                      </span>
+                    )}
                   </div>
                   {(sub.sizes ?? []).map((sz, i) => (
                     <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b border-(--border) last:border-0">
@@ -247,7 +264,6 @@ export default function SubmissionDetailPage({
                 {metaItems.map(({ label, value, isNumeric }) => (
                   <div key={label} className="bg-(--surface) border border-(--border) rounded-(--r) px-4 py-3 overflow-hidden">
                     <div className="text-[10px] font-semibold text-(--ink-3) uppercase tracking-wider">{label}</div>
-                    {/* Conditionally render mono 22px for numbers, standard 15px for text */}
                     <div className={`mt-1 text-(--ink) truncate ${isNumeric ? 'font-(--mono) text-[22px]' : 'text-[15px] font-semibold'}`}>
                       {value}
                     </div>

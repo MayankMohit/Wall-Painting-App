@@ -14,8 +14,6 @@ import { usePhotoUpload } from "@/hooks/usePhotoUpload";
 import { normalizePickedImages, skippedMessage } from "@/components/jobs/submission/imagePick";
 import type { FV } from "@/components/jobs/submission/submissionTypes";
 
-// RTK Query surfaces API failures as { status, data: { error: { code, message } } }.
-// These read that envelope safely, falling back to a plain Error's message.
 function errEnvelope(e: unknown): { code?: string; message?: string } {
   if (e && typeof e === "object" && "data" in e) {
     const data = (e as { data?: unknown }).data;
@@ -38,12 +36,9 @@ export default function NewSubmissionPage({
   const { jobId } = use(params);
   const router = useRouter();
 
-  // Fetch Job Details to drive the UI logic (e.g. jobType, pdfFormat, etc.)
   const { data: job, isLoading: jobLoading } = useGetJobQuery(jobId);
   const [createSubmission] = useCreateSubmissionMutation();
 
-  // Photo numbers this painter has already used on this job — used to validate the
-  // photoNo field inline before uploading, so a duplicate never wastes an upload.
   const { data: mySubmissions } = useGetSubmissionsQuery(jobId);
   const usedPhotoNos = new Set(
     (mySubmissions ?? []).map((s) => s.photoNo).filter((n): n is number => n != null),
@@ -60,7 +55,6 @@ export default function NewSubmissionPage({
     defaultValues: { location: "", photoNo: "", sizes: [{ width: "", height: "" }] },
   });
   
-  // CHANGED: Added `replace` here so SizesField can completely swap the array for Format B
   const { fields, append, remove, replace } = useFieldArray({ control, name: "sizes" });
   
   const loc = watch("location");
@@ -76,6 +70,7 @@ export default function NewSubmissionPage({
   const [prevs, setPrevs]       = useState<string[]>([]);
   const [photoErr, setPhotoErr] = useState(false);
   const [pickErr, setPickErr]   = useState("");
+  const [sizeErr, setSizeErr]   = useState(""); // NEW: Local state for zero-sizes error
   const [picking, setPicking]   = useState(false);
   const [submitErr, setSubmitErr] = useState("");
   const [busy, setBusy]         = useState(false);
@@ -83,21 +78,23 @@ export default function NewSubmissionPage({
 
   useEffect(() => () => { urlsRef.current.forEach(URL.revokeObjectURL); }, []);
 
-  // Boolean logic for Matrix
+  // NEW: Instantly clear the size error as soon as the user types a valid size
+  useEffect(() => {
+    const hasFilled = ws.some((s) => s.width && s.height);
+    if (hasFilled) setSizeErr("");
+  }, [ws]);
+
   const isFormatB = job?.pdfFormat === 'B';
   const isVan = job?.jobType === 'Van';
-  const showSizes = !(isFormatB && isVan); // Hide sizes ONLY if Format B + Van
+  const showSizes = !(isFormatB && isVan); 
 
   const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const arr = Array.from(e.target.files ?? []);
-    // Reset so re-picking the same photos fires another change event.
     e.target.value = "";
     if (!arr.length) return;
     setPicking(true);
     setPickErr("");
     try {
-      // Decode-test each photo and convert HEIC → JPEG so previews always
-      // render and compression can't crash at submit (Android can't read HEIC).
       const { files: good, skipped } = await normalizePickedImages(arr);
       if (good.length) {
         urlsRef.current.forEach(URL.revokeObjectURL);
@@ -128,40 +125,40 @@ export default function NewSubmissionPage({
     setSubmitErr("");
     setBusy(true);
     try {
-      const uploadedImages = await uploadFiles(files, jobId);
-      setStep("Saving…");
-
-      // CHANGED: Filter out empty rows and separate the labels
       let finalSizes: [number, number][] | undefined = undefined;
       let finalSizeLabels: string[] | undefined = undefined;
 
       if (showSizes && d.sizes) {
-        // Ignore boxes where the painter left width or height blank
         const filledSizes = d.sizes.filter((s: any) => s.width && s.height);
         
+        if (filledSizes.length === 0) {
+          // FIX: Use local state instead of hook-form's setError so it doesn't lock the form
+          setSizeErr("Please enter at least one complete size.");
+          setBusy(false);
+          return;
+        }
+
         finalSizes = filledSizes.map((s: any) => [Number(s.width), Number(s.height)]);
         
-        // Only map labels if we are in Format B (Format A ignores labels completely)
         if (isFormatB) {
           finalSizeLabels = filledSizes.map((s: any) => s.label).filter(Boolean);
         }
       }
 
+      const uploadedImages = await uploadFiles(files, jobId);
+      setStep("Saving…");
+
       await createSubmission({
         jobId,
         body: {
           photoNo: Number(d.photoNo),
-          location: d.location, // In Format B, this acts as the "Address"
-          
+          location: d.location, 
           sizes: finalSizes,
           sizeLabels: finalSizeLabels,
-
-          // Inject Format B fields if applicable
-          shopName: isFormatB ? d.shopName : undefined,
-          contactNo: isFormatB ? d.contactNo : undefined,
-          vanNo: isFormatB ? d.vanNo : undefined,
+          shopName: isFormatB ? (d.shopName || "") : undefined,
+          contactNo: isFormatB ? (d.contactNo || "") : undefined,
+          vanNo: isFormatB ? (d.vanNo || "") : undefined,
           aboveBelow: (isFormatB && isVan) ? d.aboveBelow : undefined,
-
           uploadedImages,
         },
       }).unwrap();
@@ -170,8 +167,6 @@ export default function NewSubmissionPage({
     } catch (e: unknown) {
       const code = errCode(e);
       if (code === "DUPLICATE_PHOTO_NO") {
-        // Server rejected a photo number that slipped past the inline check (e.g. a
-        // parallel submission). Point the painter straight at the field to fix.
         setError("photoNo", {
           type: "duplicate",
           message: `Photo number ${d.photoNo} is already used on this job. Pick a different one.`,
@@ -212,7 +207,6 @@ export default function NewSubmissionPage({
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="px-4 pt-1 pb-26 lg:px-8 lg:pt-0 lg:pb-11 flex flex-col gap-3.5 lg:gap-5 lg:max-w-180 lg:mx-auto">
           
-          {/* Format B: Shop Name */}
           {isFormatB && (
             <div>
               <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Name of the Shop/Office/Person</div>
@@ -228,7 +222,6 @@ export default function NewSubmissionPage({
             </div>
           )}
 
-          {/* Location / Address (Reused Field) */}
           <div>
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
               {isFormatB ? "Address" : "Wall location"}
@@ -255,7 +248,6 @@ export default function NewSubmissionPage({
             </div>
           </div>
 
-          {/* Format B: Contact No. */}
           {isFormatB && (
             <div>
               <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Contact No.</div>
@@ -271,25 +263,23 @@ export default function NewSubmissionPage({
             </div>
           )}
 
-          {/* Format B: Van No (Optional for Wall/Shutter, Required for Van) */}
-          {isFormatB && (
+          {isFormatB && isVan && (
             <div>
               <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
-                Van No. {isVan ? "" : <span className="text-(--ink-4) font-medium">· optional</span>}
+                Van No.
               </div>
               <div className={[inputBox, errors.vanNo ? "border-(--rejected)" : ""].join(" ")}>
                 <input
-                  {...register("vanNo", { required: isVan })}
+                  {...register("vanNo", { required: true })}
                   placeholder="e.g. JH01AB-1234"
                   disabled={busy}
                   className={innerInput}
                 />
               </div>
-              {errors.vanNo && <div className="text-[11px] text-(--rejected) mt-1.5">Van number is required for Van jobs.</div>}
+              {errors.vanNo && <div className="text-[11px] text-(--rejected) mt-1.5">Van number is required.</div>}
             </div>
           )}
 
-          {/* Format B + Van ONLY: Above / Below Radio */}
           {isFormatB && isVan && (
             <div>
               <div className="text-[12px] font-semibold text-(--ink-2) mb-2.5">Position</div>
@@ -320,13 +310,11 @@ export default function NewSubmissionPage({
             </div>
           )}
 
-          {/* Sizes (Hidden for Format B + Van) */}
           {showSizes && (
             <div>
               <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
                 {isFormatB ? "Sizes" : "Wall sizes"} <span className="text-(--ink-4) font-medium">· at least one · in feet</span>
               </div>
-              {/* CHANGED: Passed replace, isFormatB, and jobType to SizesField */}
               <SizesField 
                 fields={fields} 
                 register={register} 
@@ -337,11 +325,17 @@ export default function NewSubmissionPage({
                 area={area} 
                 isFormatB={isFormatB}
                 jobType={job?.jobType as "Wall" | "Shutter" | "Van"}
+                errors={errors}
               />
+              {/* FIX: Displays the un-stuck local error state */}
+              {sizeErr && (
+                <div className="text-[12px] text-(--rejected) mt-2 font-bold">
+                  {sizeErr}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Photo number */}
           <div>
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Photo number</div>
             <div className={[inputBox, "max-w-55 lg:max-w-none lg:w-60", errors.photoNo ? "border-(--rejected)" : ""].join(" ")}>
@@ -366,7 +360,6 @@ export default function NewSubmissionPage({
             </div>
           </div>
 
-          {/* Photos */}
           <div>
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
               Photos <span className="text-(--ink-4) font-medium">· {files.length} of 20</span>
@@ -381,20 +374,17 @@ export default function NewSubmissionPage({
             </div>
           </div>
 
-          {/* Submit error (network / server failures that aren't a duplicate photo no.) */}
           {submitErr && (
             <div className="rounded-xl border border-(--rejected) bg-(--rejected)/8 px-3.5 py-3 text-[13px] text-(--rejected)">
               {submitErr}
             </div>
           )}
 
-          {/* Desktop submit */}
           <div className="hidden lg:block">
             <SubmitButton busy={busy} step={step} />
           </div>
         </div>
 
-        {/* Mobile fixed submit */}
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-51 px-4 pt-3 pb-7 bg-(--paper) border-t border-(--border)">
           <SubmitButton busy={busy} step={step} />
         </div>

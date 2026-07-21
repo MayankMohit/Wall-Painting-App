@@ -31,19 +31,18 @@ export default function EditSubmissionPage({
   const [updateSubmission] = useUpdateSubmissionMutation();
   const [deletePhoto]      = useDeletePhotoMutation();
 
-  // CHANGED: Added labels to the generic type
   const {
     register,
     handleSubmit,
     control,
     watch,
     reset,
+    setError,
     formState: { errors },
   } = useForm<EditFV & { sizes: { width: string; height: string; label?: string }[] }>({
     defaultValues: { location: "", photoNo: "", sizes: [{ width: "", height: "" }] },
   });
   
-  // CHANGED: Extracted replace
   const { fields, append, remove, replace } = useFieldArray({ control, name: "sizes" });
   const loc  = watch("location");
   const ws   = watch("sizes");
@@ -58,11 +57,18 @@ export default function EditSubmissionPage({
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [newPrevs, setNewPrevs] = useState<string[]>([]);
   const [pickErr, setPickErr]   = useState("");
+  const [sizeErr, setSizeErr]   = useState(""); // NEW: Local state for zero-sizes error
   const [picking, setPicking]   = useState(false);
   const [busy, setBusy]         = useState(false);
   const urlsRef                 = useRef<string[]>([]);
 
   useEffect(() => () => { urlsRef.current.forEach(URL.revokeObjectURL); }, []);
+
+  // NEW: Instantly clear the size error as soon as the user types a valid size
+  useEffect(() => {
+    const hasFilled = ws.some((s) => s.width && s.height);
+    if (hasFilled) setSizeErr("");
+  }, [ws]);
 
   const { data: sub, isLoading: subLoading, isError, error } = useGetSubmissionQuery({ jobId, subId });
 
@@ -74,7 +80,6 @@ export default function EditSubmissionPage({
     if (!sub) return;
     setExPhotos(sub.images ?? []);
     
-    // CHANGED: Map existing sizeLabels if they exist so the boxes stay properly labeled
     reset({
       location: sub.location,
       photoNo: sub.photoNo != null ? String(sub.photoNo) : "", 
@@ -82,6 +87,7 @@ export default function EditSubmissionPage({
         ? sub.sizes.map((s, i) => ({ 
             width: String(s[0]), 
             height: String(s[1]),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: (sub as any).sizeLabels?.[i]
           })) 
         : [{ width: "", height: "" }],
@@ -100,8 +106,6 @@ export default function EditSubmissionPage({
     setPicking(true);
     setPickErr("");
     try {
-      // Decode-test each photo and convert HEIC → JPEG so previews always
-      // render and compression can't crash at save (Android can't read HEIC).
       const { files: good, skipped } = await normalizePickedImages(arr);
       if (good.length) {
         urlsRef.current.forEach(URL.revokeObjectURL);
@@ -136,24 +140,35 @@ export default function EditSubmissionPage({
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const onSubmit = async (d: any) => {
     setBusy(true);
     try {
-      const uploadedImages = newFiles.length ? await uploadFiles(newFiles, jobId) : [];
-      setStep("Saving…");
-
-      // CHANGED: Filter blank arrays just like the "new" page
       let finalSizes: [number, number][] | undefined = undefined;
       let finalSizeLabels: string[] | undefined = undefined;
 
       if (showSizes && d.sizes) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const filledSizes = d.sizes.filter((s: any) => s.width && s.height);
+        
+        if (filledSizes.length === 0) {
+          // FIX: Use local state instead of hook-form's setError
+          setSizeErr("Please enter at least one complete size.");
+          setBusy(false);
+          return;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         finalSizes = filledSizes.map((s: any) => [Number(s.width), Number(s.height)]);
         
         if (isFormatB) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           finalSizeLabels = filledSizes.map((s: any) => s.label).filter(Boolean);
         }
       }
+
+      const uploadedImages = newFiles.length ? await uploadFiles(newFiles, jobId) : [];
+      setStep("Saving…");
 
       await updateSubmission({
         jobId,
@@ -163,9 +178,9 @@ export default function EditSubmissionPage({
           photoNo: Number(d.photoNo),
           sizes: finalSizes,
           sizeLabels: finalSizeLabels,
-          shopName: isFormatB ? d.shopName : undefined,
-          contactNo: isFormatB ? d.contactNo : undefined,
-          vanNo: isFormatB ? d.vanNo : undefined,
+          shopName: isFormatB ? (d.shopName || "") : undefined,
+          contactNo: isFormatB ? (d.contactNo || "") : undefined,
+          vanNo: isFormatB ? (d.vanNo || "") : undefined,
           aboveBelow: (isFormatB && isVan) ? d.aboveBelow : undefined,
           uploadedImages,
         },
@@ -230,7 +245,6 @@ export default function EditSubmissionPage({
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="px-4 pt-1 pb-26 lg:px-8 lg:pt-0 lg:pb-11 flex flex-col gap-3.5 lg:gap-5 lg:max-w-180 lg:mx-auto">
           
-          {/* Format B: Shop Name */}
           {isFormatB && (
             <div>
               <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Name of the Shop/Office/Person</div>
@@ -246,7 +260,6 @@ export default function EditSubmissionPage({
             </div>
           )}
 
-          {/* Location / Address */}
           <div>
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
               {isFormatB ? "Address" : "Wall location"}
@@ -273,7 +286,6 @@ export default function EditSubmissionPage({
             </div>
           </div>
 
-          {/* Format B: Contact No. */}
           {isFormatB && (
             <div>
               <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Contact No.</div>
@@ -289,25 +301,6 @@ export default function EditSubmissionPage({
             </div>
           )}
 
-          {/* Format B: Van No */}
-          {isFormatB && (
-            <div>
-              <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
-                Van No. {isVan ? "" : <span className="text-(--ink-4) font-medium">· optional</span>}
-              </div>
-              <div className={[inputBox, errors.vanNo ? "border-(--rejected)" : ""].join(" ")}>
-                <input
-                  {...register("vanNo", { required: isVan })}
-                  placeholder="e.g. MH01AB1234"
-                  disabled={busy}
-                  className={innerInput}
-                />
-              </div>
-              {errors.vanNo && <div className="text-[11px] text-(--rejected) mt-1.5">Van number is required for Van jobs.</div>}
-            </div>
-          )}
-
-          {/* Format B + Van ONLY: Above / Below Radio */}
           {isFormatB && isVan && (() => {
             const selectedPosition = watch("aboveBelow");
             return (
@@ -341,13 +334,11 @@ export default function EditSubmissionPage({
             );
           })()}
 
-          {/* Sizes */}
           {showSizes && (
             <div>
               <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
                 {isFormatB ? "Sizes" : "Wall sizes"} <span className="text-(--ink-4) font-medium">· at least one · in feet</span>
               </div>
-              {/* CHANGED: Passed the new props */}
               <SizesField 
                 fields={fields} 
                 register={register} 
@@ -358,11 +349,17 @@ export default function EditSubmissionPage({
                 area={area}
                 isFormatB={isFormatB}
                 jobType={job?.jobType as "Wall" | "Shutter" | "Van"} 
+                errors={errors}
               />
+              {/* FIX: Displays the un-stuck local error state */}
+              {sizeErr && (
+                <div className="text-[12px] text-(--rejected) mt-2 font-bold">
+                  {sizeErr}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Photo Number */}
           <div>
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">Photo number</div>
             <div className={[inputBox, errors.photoNo ? "border-(--rejected)" : ""].join(" ")}>
@@ -381,7 +378,6 @@ export default function EditSubmissionPage({
             </div>
           </div>
 
-          {/* Photos */}
           <div>
             <div className="text-[12px] font-semibold text-(--ink-2) mb-1.5">
               Photos <span className="text-(--ink-4) font-medium">· {totalPhotos} of 20</span>
@@ -402,13 +398,11 @@ export default function EditSubmissionPage({
             </div>
           </div>
 
-          {/* Desktop submit */}
           <div className="hidden lg:block">
             <SubmitButton busy={busy} step={step} label="Save changes" />
           </div>
         </div>
 
-        {/* Mobile fixed submit */}
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-51 px-4 pt-3 pb-7 bg-(--paper) border-t border-(--border)">
           <SubmitButton busy={busy} step={step} label="Save changes" />
         </div>
