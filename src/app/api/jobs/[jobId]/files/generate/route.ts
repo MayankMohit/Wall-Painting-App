@@ -7,13 +7,17 @@ import { withRole } from '@/lib/middleware';
 import { requireJobOwner } from '@/lib/middleware/requireJobOwner';
 import { GenerateFilesSchema } from '@/lib/validators';
 
-// Friendly download-name labels per file type: <Company>_<Label>_<DD-MM-YYYY>.<ext>
+// Friendly download-name labels per file type. Full name is
+// <Jobname>-<Label>-<DDMonYYYY-HHmm>.<ext>, e.g. Acme-Interiors-Master-Excel-07Jul2026-1432.xlsx
 const TYPE_LABELS: Record<string, string> = {
-  excel:          'Report',
-  excel_painters: 'Painter_Report',
-  pdf_file:       'PDF_Report',
+  excel:          'Master-Excel',
+  excel_painters: 'Painter-Excel',
+  pdf_file:       'File-PDF',
   pdf_photos:     'Photos',
+  pdf_excel:      'Master-PDF',
 };
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // POST — enqueue file generation for an owned job. requireJobOwner verifies ownership
 // and populates ctx.job, so we no longer trust a caller-supplied jobId blindly.
@@ -31,7 +35,14 @@ export const POST = withRole(['owner', 'admin'], { access: requireJobOwner, audi
     if (!parsed.success) {
       return badRequest(parsed.error.issues[0]?.message ?? 'Invalid request');
     }
-    const { types, ownerInput } = parsed.data;
+    // The master Excel always ships with a PDF rendering of itself. We inject the
+    // pdf_excel type server-side (it is intentionally not a user-selectable option)
+    // so selecting "Master Excel" produces both files. De-duped in case it's ever
+    // sent explicitly.
+    const types = parsed.data.types.includes('excel')
+      ? Array.from(new Set([...parsed.data.types, 'pdf_excel' as const]))
+      : parsed.data.types;
+    const { ownerInput } = parsed.data;
 
     await connectDB();
 
@@ -48,16 +59,23 @@ export const POST = withRole(['owner', 'admin'], { access: requireJobOwner, audi
         );
       }
 
-      // Human-readable download names, e.g. AcmeInteriors_Report_07-06-2026.xlsx
-      const safeCompany = job.companyName ? job.companyName.replace(/\s+/g, '_') : 'Job';
+      // Human-readable download names, e.g. Acme-Interiors-Master-Excel-07Jul2026-1432.xlsx
+      // Job name = companyName; whitespace → hyphens and filename-illegal chars stripped.
+      const safeJob = (job.companyName || 'Job')
+        .trim()
+        .replace(/[/\\:*?"<>|]/g, '')  // drop chars illegal in filenames
+        .replace(/\s+/g, '-')
+        || 'Job';
       const now = new Date();
-      const dateStr = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+      const stamp =
+        `${String(now.getDate()).padStart(2, '0')}${MONTHS[now.getMonth()]}${now.getFullYear()}` +
+        `-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
 
       const createdFiles = [];
 
       for (const type of types) {
         const ext = type.startsWith('excel') ? 'xlsx' : 'pdf';
-        const fileName = `${safeCompany}_${TYPE_LABELS[type] ?? type}_${dateStr}.${ext}`;
+        const fileName = `${safeJob}-${TYPE_LABELS[type] ?? type}-${stamp}.${ext}`;
 
         const fileDoc = await GeneratedFile.create({
           jobId,

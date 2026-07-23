@@ -10,6 +10,7 @@ import { r2 } from '@/lib/r2';
 import { STORAGE_ENV } from '@/lib/storageEnv';
 import { FILE_GEN_QUEUE } from '@/lib/queues';
 import { buildExcel, buildPainterWiseExcel } from './excelWorker';
+import { buildMasterExcelPdf } from './masterExcelPdfWorker';
 import { buildPhotosPdf } from './photosPdfWorker';
 import { buildFilePdf } from './filePdfWorker';
 
@@ -31,7 +32,7 @@ function redisConnection() {
 type Payload = {
   jobId: string;
   fileId: string;
-  type: 'excel' | 'excel_painters' | 'pdf_photos' | 'pdf_file';
+  type: 'excel' | 'excel_painters' | 'pdf_photos' | 'pdf_file' | 'pdf_excel';
   ownerId: string;
   ownerInput?: { companyName?: string; jobName?: string; city?: string; address?: string };
 };
@@ -69,6 +70,16 @@ async function main() {
           buffer = excel.buffer;
           mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
           ext = 'xlsx';
+          break;
+        }
+        case 'pdf_excel': {
+          buffer = await buildMasterExcelPdf(jobId, {
+            companyName: ownerInput.companyName || '',
+            jobName: ownerInput.jobName || '',
+            city: ownerInput.city || '',
+          });
+          mime = 'application/pdf';
+          ext = 'pdf';
           break;
         }
         case 'pdf_photos': {

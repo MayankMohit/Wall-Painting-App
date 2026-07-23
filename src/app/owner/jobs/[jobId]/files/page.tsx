@@ -17,6 +17,7 @@ import { ArrowLeft, Trash, Spark, Clock, Check, Bell, X } from '@/components/own
 const FILE_META = {
   excel:          { color: 'oklch(0.55 0.13 145)', label: 'Excel · Master List',  filterLabel: 'Master Excel' },
   excel_painters: { color: 'oklch(0.48 0.16 160)', label: 'Excel · Painter-wise', filterLabel: 'Painter Excel' },
+  pdf_excel:      { color: 'oklch(0.5 0.12 200)',  label: 'PDF · Master List',    filterLabel: 'Master PDF' },
   pdf_photos:     { color: 'oklch(0.55 0.18 25)',  label: 'Photos PDF',           filterLabel: 'Photo PDF' },
   pdf_file:       { color: 'oklch(0.5 0.12 240)',  label: 'Invoice-ready PDF',    filterLabel: 'File PDF'  },
 } as const;
@@ -39,6 +40,27 @@ function formatDate(iso: string): string {
 type FileFilter = 'all' | 'excel' | 'excel_painters' | 'pdf_photos' | 'pdf_file';
 
 const EMPTY_FILES: GeneratedFile[] = [];
+
+// Files made in one "generate" action land within a few seconds of each other.
+// Group them into batches: consecutive files (newest first) stay in the same
+// batch while the gap between them is ≤ 5 min; a larger gap starts a new batch,
+// which the UI renders with a small separation.
+const CLUSTER_GAP_MS = 5 * 60 * 1000;
+
+function clusterByTime(files: GeneratedFile[]): GeneratedFile[][] {
+  if (files.length === 0) return [];
+  const sorted = [...files].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  const clusters: GeneratedFile[][] = [[sorted[0]]];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = new Date(sorted[i - 1].createdAt).getTime();
+    const cur = new Date(sorted[i].createdAt).getTime();
+    if (prev - cur <= CLUSTER_GAP_MS) clusters[clusters.length - 1].push(sorted[i]);
+    else clusters.push([sorted[i]]);
+  }
+  return clusters;
+}
 
 // ── icons ─────────────────────────────────────────────────────────────────────
 
@@ -75,8 +97,72 @@ function EyeIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+function WhatsAppIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm0 1.67c2.2 0 4.27.86 5.83 2.41a8.2 8.2 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.25 8.24-1.5 0-2.98-.4-4.27-1.17l-.3-.18-3.12.82.83-3.04-.2-.31a8.19 8.19 0 0 1-1.26-4.36c0-4.54 3.7-8.24 8.25-8.24zm-3.5 4.44c-.16 0-.42.06-.64.3-.22.24-.85.83-.85 2.03s.87 2.36 1 2.52c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.43-.58 1.63-1.15.2-.57.2-1.05.14-1.15-.06-.1-.22-.16-.46-.28-.24-.12-1.43-.71-1.65-.79-.22-.08-.38-.12-.54.12-.16.24-.62.79-.76.95-.14.16-.28.18-.52.06-.24-.12-1.02-.38-1.94-1.2-.72-.64-1.2-1.43-1.34-1.67-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.53-1.32-.74-1.8-.19-.46-.39-.4-.54-.41-.14-.01-.3-.01-.46-.01z" />
+    </svg>
+  );
+}
+
+function MoreIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="12" cy="5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="19" r="1.6" />
+    </svg>
+  );
+}
+
 function FileTypeIcon({ type, size = 18 }: { type: GeneratedFile['fileType']; size?: number }) {
   return type.startsWith('excel') ? <ExcelIcon size={size} /> : <PdfIcon size={size} />;
+}
+
+// A single-line filename that scrolls (marquee) only when it overflows its
+// container, so the whole name is readable on narrow phone screens without
+// permanently truncating it. Short names that fit are left static.
+//
+// Uses the Web Animations API (not a CSS keyframe) so the scroll distance is the
+// exact measured overflow in px — CSS custom properties inside @keyframes are
+// unreliable on mobile browsers, which is why the pure-CSS version didn't show.
+function MarqueeName({ text, className }: { text: string; className?: string }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const el = textRef.current;
+    if (!wrap || !el) return;
+
+    let anim: Animation | null = null;
+    const update = () => {
+      const shift = el.scrollWidth - wrap.clientWidth;
+      if (anim) { anim.cancel(); anim = null; }
+      if (shift > 4) {
+        const duration = Math.max(7000, (shift / 18) * 1000); // ~18px/s, min 7s
+        anim = el.animate(
+          [
+            { transform: 'translateX(0)', offset: 0 },
+            { transform: 'translateX(0)', offset: 0.18 },            // pause at start
+            { transform: `translateX(${-shift}px)`, offset: 0.82 },  // scroll to end
+            { transform: `translateX(${-shift}px)`, offset: 1 },     // pause at end
+          ],
+          { duration, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' }
+        );
+      }
+    };
+
+    update();               // measure once now (layout is ready inside an effect)
+    const ro = new ResizeObserver(update); // re-measure on width/rotation changes
+    ro.observe(wrap);
+    ro.observe(el);
+    return () => { if (anim) anim.cancel(); ro.disconnect(); };
+  }, [text]);
+
+  return (
+    <div ref={wrapRef} className={`overflow-hidden ${className ?? ''}`}>
+      <span ref={textRef} className="inline-block whitespace-nowrap">{text}</span>
+    </div>
+  );
 }
 
 function Checkbox({ on }: { on: boolean }) {
@@ -246,6 +332,8 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
   const [filter, setFilter]               = useState<FileFilter>('all');
   const [deletingId, setDeletingId]       = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [sharingId, setSharingId]         = useState<string | null>(null);
+  const [rowMenu, setRowMenu]             = useState<{ file: GeneratedFile; top: number; right: number } | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [fakeProgress, setFakeProgress]   = useState<Record<string, number>>({});
   const [previewingId, setPreviewingId]   = useState<string | null>(null);
@@ -321,6 +409,67 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
     finally { setPreviewingId(null); }
   };
 
+  // Download the actual file bytes same-origin (avoids R2 CORS) and wrap them in a
+  // File so the OS share sheet can attach the real document to WhatsApp.
+  const fetchShareFile = async (file: GeneratedFile): Promise<File> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('wallpainter_token') : null;
+    const res = await fetch(`/api/jobs/${jobId}/files/${file._id}/raw`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!res.ok) throw new Error('Failed to fetch file');
+    const blob = await res.blob();
+    return new File([blob], file.fileName, { type: blob.type });
+  };
+
+  // Chrome's Web Share allowlist only permits certain file types. .xlsx is NOT on
+  // it (only pdf, images, audio, video, text/*), so Excel can never be attached as
+  // a real file — it must go via link. In this app the `excel*` types are the only
+  // .xlsx outputs; every other type (incl. pdf_excel) is a shareable PDF. A plain
+  // type check is more reliable than probing canShare() with a fake/empty File,
+  // which some Chromium builds reject regardless of type.
+  const canFileShare = (file: GeneratedFile): boolean => !file.fileType.startsWith('excel');
+
+  // Fallback for files the OS can't attach (Excel, or desktop with no file-share
+  // support): share a WhatsApp download link instead.
+  const shareLinkFallback = async (files: GeneratedFile[]) => {
+    const blocks: string[] = [];
+    for (const f of files) {
+      try {
+        const res = await getDownloadUrl({ jobId, fileId: f._id }).unwrap();
+        blocks.push(`${f.fileName}\n${res.url}`);
+      } catch { /* skip */ }
+    }
+    if (blocks.length) {
+      window.open(`https://wa.me/?text=${encodeURIComponent(blocks.join('\n\n'))}`, '_blank');
+    }
+  };
+
+  // Share a single file: attach the real document via the native share sheet.
+  const handleShare = async (file: GeneratedFile) => {
+    if (sharingId) return;
+    setSharingId(file._id);
+    try {
+      // Excel can't be attached (Chrome allowlist) — go straight to link, no fetch.
+      if (!canFileShare(file)) {
+        await shareLinkFallback([file]);
+        return;
+      }
+      const shareFile = await fetchShareFile(file);
+      if (navigator.canShare?.({ files: [shareFile] })) {
+        await navigator.share({ files: [shareFile], title: file.fileName });
+      } else {
+        await shareLinkFallback([file]);
+      }
+    } catch (e) {
+      // User dismissing the share sheet throws AbortError — ignore it.
+      if ((e as Error)?.name !== 'AbortError') {
+        try { await shareLinkFallback([file]); } catch { /* silent */ }
+      }
+    } finally {
+      setSharingId(null);
+    }
+  };
+
   const handleDelete = async (fileId: string) => {
     setDeletingId(fileId);
     try { await deleteFile({ jobId, fileId }).unwrap(); }
@@ -361,6 +510,44 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
     }
   };
 
+  // Share several files at once: attach the real documents to a single share so the
+  // recipient gets them all in one WhatsApp chat.
+  const handleBulkShare = async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      const chosen = displayedFiles.filter((f) => selected.has(f._id));
+      // Partition: PDFs (and other allowlisted types) attach as real files; Excel
+      // can't be attached by Chrome, so a single .xlsx must not force the whole
+      // batch to links. Route the shareable ones to the native share sheet and the
+      // rest (Excel) to a link.
+      const shareable = chosen.filter(canFileShare);
+      const linkOnly  = chosen.filter((f) => !canFileShare(f));
+
+      // Fetch shareable bytes in PARALLEL (sequential fetches expire the transient
+      // user-activation window navigator.share() needs, which silently drops us to
+      // the link path once enough files are selected).
+      const results = await Promise.allSettled(shareable.map((f) => fetchShareFile(f)));
+      const shareFiles = results
+        .filter((r): r is PromiseFulfilledResult<File> => r.status === 'fulfilled')
+        .map((r) => r.value);
+
+      if (shareFiles.length && navigator.canShare?.({ files: shareFiles })) {
+        await navigator.share({ files: shareFiles, title: 'Files' });
+        // Excel can't ride along in the file share — send those as links after.
+        if (linkOnly.length) await shareLinkFallback(linkOnly);
+      } else {
+        await shareLinkFallback(chosen);
+      }
+    } catch (e) {
+      if ((e as Error)?.name !== 'AbortError') {
+        try { await shareLinkFallback(displayedFiles.filter((f) => selected.has(f._id))); } catch { /* silent */ }
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const handleBulkDelete = async () => {
     setBulkBusy(true);
     try {
@@ -394,6 +581,7 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
   ];
 
   const displayedFiles = readyFiles.filter((f: GeneratedFile) => filter === 'all' || f.fileType === filter);
+  const clusters = clusterByTime(displayedFiles);
 
   function FilterChips({ desktop }: { desktop?: boolean }) {
     return (
@@ -486,29 +674,35 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
           const displayedIds = displayedFiles.map((f) => f._id);
           const allSelected = displayedIds.length > 0 && displayedIds.every((id) => selected.has(id));
           return (
-            <div className="flex items-center justify-between min-h-9 py-1">
+            <div className="flex items-center min-h-9 py-1">
               {!selectMode ? (
                 <button
                   onClick={() => { setSelectMode(true); setSelected(new Set()); }}
-                  className="text-[13px] font-semibold text-(--accent-deep) bg-transparent border-0 cursor-pointer hover:opacity-75 transition-opacity py-1.5 pr-2"
+                  className="ml-auto inline-flex items-center h-9 px-4 rounded-full text-[13px] font-bold text-(--ink) bg-(--surface) border border-(--border-2) hover:border-(--border-3) transition-colors cursor-pointer"
                 >
-                  Select
+                  Select Files
                 </button>
               ) : (
                 <>
-                  <span className="text-[13px] font-semibold text-(--ink-2) py-1.5">
+                  <span className="text-[13px] font-bold text-(--ink-2)">
                     {selected.size} selected
                   </span>
-                  <div className="flex items-center gap-4">
+                  <div className="ml-auto flex items-center gap-2">
                     <button
                       onClick={() => setSelected(allSelected ? new Set() : new Set(displayedIds))}
-                      className="text-[13px] font-semibold text-(--accent-deep) bg-transparent border-0 cursor-pointer hover:opacity-75 transition-opacity py-1.5"
+                      className="inline-flex items-center gap-2 h-9 pl-3 pr-4 rounded-full text-[13px] font-bold text-(--ink) border cursor-pointer transition-colors"
+                      style={{
+                        borderColor: allSelected ? 'var(--accent)' : 'var(--border-2)',
+                        background: allSelected ? 'var(--accent-soft)' : 'var(--surface)',
+                      }}
                     >
+                      <Checkbox on={allSelected} />
                       {allSelected ? 'Clear all' : 'Select all'}
                     </button>
                     <button
                       onClick={exitSelect}
-                      className="text-[13px] font-semibold text-(--ink-3) bg-transparent border-0 cursor-pointer hover:opacity-75 transition-opacity py-1.5"
+                      className="inline-flex items-center h-9 px-4 rounded-full text-[13px] font-bold text-white border-0 cursor-pointer transition-opacity hover:opacity-88"
+                      style={{ background: 'var(--rejected)' }}
                     >
                       Cancel
                     </button>
@@ -519,128 +713,135 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
           );
         })()}
 
-        {/* Mobile list */}
+        {/* Mobile list — one bordered card per time-batch, separated by a gap */}
         {displayedFiles.length > 0 && (
-          <div className="lg:hidden overflow-hidden rounded-(--r-md) border border-(--border)" style={{ background: 'var(--surface)' }}>
-            {displayedFiles.map((f) => {
-              const meta = FILE_META[f.fileType];
-              const sel  = selected.has(f._id);
-              return (
-                <div
-                  key={f._id}
-                  onClick={selectMode ? () => toggleSelect(f._id) : undefined}
-                  className={`flex items-center gap-3 px-4 py-3 border-b border-(--border) last:border-0 ${selectMode ? 'cursor-pointer' : ''}`}
-                  style={selectMode && sel ? { background: 'var(--accent-soft)' } : undefined}
-                >
-                  {selectMode ? (
-                    <div className="w-10 flex items-center justify-center shrink-0"><Checkbox on={sel} /></div>
-                  ) : (
-                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: meta.color }}>
-                      <FileTypeIcon type={f.fileType} size={18} />
+          <div className="lg:hidden space-y-2.5">
+            {clusters.map((cluster, ci) => (
+              <div key={ci} className="overflow-hidden rounded-(--r-md) border border-(--border)" style={{ background: 'var(--surface)' }}>
+                {cluster.map((f) => {
+                  const meta = FILE_META[f.fileType];
+                  const sel  = selected.has(f._id);
+                  return (
+                    <div
+                      key={f._id}
+                      onClick={selectMode ? () => toggleSelect(f._id) : () => handlePreview(f)}
+                      className="flex items-center gap-3 px-4 py-3 border-b border-(--border) last:border-0 cursor-pointer"
+                      style={selectMode && sel ? { background: 'var(--accent-soft)' } : undefined}
+                    >
+                      {selectMode ? (
+                        <div className="w-10 flex items-center justify-center shrink-0"><Checkbox on={sel} /></div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: meta.color }}>
+                          <FileTypeIcon type={f.fileType} size={18} />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <MarqueeName text={f.fileName} className="text-[13px] font-semibold text-(--ink)" />
+                        <div className="text-[11px] text-(--ink-3) mt-0.5">
+                          <span className="font-(--mono)">{formatSize(f.fileSize)}</span> · {formatDate(f.createdAt)}
+                        </div>
+                      </div>
+                      {!selectMode && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const r = e.currentTarget.getBoundingClientRect();
+                            setRowMenu({ file: f, top: r.bottom + 6, right: window.innerWidth - r.right });
+                          }}
+                          className="w-9 h-9 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer shrink-0"
+                          aria-label="File actions"
+                        >
+                          <MoreIcon size={18} />
+                        </button>
+                      )}
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-(--ink) truncate">{f.fileName}</div>
-                    <div className="text-[11px] text-(--ink-3) mt-0.5">
-                      <span className="font-(--mono)">{formatSize(f.fileSize)}</span> · {formatDate(f.createdAt)}
-                    </div>
-                  </div>
-                  {!selectMode && <>
-                  <button
-                    onClick={() => handlePreview(f)}
-                    disabled={!!previewingId}
-                    className="w-9 h-9 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40 shrink-0"
-                  >
-                    {previewingId === f._id
-                      ? <span className="w-3.5 h-3.5 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
-                      : <EyeIcon size={16} />}
-                  </button>
-                  <button
-                    onClick={() => handleDownload(f)}
-                    disabled={!!downloadingId}
-                    className="w-9 h-9 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40 shrink-0"
-                  >
-                    {downloadingId === f._id
-                      ? <span className="w-3.5 h-3.5 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
-                      : <DownloadIcon size={16} />}
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirmId(f._id)}
-                    className="w-9 h-9 flex items-center justify-center rounded-full border border-(--border-2) hover:border-(--border-3) transition-colors cursor-pointer shrink-0"
-                    style={{ color: 'var(--rejected)' }}
-                  >
-                    <Trash size={15} />
-                  </button>
-                  </>}
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Desktop table */}
+        {/* Desktop table — one bordered card per time-batch, separated by a gap */}
         {displayedFiles.length > 0 && (
-          <div className="hidden lg:block overflow-hidden rounded-(--r-md) border border-(--border)" style={{ background: 'var(--surface)' }}>
-            <div
-              className="grid px-5 py-3 border-b border-(--border) text-[11px] font-bold uppercase tracking-wider text-(--ink-3)"
-              style={{ gridTemplateColumns: '52px 2fr 110px 160px 130px', background: 'var(--paper-2)' }}
-            >
-              <div /><div>Name</div><div>Size</div><div>Generated</div><div className="text-right">Actions</div>
-            </div>
-            {displayedFiles.map((f) => {
-              const meta = FILE_META[f.fileType];
-              const sel  = selected.has(f._id);
-              return (
-                <div
-                  key={f._id}
-                  onClick={selectMode ? () => toggleSelect(f._id) : undefined}
-                  className={`grid items-center px-5 py-3 border-b border-(--border) last:border-0 ${selectMode ? 'cursor-pointer' : ''}`}
-                  style={{ gridTemplateColumns: '52px 2fr 110px 160px 130px', ...(selectMode && sel ? { background: 'var(--accent-soft)' } : {}) }}
-                >
-                  {selectMode ? (
-                    <div className="w-9.5 h-9.5 flex items-center justify-center"><Checkbox on={sel} /></div>
-                  ) : (
-                    <div className="w-9.5 h-9.5 rounded-lg flex items-center justify-center text-white" style={{ background: meta.color }}>
-                      <FileTypeIcon type={f.fileType} size={18} />
+          <div className="hidden lg:block space-y-2.5">
+            {clusters.map((cluster, ci) => (
+              <div key={ci} className="overflow-hidden rounded-(--r-md) border border-(--border)" style={{ background: 'var(--surface)' }}>
+                {ci === 0 && (
+                  <div
+                    className="grid px-5 py-3 border-b border-(--border) text-[11px] font-bold uppercase tracking-wider text-(--ink-3)"
+                    style={{ gridTemplateColumns: '52px 2fr 110px 160px 130px', background: 'var(--paper-2)' }}
+                  >
+                    <div /><div>Name</div><div>Size</div><div>Generated</div><div className="text-right">Actions</div>
+                  </div>
+                )}
+                {cluster.map((f) => {
+                  const meta = FILE_META[f.fileType];
+                  const sel  = selected.has(f._id);
+                  return (
+                    <div
+                      key={f._id}
+                      onClick={selectMode ? () => toggleSelect(f._id) : () => handlePreview(f)}
+                      className="grid items-center px-5 py-3 border-b border-(--border) last:border-0 cursor-pointer"
+                      style={{ gridTemplateColumns: '52px 2fr 110px 160px 130px', ...(selectMode && sel ? { background: 'var(--accent-soft)' } : {}) }}
+                    >
+                      {selectMode ? (
+                        <div className="w-9.5 h-9.5 flex items-center justify-center"><Checkbox on={sel} /></div>
+                      ) : (
+                        <div className="w-9.5 h-9.5 rounded-lg flex items-center justify-center text-white" style={{ background: meta.color }}>
+                          <FileTypeIcon type={f.fileType} size={18} />
+                        </div>
+                      )}
+                      <div className="text-[13px] font-semibold text-(--ink) truncate pr-4">{f.fileName}</div>
+                      <div className="text-[13px] text-(--ink-2) font-(--mono)">{formatSize(f.fileSize)}</div>
+                      <div className="text-[13px] text-(--ink-3)">{formatDate(f.createdAt)}</div>
+                      {selectMode ? (
+                        <div />
+                      ) : (
+                        <div className="flex items-center gap-1.5 justify-end" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => handlePreview(f)}
+                            disabled={!!previewingId}
+                            className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40"
+                          >
+                            {previewingId === f._id
+                              ? <span className="w-3 h-3 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
+                              : <EyeIcon size={16} />}
+                          </button>
+                          <button
+                            onClick={() => handleDownload(f)}
+                            disabled={!!downloadingId}
+                            className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40"
+                          >
+                            {downloadingId === f._id
+                              ? <span className="w-3 h-3 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
+                              : <DownloadIcon size={16} />}
+                          </button>
+                          <button
+                            onClick={() => handleShare(f)}
+                            disabled={!!sharingId}
+                            className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40"
+                            style={{ color: '#25D366' }}
+                            aria-label="Share to WhatsApp"
+                          >
+                            {sharingId === f._id
+                              ? <span className="w-3 h-3 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
+                              : <WhatsAppIcon size={16} />}
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(f._id)}
+                            className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) hover:border-(--border-3) transition-colors cursor-pointer"
+                            style={{ color: 'var(--rejected)' }}
+                          >
+                            <Trash size={15} />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <div className="text-[13px] font-semibold text-(--ink) truncate pr-4">{f.fileName}</div>
-                  <div className="text-[13px] text-(--ink-2) font-(--mono)">{formatSize(f.fileSize)}</div>
-                  <div className="text-[13px] text-(--ink-3)">{formatDate(f.createdAt)}</div>
-                  {selectMode ? (
-                    <div />
-                  ) : (
-                    <div className="flex items-center gap-1.5 justify-end">
-                      <button
-                        onClick={() => handlePreview(f)}
-                        disabled={!!previewingId}
-                        className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40"
-                      >
-                        {previewingId === f._id
-                          ? <span className="w-3 h-3 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
-                          : <EyeIcon size={16} />}
-                      </button>
-                      <button
-                        onClick={() => handleDownload(f)}
-                        disabled={!!downloadingId}
-                        className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) text-(--ink-2) hover:border-(--border-3) transition-colors cursor-pointer disabled:opacity-40"
-                      >
-                        {downloadingId === f._id
-                          ? <span className="w-3 h-3 rounded-full border-[1.5px] border-(--ink-3) border-t-transparent animate-spin" />
-                          : <DownloadIcon size={16} />}
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirmId(f._id)}
-                        className="w-8.5 h-8.5 flex items-center justify-center rounded-full border border-(--border-2) hover:border-(--border-3) transition-colors cursor-pointer"
-                        style={{ color: 'var(--rejected)' }}
-                      >
-                        <Trash size={15} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            ))}
           </div>
         )}
 
@@ -680,6 +881,43 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
         )}
       </div>
 
+      {/* ══ Mobile per-file action menu ══════════════════════════════ */}
+      {rowMenu && (
+        <div className="lg:hidden fixed inset-0 z-50" onClick={() => setRowMenu(null)}>
+          <div
+            className="absolute w-44 rounded-(--r-md) border border-(--border) shadow-(--shadow) overflow-hidden py-1"
+            style={{ top: rowMenu.top, right: rowMenu.right, background: 'var(--surface)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => { const f = rowMenu.file; setRowMenu(null); handlePreview(f); }}
+              className="w-full flex items-center gap-3 px-4 h-11 text-[14px] font-semibold text-(--ink) hover:bg-(--paper-2) transition-colors cursor-pointer bg-transparent border-0"
+            >
+              <EyeIcon size={17} /> Preview
+            </button>
+            <button
+              onClick={() => { const f = rowMenu.file; setRowMenu(null); handleDownload(f); }}
+              className="w-full flex items-center gap-3 px-4 h-11 text-[14px] font-semibold text-(--ink) hover:bg-(--paper-2) transition-colors cursor-pointer bg-transparent border-0"
+            >
+              <DownloadIcon size={17} /> Download
+            </button>
+            <button
+              onClick={() => { const f = rowMenu.file; setRowMenu(null); handleShare(f); }}
+              className="w-full flex items-center gap-3 px-4 h-11 text-[14px] font-semibold text-(--ink) hover:bg-(--paper-2) transition-colors cursor-pointer bg-transparent border-0"
+            >
+              <span style={{ color: '#25D366', display: 'inline-flex' }}><WhatsAppIcon size={17} /></span> Share
+            </button>
+            <button
+              onClick={() => { const id = rowMenu.file._id; setRowMenu(null); setDeleteConfirmId(id); }}
+              className="w-full flex items-center gap-3 px-4 h-11 text-[14px] font-semibold hover:bg-(--paper-2) transition-colors cursor-pointer bg-transparent border-0 border-t border-(--border)"
+              style={{ color: 'var(--rejected)' }}
+            >
+              <Trash size={16} /> Delete
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ══ Bulk action bar ══════════════════════════════════════════ */}
       {selectMode && selected.size > 0 && (
         <div className="fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-2 py-2 rounded-full shadow-(--shadow)"
@@ -695,6 +933,15 @@ export default function FilesPage({ params }: { params: Promise<{ jobId: string 
               ? <span className="w-3.5 h-3.5 rounded-full border-[1.5px] border-white/40 border-t-white animate-spin" />
               : <DownloadIcon size={15} />}
             Download
+          </button>
+          <button
+            onClick={handleBulkShare}
+            disabled={bulkBusy}
+            className="flex items-center gap-1.5 h-9 px-4 rounded-full text-[13px] font-semibold cursor-pointer disabled:opacity-50 transition-opacity"
+            style={{ background: '#25D366', color: '#fff' }}
+          >
+            <WhatsAppIcon size={15} />
+            Share
           </button>
           <button
             onClick={() => setBulkDeleteConfirm(true)}

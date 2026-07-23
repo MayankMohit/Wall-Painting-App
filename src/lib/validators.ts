@@ -165,7 +165,7 @@ export const OwnerInputSchema = z.object({
 });
 
 export const GenerateFilesSchema = z.object({
-  types: z.array(z.enum(['excel', 'excel_painters', 'pdf_file', 'pdf_photos']))
+  types: z.array(z.enum(['excel', 'excel_painters', 'pdf_file', 'pdf_photos', 'pdf_excel']))
     .min(1, { error: 'Please select at least one valid file type to generate.' }),
   ownerInput: OwnerInputSchema.optional(),
 });

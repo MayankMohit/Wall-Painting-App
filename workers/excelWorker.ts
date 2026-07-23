@@ -5,7 +5,7 @@ import { buildMasterSheet } from './layouts/excelLayout';
 import { buildPainterSections } from './layouts/painterExcelLayout';
 
 // Shared data fetcher
-async function fetchJobData(jobId: string) {
+export async function fetchJobData(jobId: string) {
   const jobDoc = await Job.findById(jobId).populate('painters', 'name').lean();
   const actualJobName = jobDoc?.companyName || 'UNKNOWN JOB';
   

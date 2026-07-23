@@ -50,6 +50,14 @@ export const r2 = {
     return key;
   },
 
+  // Fetch the raw object bytes (used to stream a file same-origin so the browser
+  // can build a real File for the Web Share API without hitting R2 CORS).
+  getObjectBuffer: async (key: string): Promise<Buffer> => {
+    const res = await getS3Client().send(new GetObjectCommand({ Bucket: getBucket(), Key: key }));
+    const bytes = await res.Body!.transformToByteArray();
+    return Buffer.from(bytes);
+  },
+
   getSignedPreviewUrl: async (key: string) => {
     const command = new GetObjectCommand({ Bucket: getBucket(), Key: key });
     return getSignedUrl(getS3Client(), command, { expiresIn: 3600 });

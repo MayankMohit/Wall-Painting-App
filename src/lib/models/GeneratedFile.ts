@@ -3,7 +3,7 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 export interface IGeneratedFile extends Document {
   _id: Types.ObjectId;
   jobId: Types.ObjectId;
-  fileType: 'excel' | 'excel_painters' | 'pdf_file' | 'pdf_photos';
+  fileType: 'excel' | 'excel_painters' | 'pdf_file' | 'pdf_photos' | 'pdf_excel';
   fileName: string;
   r2Path?: string;
   r2Url?: string;
@@ -20,7 +20,7 @@ export interface IGeneratedFile extends Document {
 const GeneratedFileSchema = new Schema<IGeneratedFile>(
   {
     jobId: { type: Schema.Types.ObjectId, ref: 'Job', required: true },
-    fileType: { type: String, enum: ['excel', 'excel_painters', 'pdf_file', 'pdf_photos'], required: true },
+    fileType: { type: String, enum: ['excel', 'excel_painters', 'pdf_file', 'pdf_photos', 'pdf_excel'], required: true },
     fileName: { type: String, required: true },
     
     r2Path: { type: String },
